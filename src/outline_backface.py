@@ -68,6 +68,14 @@ def build_group(mat):
     thickness.subtype = "DISTANCE"
     thickness.default_value = 0.03
     thickness.min_value = 0.0
+    # Field : dans le modifier, l'icône attribut permet de choisir un vertex group.
+    weight = ng.interface.new_socket("Poids", in_out="INPUT", socket_type="NodeSocketFloat")
+    weight.structure_type = "FIELD"
+    weight.subtype = "FACTOR"
+    weight.default_value = 1.0
+    weight.min_value = 0.0
+    weight.max_value = 1.0
+    weight.description = "Multiplie l'épaisseur. Choisir un vertex group via l'icône attribut ; 0 = pas de contour"
     material = ng.interface.new_socket("Materiau", in_out="INPUT", socket_type="NodeSocketMaterial")
     material.default_value = mat
     ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
@@ -78,8 +86,22 @@ def build_group(mat):
     gout = n.new("NodeGroupOutput")
     gout.location = (600, 0)
 
+    # Pas de coque là où le poids est nul : elle se confondrait avec la surface.
+    no_weight = n.new("FunctionNodeCompare")
+    no_weight.data_type = "FLOAT"
+    no_weight.operation = "LESS_EQUAL"
+    no_weight.inputs["B"].default_value = 0.0001
+    no_weight.location = (-600, 200)
+    delete = n.new("GeometryNodeDeleteGeometry")
+    delete.domain = "POINT"
+    delete.location = (-400, 100)
+
     normal = n.new("GeometryNodeInputNormal")
     normal.location = (-600, -200)
+    weighted = n.new("ShaderNodeMath")
+    weighted.operation = "MULTIPLY"
+    weighted.location = (-600, -350)
+    weighted.label = "Epaisseur x Poids"
     scale = n.new("ShaderNodeVectorMath")
     scale.operation = "SCALE"
     scale.location = (-400, -200)
@@ -95,9 +117,14 @@ def build_group(mat):
     join.location = (400, 0)
 
     L = ng.links.new
+    L(gin.outputs["Poids"], no_weight.inputs["A"])
+    L(gin.outputs["Geometry"], delete.inputs["Geometry"])
+    L(no_weight.outputs["Result"], delete.inputs["Selection"])
+    L(gin.outputs["Epaisseur"], weighted.inputs[0])
+    L(gin.outputs["Poids"], weighted.inputs[1])
     L(normal.outputs["Normal"], scale.inputs[0])
-    L(gin.outputs["Epaisseur"], scale.inputs["Scale"])
-    L(gin.outputs["Geometry"], set_pos.inputs["Geometry"])
+    L(weighted.outputs["Value"], scale.inputs["Scale"])
+    L(delete.outputs["Geometry"], set_pos.inputs["Geometry"])
     L(scale.outputs["Vector"], set_pos.inputs["Offset"])
     L(set_pos.outputs["Geometry"], flip.inputs["Mesh"])
     L(flip.outputs["Mesh"], set_mat.inputs["Geometry"])
@@ -117,17 +144,32 @@ def mark_asset(ng):
     data.description = (
         "Contour par backface culling (inverted hull). Gonfle une copie du mesh, "
         "retourne ses faces et ne garde que les faces arrière. EEVEE et Cycles. "
+        "Poids : vertex group qui module l'épaisseur. "
         "A mettre en dernier modifier ; masquer à la caméra les objets des booléens."
     )
-    for tag in ("outline", "contour", "npr", "toon", "inverted hull", "backface culling"):
+    for tag in ("outline", "contour", "npr", "toon", "inverted hull", "backface culling", "vertex weight"):
         data.tags.new(tag, skip_if_exists=True)
 
 
+def modifier_input(mod, name):
+    item = mod.node_group.interface.items_tree[name]
+    return getattr(mod.properties.inputs, item.identifier)
+
+
 def build_demo(ng):
-    """Suzanne avec le contour : sert d'aperçu et de scène d'exemple dans le fichier."""
+    """Suzanne avec le contour : sert d'aperçu et de scène d'exemple dans le fichier.
+
+    Le vertex group « Contour » va de 0 (menton) à 1 (haut du crâne) : le trait
+    s'épaissit vers le haut.
+    """
     bpy.ops.mesh.primitive_monkey_add(size=2.0)
     demo = bpy.context.active_object
     demo.name = "Demo Outline"
+    zs = [v.co.z for v in demo.data.vertices]
+    z_min, z_max = min(zs), max(zs)
+    group = demo.vertex_groups.new(name="Contour")
+    for v in demo.data.vertices:
+        group.add([v.index], (v.co.z - z_min) / (z_max - z_min), "REPLACE")
     demo.modifiers.new("Subdivision", "SUBSURF").levels = 2
     bpy.ops.object.shade_smooth()
     body = bpy.data.materials.new("Demo Citrouille")
@@ -135,7 +177,12 @@ def build_demo(ng):
     bsdf = body.node_tree.nodes.get("Principled BSDF")
     bsdf.inputs["Base Color"].default_value = (1.0, 0.35, 0.02, 1.0)
     demo.data.materials.append(body)
-    demo.modifiers.new("Outline", "NODES").node_group = ng
+    outline = demo.modifiers.new("Outline", "NODES")
+    outline.node_group = ng
+    modifier_input(outline, "Epaisseur").value = 0.06
+    weight = modifier_input(outline, "Poids")
+    weight.type = "ATTRIBUTE"
+    weight.attribute_name = "Contour"
 
     bpy.ops.object.camera_add(location=(0, -6.5, 0.3), rotation=(1.53, 0, 0))
     scene = bpy.context.scene

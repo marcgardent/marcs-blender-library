@@ -13,7 +13,7 @@
       },
       "thumbnail": {
         "url": "assets/geometry_nodes/outline_backface_thumbnails/Nodetree/outline-backface.webp",
-        "hash": "SHA256:19af45d36a8d878f886811872173ec2b2b92c79215f78e099992e0a8ae1288f0"
+        "hash": "SHA256:5736c0ef03cad5686e019c41cd757387135d84f5f8cf861efc03d72229a677ae"
       },
       "meta": {
         "catalog_id": "50bb5659-02be-406f-9c02-87b386b9944f",
@@ -23,10 +23,11 @@
           "npr",
           "toon",
           "inverted hull",
-          "backface culling"
+          "backface culling",
+          "vertex weight"
         ],
         "author": "Marc Gardent",
-        "description": "Contour par backface culling (inverted hull). Gonfle une copie du mesh, retourne ses faces et ne garde que les faces arri\u00e8re. EEVEE et Cycles. A mettre en dernier modifier ; masquer \u00e0 la cam\u00e9ra les objets des bool\u00e9ens.",
+        "description": "Contour par backface culling (inverted hull). Gonfle une copie du mesh, retourne ses faces et ne garde que les faces arri\u00e8re. EEVEE et Cycles. Poids : vertex group qui module l'\u00e9paisseur. A mettre en dernier modifier ; masquer \u00e0 la cam\u00e9ra les objets des bool\u00e9ens.",
         "properties": [
           {
             "name": "type",
@@ -45,8 +46,8 @@
   "files": [
     {
       "path": "assets/geometry_nodes/outline_backface.blend",
-      "size_in_bytes": 157917,
-      "hash": "SHA256:bd1da9419caf04680c4e5f5f1b28224dfb8103e7c46a5949c19c73c4addea4bb",
+      "size_in_bytes": 161855,
+      "hash": "SHA256:ea27f4aaad47230d45ee34bff800699d294cae506ac29a24e33d9ad16cd686ab",
       "blender_version": "5.2.45"
     }
   ]

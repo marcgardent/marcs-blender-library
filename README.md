@@ -42,7 +42,12 @@ des normales, faces retournées, avec le matériau `Outline` qui ne garde que le
 faces arrière. Marche en EEVEE et en Cycles (le culling est refait dans le shader,
 et la coque n'est visible que depuis la caméra).
 
-- Entrées : **Epaisseur** (0,03 par défaut), **Materiau** (`Outline`, noir).
+- Entrées : **Epaisseur** (0,03 par défaut), **Poids**, **Materiau** (`Outline`, noir).
+- **Poids** multiplie l'épaisseur (1 par défaut). Pour le piloter par un vertex group :
+  dans le modifier, cliquer l'icône attribut à droite de *Poids* et taper le nom du
+  vertex group. Poids 0 = pas de contour. Un nom de vertex group inexistant donne 0
+  partout, donc plus de contour du tout. L'aperçu ci-dessous utilise un vertex group
+  qui va de 0 au menton à 1 en haut du crâne.
 - À mettre en dernier dans la pile de modifiers.
 - Si l'objet a des booléens, masquer leurs objets à la caméra (Object > Visibility >
   Ray Visibility > Camera), sinon ils recouvrent le contour.
