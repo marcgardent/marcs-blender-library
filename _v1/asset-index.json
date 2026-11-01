@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "asset_size_bytes": 157917,
+  "asset_count": 1,
+  "file_count": 1,
+  "pages": [
+    {
+      "url": "_v1/assets-00000.json",
+      "hash": "SHA256:3069090064ee1ec43a6624f4564ed794d50edf39cabdf4091154ca799efedd9a"
+    }
+  ],
+  "catalogs": [
+    {
+      "path": "Geometry Nodes",
+      "uuids": [
+        "f5375e3e-dc8d-4fe6-949c-6f0dc80a45bf"
+      ],
+      "simple_name": "Geometry Nodes"
+    },
+    {
+      "path": "Geometry Nodes/Outline",
+      "uuids": [
+        "50bb5659-02be-406f-9c02-87b386b9944f"
+      ],
+      "simple_name": "Geometry Nodes-Outline"
+    }
+  ]
+}

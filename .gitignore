@@ -3,3 +3,4 @@
 *.blend@
 __pycache__/
 *.pyc
+.last_modified

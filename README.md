@@ -3,7 +3,19 @@
 Bibliothèque d'assets Blender perso, déclarée dans Blender (Préférences > File Paths >
 Asset Libraries) sous le nom **Marc's Blender Library**, import en *Append*.
 
-## Installation
+## Library distante (Blender 5.2+)
+
+Endpoint officiel de library distante Blender, publié par GitHub Pages :
+
+```
+https://marcgardent.github.io/marcs-blender-library/
+```
+
+Dans Blender : Préférences > File Paths > Asset Libraries > `+` > **Add Remote Asset
+Library**, coller l'URL. Blender télécharge l'index et les assets à la demande, rien à
+cloner.
+
+## Installation locale (clone git)
 
 ```bash
 git lfs install
@@ -42,18 +54,24 @@ Ajout : Add Modifier > Geometry Nodes > Outline, ou glisser depuis l'Asset Brows
 
 ```
 blender_assets.cats.txt   catalogues de la library
-assets/                   fichiers .blend des assets (Git LFS)
-previews/                 aperçus PNG (Git LFS)
+assets/                   fichiers .blend des assets et leurs vignettes (Git LFS)
+previews/                 aperçus PNG pour ce README (Git LFS)
 src/                      scripts qui génèrent les assets
-install.py                déclare la library dans Blender
+install.py                déclare la library locale dans Blender
+_asset-library-meta.json  point d'entrée de l'endpoint distant (nom, contact)
+_v1/                      index de l'endpoint, généré par Blender
+.github/workflows/        publication de l'endpoint sur GitHub Pages
 ```
 
 ## Reconstruire un asset
 
-Les `.blend` sont générés par les scripts de `src/` :
+Les `.blend` sont générés par les scripts de `src/`. Après tout changement d'asset,
+régénérer l'index de l'endpoint (sinon les hash ne correspondent plus et Blender refuse
+le téléchargement) :
 
 ```bash
 blender -b --factory-startup --python src/outline_backface.py
+blender -b -c asset_listing generate .
 ```
 
 ## Sauvegarde

@@ -1,0 +1,53 @@
+{
+  "asset_count": 1,
+  "file_count": 1,
+  "assets": [
+    {
+      "name": "Outline Backface",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/outline_backface.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/outline_backface_thumbnails/Nodetree/outline-backface.webp",
+        "hash": "SHA256:19af45d36a8d878f886811872173ec2b2b92c79215f78e099992e0a8ae1288f0"
+      },
+      "meta": {
+        "catalog_id": "50bb5659-02be-406f-9c02-87b386b9944f",
+        "tags": [
+          "outline",
+          "contour",
+          "npr",
+          "toon",
+          "inverted hull",
+          "backface culling"
+        ],
+        "author": "Marc Gardent",
+        "description": "Contour par backface culling (inverted hull). Gonfle une copie du mesh, retourne ses faces et ne garde que les faces arri\u00e8re. EEVEE et Cycles. A mettre en dernier modifier ; masquer \u00e0 la cam\u00e9ra les objets des bool\u00e9ens.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 64
+          }
+        ]
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "assets/geometry_nodes/outline_backface.blend",
+      "size_in_bytes": 157917,
+      "hash": "SHA256:bd1da9419caf04680c4e5f5f1b28224dfb8103e7c46a5949c19c73c4addea4bb",
+      "blender_version": "5.2.45"
+    }
+  ]
+}

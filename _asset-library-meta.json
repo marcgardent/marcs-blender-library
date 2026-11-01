@@ -1,0 +1,13 @@
+{
+  "api_versions": {
+    "v1": {
+      "url": "_v1/asset-index.json",
+      "hash": "SHA256:db178733e591cf70d0ce089f2398691f2910507f95bdc5efe0a1c798e76e553d"
+    }
+  },
+  "name": "Marc's Blender Library",
+  "contact": {
+    "name": "Marc Gardent",
+    "url": "https://github.com/marcgardent/marcs-blender-library"
+  }
+}
