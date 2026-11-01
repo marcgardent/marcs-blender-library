@@ -3,6 +3,18 @@
 Bibliothèque d'assets Blender perso, déclarée dans Blender (Préférences > File Paths >
 Asset Libraries) sous le nom **Marc's Blender Library**, import en *Append*.
 
+## Installation
+
+```bash
+git lfs install
+git clone git@github.com:marcgardent/marcs-blender-library.git ~/marcs-blender-library
+blender -b --python ~/marcs-blender-library/install.py
+```
+
+Blender déjà ouvert : onglet Scripting > Open > `install.py` > Run Script, la library
+apparaît tout de suite. Sinon, à la main : Préférences > File Paths > Asset Libraries >
+`+`, choisir le dossier, Import Method *Append*.
+
 ## Assets
 
 | Asset | Type | Catalogue | Fichier |
@@ -33,6 +45,7 @@ blender_assets.cats.txt   catalogues de la library
 assets/                   fichiers .blend des assets (Git LFS)
 previews/                 aperçus PNG (Git LFS)
 src/                      scripts qui génèrent les assets
+install.py                déclare la library dans Blender
 ```
 
 ## Reconstruire un asset
