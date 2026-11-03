@@ -31,6 +31,15 @@ apparaissent ensuite dans Get Extensions, à installer en un clic.
 |---|---|---|
 | Quick Flatten Axis | 4.2+ | Edit Mode : Ctrl+Alt+X/Y/Z aplatit la sélection sur l'axe, Ctrl+Alt+M la ramène à un point et fusionne |
 | Constant Brush Size | 5.0+ | Texture Paint : sidebar (N) > Tool, garde la taille physique du pinceau quand on zoome |
+| Grease Pencil Clean Overlaps | 4.3+ | Edit Mode Grease Pencil : Stroke > Clean Up > Clean Overlapping Edges, supprime les segments superposés de même matériau |
+
+**Clean Overlapping Edges.** Deux segments sont superposés quand leurs deux extrémités
+coïncident à la *Tolérance* près, dans un sens ou dans l'autre. Ils doivent aussi avoir
+le même matériau : deux slots qui pointent sur le même matériau comptent comme un seul.
+Le premier stroke garde le segment et les suivants le perdent. Ils sont coupés en
+morceaux si besoin, et un stroke fermé devient ouvert. S'applique aux calques non
+verrouillés, sur la frame courante ou sur toutes les frames. Les strokes Bézier et NURBS
+ne sont pas touchés. Les poids de vertex groups des strokes coupés ne sont pas conservés.
 
 ## Installation locale (clone git)
 

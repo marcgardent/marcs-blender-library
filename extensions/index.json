@@ -24,6 +24,26 @@
     },
     {
       "schema_version": "1.0.0",
+      "id": "gp_clean_overlaps",
+      "name": "Grease Pencil Clean Overlaps",
+      "tagline": "Supprime les segments superpos\u00e9s de m\u00eame mat\u00e9riau",
+      "version": "1.0.0",
+      "type": "add-on",
+      "maintainer": "Marc Gardent",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "4.3.0",
+      "website": "https://github.com/marcgardent/marcs-blender-library",
+      "tags": [
+        "Grease Pencil"
+      ],
+      "archive_url": "./gp_clean_overlaps-1.0.0.zip",
+      "archive_size": 3354,
+      "archive_hash": "sha256:91b6cce55795a0bc3cbd912bd75268c6b3fda3bcace2112da5c98994dc38308a"
+    },
+    {
+      "schema_version": "1.0.0",
       "id": "constant_brush_size",
       "name": "Constant Brush Size",
       "tagline": "Taille physique du pinceau constante en Texture Paint",
