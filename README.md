@@ -49,20 +49,30 @@ Sidebar (N) > Tool > **Constant Brush Size (TPaint)** :
 
 Changer la taille avec F ou le slider redéfinit la taille de référence.
 
-### Grease Pencil Clean Overlaps
+### Grease Pencil Tools
 
-Blender 4.3+. Edit Mode Grease Pencil.
+Blender 5.0+. Edit Mode Grease Pencil. Remplace l'ancienne extension *Grease Pencil
+Clean Overlaps* : la désinstaller avant d'installer celle-ci.
 
-Stroke > Clean Up > **Clean Overlapping Edges** (ou F3). Supprime les segments superposés
+**Clean Overlapping Edges** : Stroke > Clean Up (ou F3). Supprime les segments superposés
 qui ont le même matériau. Le premier stroke garde le segment.
-
-Options (panneau Adjust Last Operation) :
 
 - **Tolérance** : distance sous laquelle deux points sont confondus.
 - **Toutes les frames** : sinon, frame courante seulement.
 
 Les calques verrouillés et les strokes Bézier ne sont pas touchés. Les strokes nettoyés
 perdent leurs poids de vertex groups.
+
+**Sort Strokes by Material** : Stroke > Sort Strokes by Material (ou F3). Dans chaque
+calque, redessine les strokes dans l'ordre de la liste des matériaux, au lieu de l'ordre
+de tracé. Dans un même matériau, l'ordre de tracé est gardé.
+
+- **Haut de liste devant** : le premier matériau est dessiné devant, comme les calques.
+- **Toutes les frames** : sinon, frame courante seulement.
+
+Les calques verrouillés ne sont pas touchés. Il faut *Stroke Depth Order* sur
+*2D Layers* (Object Data > Strokes). Pour un tri qui suit aussi les strokes tracés
+ensuite, utiliser plutôt le modifier [Tri par Matériau](#tri-par-matériau).
 
 ## Installation locale (clone git)
 
@@ -81,6 +91,7 @@ apparaît tout de suite. Sinon, à la main : Préférences > File Paths > Asset 
 | Asset | Type | Catalogue | Fichier |
 |---|---|---|---|
 | Outline Backface | Geometry Nodes (modifier) | Geometry Nodes/Outline | `assets/geometry_nodes/outline_backface.blend` |
+| Tri par Matériau | Geometry Nodes (modifier Grease Pencil) | Geometry Nodes/Grease Pencil | `assets/geometry_nodes/gp_tri_materiau.blend` |
 | Tonneau Fermé, Tonneau | Geometry Nodes (modifier) | Geometry Nodes/Tonneau | `assets/geometry_nodes/tonneau.blend` |
 | Cerclage, Fond Planches | Geometry Nodes (groupe) | Geometry Nodes/Tonneau | `assets/geometry_nodes/tonneau.blend` |
 | Centre Mesh, Box Normalisée, Profil Cloche, Poussée Radiale, Choix Axe, Orienter Axe, Paire Miroir | Geometry Nodes (groupe) | Geometry Nodes/Outils | `assets/geometry_nodes/tonneau.blend` |
@@ -106,6 +117,25 @@ et la coque n'est visible que depuis la caméra).
 - En mode Solid, activer Backface Culling dans les options du viewport.
 
 Ajout : Add Modifier > Geometry Nodes > Outline, ou glisser depuis l'Asset Browser.
+
+### Tri par Matériau
+
+![Tri par Matériau](previews/gp_tri_materiau.png)
+
+Modifier pour Grease Pencil : dans chaque calque, les strokes sont dessinés dans l'ordre
+de la liste des matériaux, pas dans l'ordre de tracé. Non destructif : les strokes
+tracés ensuite sont triés aussi. L'aperçu montre trois disques tracés Rouge, Vert puis
+Bleu : avec le modifier, Rouge (haut de la liste) passe devant.
+
+- **Haut de liste devant** (coché par défaut) : le premier matériau est dessiné devant,
+  comme pour les calques. Décoché : il passe derrière.
+- Dans un même matériau, l'ordre de tracé est gardé.
+- Il faut *Stroke Depth Order* sur *2D Layers* (Object Data > Strokes).
+- Les calques, leurs réglages et les matériaux sont conservés.
+
+Ajout : Add Modifier > Geometry Nodes > Grease Pencil, ou glisser depuis l'Asset
+Browser. Version destructive : l'opérateur *Sort Strokes by Material* de
+[Grease Pencil Tools](#grease-pencil-tools).
 
 ### Tonneau Fermé
 
@@ -185,6 +215,7 @@ le téléchargement) :
 ```bash
 blender -b --factory-startup --python src/outline_backface.py
 blender -b --factory-startup --python src/tonneau.py
+blender -b --factory-startup --python src/gp_tri_materiau.py
 blender -b -c asset_listing generate .
 ```
 

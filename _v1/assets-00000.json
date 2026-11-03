@@ -1,7 +1,47 @@
 {
-  "asset_count": 12,
-  "file_count": 2,
+  "asset_count": 13,
+  "file_count": 3,
   "assets": [
+    {
+      "name": "Tri par Mat\u00e9riau",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/gp_tri_materiau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/gp_tri_materiau_thumbnails/Nodetree/tri-par-materiau.webp",
+        "hash": "SHA256:d2aba4979f2e2edfb7887b7003bae19a441d226601b7733c078f76a8aaafc1e1"
+      },
+      "meta": {
+        "catalog_id": "167fb2b4-a6a2-4e99-891a-7769742d72a1",
+        "tags": [
+          "grease pencil",
+          "tri",
+          "sort",
+          "mat\u00e9riau",
+          "material",
+          "draw order",
+          "ordre"
+        ],
+        "author": "Marc Gardent",
+        "description": "Grease Pencil : dans chaque calque, dessine les strokes dans l'ordre de la liste des mat\u00e9riaux. Haut de liste devant par d\u00e9faut. L'ordre de trac\u00e9 est gard\u00e9 dans un m\u00eame mat\u00e9riau. Stroke Depth Order doit \u00eatre en 2D Layers.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 64
+          }
+        ]
+      }
+    },
     {
       "name": "Outline Backface",
       "id_type": "NODETREE",
@@ -409,6 +449,12 @@
     }
   ],
   "files": [
+    {
+      "path": "assets/geometry_nodes/gp_tri_materiau.blend",
+      "size_in_bytes": 133198,
+      "hash": "SHA256:6f2b4f9daacb5c303b18df117c89f37ee3ecf81253488ac400934b80d5131b53",
+      "blender_version": "5.2.45"
+    },
     {
       "path": "assets/geometry_nodes/outline_backface.blend",
       "size_in_bytes": 161855,

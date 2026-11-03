@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0.0",
-  "asset_size_bytes": 357204,
-  "asset_count": 12,
-  "file_count": 2,
+  "asset_size_bytes": 490402,
+  "asset_count": 13,
+  "file_count": 3,
   "pages": [
     {
       "url": "_v1/assets-00000.json",
-      "hash": "SHA256:49262fa68dd58aae59eff2a158bfcb2eca1fd61b883e75f9b7b79e2322772169"
+      "hash": "SHA256:0e1b59a6e0a7c8a20646222fe8e0cbf18d29ceff2a04adc133c0b5dc3f084659"
     }
   ],
   "catalogs": [
@@ -16,6 +16,13 @@
         "f5375e3e-dc8d-4fe6-949c-6f0dc80a45bf"
       ],
       "simple_name": "Geometry Nodes"
+    },
+    {
+      "path": "Geometry Nodes/Grease Pencil",
+      "uuids": [
+        "167fb2b4-a6a2-4e99-891a-7769742d72a1"
+      ],
+      "simple_name": "Geometry Nodes-Grease Pencil"
     },
     {
       "path": "Geometry Nodes/Outils",

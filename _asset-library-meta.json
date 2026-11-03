@@ -2,7 +2,7 @@
   "api_versions": {
     "v1": {
       "url": "_v1/asset-index.json",
-      "hash": "SHA256:6cf1746268a1ecd94193e6b8c5fac33c3b871664d917ca5792ecc467a16b2009"
+      "hash": "SHA256:837276058b992b8f8f06e63ff3a66e6a241a08d8a41a0362f8c00715237fce61"
     }
   },
   "name": "Marc's Blender Library",

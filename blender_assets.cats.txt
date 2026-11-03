@@ -10,3 +10,4 @@ f5375e3e-dc8d-4fe6-949c-6f0dc80a45bf:Geometry Nodes:Geometry Nodes
 50bb5659-02be-406f-9c02-87b386b9944f:Geometry Nodes/Outline:Geometry Nodes-Outline
 0a669493-bbbc-40e6-9719-535bc39cb630:Geometry Nodes/Tonneau:Geometry Nodes-Tonneau
 43e4e1b4-c635-46b6-8440-7ae3963a39b6:Geometry Nodes/Outils:Geometry Nodes-Outils
+167fb2b4-a6a2-4e99-891a-7769742d72a1:Geometry Nodes/Grease Pencil:Geometry Nodes-Grease Pencil

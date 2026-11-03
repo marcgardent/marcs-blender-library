@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+
+id = "gp_tools"
+version = "1.0.0"
+name = "Grease Pencil Tools"
+tagline = "Nettoie les segments superposés, trie les strokes par matériau"
+maintainer = "Marc Gardent"
+type = "add-on"
+website = "https://github.com/marcgardent/marcs-blender-library#grease-pencil-tools"
+tags = ["Grease Pencil"]
+
+blender_version_min = "5.0.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
