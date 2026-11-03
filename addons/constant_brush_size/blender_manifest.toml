@@ -1,12 +1,12 @@
 schema_version = "1.0.0"
 
 id = "constant_brush_size"
-version = "1.5.0"
+version = "1.5.1"
 name = "Constant Brush Size"
 tagline = "Taille physique du pinceau constante en Texture Paint"
 maintainer = "Marc Gardent"
 type = "add-on"
-website = "https://github.com/marcgardent/marcs-blender-library"
+website = "https://github.com/marcgardent/marcs-blender-library#constant-brush-size"
 tags = ["Paint"]
 
 blender_version_min = "5.0.0"

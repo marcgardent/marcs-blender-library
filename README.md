@@ -27,19 +27,42 @@ Dans Blender : Préférences > Get Extensions > Repositories > `+` > **Add Remot
 Repository**, coller l'URL, cocher *Check for Updates on Startup*. Les extensions
 apparaissent ensuite dans Get Extensions, à installer en un clic.
 
-| Extension | Blender | Usage |
-|---|---|---|
-| Quick Flatten Axis | 4.2+ | Edit Mode : Ctrl+Alt+X/Y/Z aplatit la sélection sur l'axe, Ctrl+Alt+M la ramène à un point et fusionne |
-| Constant Brush Size | 5.0+ | Texture Paint : sidebar (N) > Tool, garde la taille physique du pinceau quand on zoome |
-| Grease Pencil Clean Overlaps | 4.3+ | Edit Mode Grease Pencil : Stroke > Clean Up > Clean Overlapping Edges, supprime les segments superposés de même matériau |
+### Quick Flatten Axis
 
-**Clean Overlapping Edges.** Deux segments sont superposés quand leurs deux extrémités
-coïncident à la *Tolérance* près, dans un sens ou dans l'autre. Ils doivent aussi avoir
-le même matériau : deux slots qui pointent sur le même matériau comptent comme un seul.
-Le premier stroke garde le segment et les suivants le perdent. Ils sont coupés en
-morceaux si besoin, et un stroke fermé devient ouvert. S'applique aux calques non
-verrouillés, sur la frame courante ou sur toutes les frames. Les strokes Bézier et NURBS
-ne sont pas touchés. Les poids de vertex groups des strokes coupés ne sont pas conservés.
+Blender 4.2+. Edit Mode, mesh.
+
+| Raccourci | Action |
+|---|---|
+| Ctrl+Alt+X / Y / Z | Aplatit la sélection sur l'axe X / Y / Z |
+| Ctrl+Alt+M | Ramène la sélection à un point et fusionne les sommets |
+
+Option (panneau Adjust Last Operation) : *Merge Distance* pour Ctrl+Alt+M.
+
+### Constant Brush Size
+
+Blender 5.0+. Texture Paint.
+
+Sidebar (N) > Tool > **Constant Brush Size (TPaint)** :
+
+- **Constant Size: ON/OFF** : garde la même taille de pinceau sur l'objet quand on zoome.
+- **Min / Max Radius (px)** : bornes du rayon à l'écran.
+
+Changer la taille avec F ou le slider redéfinit la taille de référence.
+
+### Grease Pencil Clean Overlaps
+
+Blender 4.3+. Edit Mode Grease Pencil.
+
+Stroke > Clean Up > **Clean Overlapping Edges** (ou F3). Supprime les segments superposés
+qui ont le même matériau. Le premier stroke garde le segment.
+
+Options (panneau Adjust Last Operation) :
+
+- **Tolérance** : distance sous laquelle deux points sont confondus.
+- **Toutes les frames** : sinon, frame courante seulement.
+
+Les calques verrouillés et les strokes Bézier ne sont pas touchés. Les strokes nettoyés
+perdent leurs poids de vertex groups.
 
 ## Installation locale (clone git)
 

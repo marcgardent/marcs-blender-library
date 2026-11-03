@@ -7,60 +7,60 @@
       "id": "quick_flatten_axis",
       "name": "Quick Flatten Axis",
       "tagline": "Aplatit la s\u00e9lection sur un axe ou la fusionne en un point",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "type": "add-on",
       "maintainer": "Marc Gardent",
       "license": [
         "SPDX:GPL-3.0-or-later"
       ],
       "blender_version_min": "4.2.0",
-      "website": "https://github.com/marcgardent/marcs-blender-library",
+      "website": "https://github.com/marcgardent/marcs-blender-library#quick-flatten-axis",
       "tags": [
         "Mesh"
       ],
-      "archive_url": "./quick_flatten_axis-1.3.0.zip",
-      "archive_size": 1606,
-      "archive_hash": "sha256:6771345b94a9d5fb4239908560061e605ea7ff3700e6eadfb9650ae988b1978c"
-    },
-    {
-      "schema_version": "1.0.0",
-      "id": "gp_clean_overlaps",
-      "name": "Grease Pencil Clean Overlaps",
-      "tagline": "Supprime les segments superpos\u00e9s de m\u00eame mat\u00e9riau",
-      "version": "1.0.0",
-      "type": "add-on",
-      "maintainer": "Marc Gardent",
-      "license": [
-        "SPDX:GPL-3.0-or-later"
-      ],
-      "blender_version_min": "4.3.0",
-      "website": "https://github.com/marcgardent/marcs-blender-library",
-      "tags": [
-        "Grease Pencil"
-      ],
-      "archive_url": "./gp_clean_overlaps-1.0.0.zip",
-      "archive_size": 3354,
-      "archive_hash": "sha256:91b6cce55795a0bc3cbd912bd75268c6b3fda3bcace2112da5c98994dc38308a"
+      "archive_url": "./quick_flatten_axis-1.3.1.zip",
+      "archive_size": 1614,
+      "archive_hash": "sha256:245b041cd8b4de6df971e66056fe668bb3f954372d1118f02264d38b396f11c4"
     },
     {
       "schema_version": "1.0.0",
       "id": "constant_brush_size",
       "name": "Constant Brush Size",
       "tagline": "Taille physique du pinceau constante en Texture Paint",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "type": "add-on",
       "maintainer": "Marc Gardent",
       "license": [
         "SPDX:GPL-3.0-or-later"
       ],
       "blender_version_min": "5.0.0",
-      "website": "https://github.com/marcgardent/marcs-blender-library",
+      "website": "https://github.com/marcgardent/marcs-blender-library#constant-brush-size",
       "tags": [
         "Paint"
       ],
-      "archive_url": "./constant_brush_size-1.5.0.zip",
-      "archive_size": 3159,
-      "archive_hash": "sha256:af6ba066f613bddb1d7e53162af8bd33d28cd148521b8c02f8509c6b64a8276f"
+      "archive_url": "./constant_brush_size-1.5.1.zip",
+      "archive_size": 3168,
+      "archive_hash": "sha256:ab12aa291b057d4c049e96a60e4a9dc35016f3ec02ce7a0163ac3db87fb196ff"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "gp_clean_overlaps",
+      "name": "Grease Pencil Clean Overlaps",
+      "tagline": "Supprime les segments superpos\u00e9s de m\u00eame mat\u00e9riau",
+      "version": "1.0.1",
+      "type": "add-on",
+      "maintainer": "Marc Gardent",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "4.3.0",
+      "website": "https://github.com/marcgardent/marcs-blender-library#grease-pencil-clean-overlaps",
+      "tags": [
+        "Grease Pencil"
+      ],
+      "archive_url": "./gp_clean_overlaps-1.0.1.zip",
+      "archive_size": 3369,
+      "archive_hash": "sha256:ac7b1dbc6fca22f63326fc3e130c87107bf25faa1a2efd4c67d277b29a42e97a"
     }
   ]
 }
