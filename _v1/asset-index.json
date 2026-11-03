@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0.0",
-  "asset_size_bytes": 161855,
-  "asset_count": 1,
-  "file_count": 1,
+  "asset_size_bytes": 357204,
+  "asset_count": 12,
+  "file_count": 2,
   "pages": [
     {
       "url": "_v1/assets-00000.json",
-      "hash": "SHA256:654ab5470b3e093d2514930fd6b76bda7cb91cb2b678eb8a8fe156caa45b06e4"
+      "hash": "SHA256:49262fa68dd58aae59eff2a158bfcb2eca1fd61b883e75f9b7b79e2322772169"
     }
   ],
   "catalogs": [
@@ -18,11 +18,25 @@
       "simple_name": "Geometry Nodes"
     },
     {
+      "path": "Geometry Nodes/Outils",
+      "uuids": [
+        "43e4e1b4-c635-46b6-8440-7ae3963a39b6"
+      ],
+      "simple_name": "Geometry Nodes-Outils"
+    },
+    {
       "path": "Geometry Nodes/Outline",
       "uuids": [
         "50bb5659-02be-406f-9c02-87b386b9944f"
       ],
       "simple_name": "Geometry Nodes-Outline"
+    },
+    {
+      "path": "Geometry Nodes/Tonneau",
+      "uuids": [
+        "0a669493-bbbc-40e6-9719-535bc39cb630"
+      ],
+      "simple_name": "Geometry Nodes-Tonneau"
     }
   ]
 }

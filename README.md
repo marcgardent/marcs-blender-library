@@ -32,6 +32,9 @@ apparaît tout de suite. Sinon, à la main : Préférences > File Paths > Asset 
 | Asset | Type | Catalogue | Fichier |
 |---|---|---|---|
 | Outline Backface | Geometry Nodes (modifier) | Geometry Nodes/Outline | `assets/geometry_nodes/outline_backface.blend` |
+| Tonneau Fermé, Tonneau | Geometry Nodes (modifier) | Geometry Nodes/Tonneau | `assets/geometry_nodes/tonneau.blend` |
+| Cerclage, Fond Planches | Geometry Nodes (groupe) | Geometry Nodes/Tonneau | `assets/geometry_nodes/tonneau.blend` |
+| Centre Mesh, Box Normalisée, Profil Cloche, Poussée Radiale, Choix Axe, Orienter Axe, Paire Miroir | Geometry Nodes (groupe) | Geometry Nodes/Outils | `assets/geometry_nodes/tonneau.blend` |
 
 ### Outline Backface
 
@@ -55,6 +58,47 @@ et la coque n'est visible que depuis la caméra).
 
 Ajout : Add Modifier > Geometry Nodes > Outline, ou glisser depuis l'Asset Browser.
 
+### Tonneau Fermé
+
+![Tonneau Fermé](previews/tonneau.png)
+
+Tonneau complet à partir de douelles (les planches verticales) : bombé au milieu,
+deux cerclages, deux fonds en planches. Le bombé s'applique à tout l'ensemble, donc
+cerclages et fonds suivent la courbe des douelles.
+
+- Entrée : des douelles **réalisées**. Si elles viennent d'un Instance on Points,
+  mettre un Realize Instances avant.
+- **Axe** (X / Y / Z, Z par défaut) : axe du tonneau, Z = debout.
+- **Bombé** (0,35) : 0,35 = rayon × 1,35 au milieu, rien aux bouts. Négatif = diabolo.
+- Panneau **Cerclages** : Position (0 = au bout, 1 = au milieu), Largeur, Épaisseur, Matériau.
+  Leur rayon intérieur est la distance maximale des douelles à l'axe : ils reposent
+  sur les coins.
+- Panneau **Fonds** : Retrait depuis le bout, Paroi (épaisseur des douelles : le fond
+  s'arrête à leur face intérieure), Épaisseur, nombre de Planches, Jeu, Matériau.
+- Attribut `partie` en sortie : 0 douelles, 1 cerclages, 2 fonds (pour un shader).
+
+**Tonneau** fait seulement le bombé, sans cerclages ni fonds. Le fichier contient une
+scène d'exemple (objet *Demo Tonneau*, douelles générées par le groupe *Demo Douelles*).
+
+Groupes réutilisables seuls :
+
+| Groupe | Entrées → Sorties | Rôle |
+|---|---|---|
+| Cerclage | Rayon, Largeur, Épaisseur, Résolution → Mesh | Anneau plat le long de Z |
+| Fond Planches | Rayon, Planches, Épaisseur, Jeu → Mesh | Disque de planches parallèles découpées en cercle |
+| Centre Mesh | Geometry → Centre, Taille, Min, Max | Centre réel de la boîte englobante, quel que soit le pivot |
+| Box Normalisée | Geometry, Axe → Normalisée, Valeur | Position dans la boîte entre −1 et +1 ; Valeur = sur l'axe choisi |
+| Profil Cloche | t → Profil | 1 − t² : 0 aux bouts, 1 au milieu |
+| Poussée Radiale | Geometry, Centre, Facteur, Axe → Geometry | Écarte les points de l'axe, d'un facteur par point |
+| Choix Axe | Axe → Direction, Masque | Z → (0,0,1) et (1,1,0) |
+| Orienter Axe | Geometry, Axe, Centre → Geometry | Tourne une pièce construite le long de Z vers l'axe choisi |
+| Paire Miroir | Geometry, Distance → Geometry | Deux copies à ±Distance le long de Z |
+
+Une entrée Axe ne peut alimenter qu'une seule définition du menu X / Y / Z : un
+nouveau groupe avec un choix d'axe doit passer par **Choix Axe**.
+
+Ajout : Add Modifier > Geometry Nodes > Tonneau, ou glisser depuis l'Asset Browser.
+
 ## Structure
 
 ```
@@ -76,6 +120,7 @@ le téléchargement) :
 
 ```bash
 blender -b --factory-startup --python src/outline_backface.py
+blender -b --factory-startup --python src/tonneau.py
 blender -b -c asset_listing generate .
 ```
 

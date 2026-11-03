@@ -1,6 +1,6 @@
 {
-  "asset_count": 1,
-  "file_count": 1,
+  "asset_count": 12,
+  "file_count": 2,
   "assets": [
     {
       "name": "Outline Backface",
@@ -41,6 +41,371 @@
           }
         ]
       }
+    },
+    {
+      "name": "Box Normalis\u00e9e",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "43e4e1b4-c635-46b6-8440-7ae3963a39b6",
+        "tags": [
+          "bounding box",
+          "normaliser",
+          "-1 1"
+        ],
+        "author": "Marc Gardent",
+        "description": "Position de chaque point dans sa bo\u00eete englobante, ramen\u00e9e entre \u22121 et +1 (0 au centre).",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Centre Mesh",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "43e4e1b4-c635-46b6-8440-7ae3963a39b6",
+        "tags": [
+          "centre",
+          "bounding box",
+          "mesure"
+        ],
+        "author": "Marc Gardent",
+        "description": "Centre g\u00e9om\u00e9trique r\u00e9el et dimensions d'une g\u00e9om\u00e9trie, ind\u00e9pendants du pivot de l'objet.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Cerclage",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "0a669493-bbbc-40e6-9719-535bc39cb630",
+        "tags": [
+          "cerclage",
+          "hoop",
+          "anneau",
+          "ring"
+        ],
+        "author": "Marc Gardent",
+        "description": "Anneau plat (section rectangulaire) le long de Z, centr\u00e9 sur l'origine.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Choix Axe",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "43e4e1b4-c635-46b6-8440-7ae3963a39b6",
+        "tags": [
+          "axe",
+          "axis",
+          "menu"
+        ],
+        "author": "Marc Gardent",
+        "description": "Transforme un choix X / Y / Z en vecteurs : direction de l'axe et masque des deux autres.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Fond Planches",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "0a669493-bbbc-40e6-9719-535bc39cb630",
+        "tags": [
+          "fond",
+          "planches",
+          "planks",
+          "disque"
+        ],
+        "author": "Marc Gardent",
+        "description": "Disque fait de planches parall\u00e8les, d\u00e9coup\u00e9es en cercle, dans le plan XY et centr\u00e9 sur l'origine.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Orienter Axe",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "43e4e1b4-c635-46b6-8440-7ae3963a39b6",
+        "tags": [
+          "axe",
+          "axis",
+          "rotation"
+        ],
+        "author": "Marc Gardent",
+        "description": "Fait pivoter une g\u00e9om\u00e9trie construite le long de Z vers l'axe choisi, puis la place sur un centre.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Paire Miroir",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "43e4e1b4-c635-46b6-8440-7ae3963a39b6",
+        "tags": [
+          "miroir",
+          "mirror",
+          "copie"
+        ],
+        "author": "Marc Gardent",
+        "description": "Deux copies d'une g\u00e9om\u00e9trie, \u00e0 +Distance et \u2212Distance le long de Z.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Pouss\u00e9e Radiale",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "43e4e1b4-c635-46b6-8440-7ae3963a39b6",
+        "tags": [
+          "radial",
+          "gonfler",
+          "inflate"
+        ],
+        "author": "Marc Gardent",
+        "description": "\u00c9carte chaque point de l'axe passant par le centre, proportionnellement \u00e0 sa distance \u00e0 cet axe.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Profil Cloche",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "43e4e1b4-c635-46b6-8440-7ae3963a39b6",
+        "tags": [
+          "profil",
+          "parabole",
+          "falloff"
+        ],
+        "author": "Marc Gardent",
+        "description": "Cloche 1 \u2212 t\u00b2 : 0 pour t = \u00b11 (les bouts), 1 pour t = 0 (le centre).",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tonneau",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/tonneau_thumbnails/Nodetree/tonneau.webp",
+        "hash": "SHA256:1c000ddc5485707e9b2a782e26548f2295c88e1dbb251809da0c267468335d03"
+      },
+      "meta": {
+        "catalog_id": "0a669493-bbbc-40e6-9719-535bc39cb630",
+        "tags": [
+          "tonneau",
+          "barrel",
+          "bomb\u00e9",
+          "bulge"
+        ],
+        "author": "Marc Gardent",
+        "description": "Bombe une g\u00e9om\u00e9trie en tonneau autour d'un axe : nul aux bouts, maximal au milieu, depuis le centre r\u00e9el.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 64
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tonneau Ferm\u00e9",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/tonneau.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/tonneau_thumbnails/Nodetree/tonneau-ferme.webp",
+        "hash": "SHA256:885e38d02975fb38f7fc53bb90ea5dcb50ba7d35d592d8f504db1ef37e44b9f7"
+      },
+      "meta": {
+        "catalog_id": "0a669493-bbbc-40e6-9719-535bc39cb630",
+        "tags": [
+          "tonneau",
+          "barrel",
+          "douelles",
+          "cerclage",
+          "f\u00fbt"
+        ],
+        "author": "Marc Gardent",
+        "description": "Tonneau complet \u00e0 partir des douelles : bomb\u00e9, deux cerclages et deux fonds en planches. Attribut \u00ab partie \u00bb : 0 douelles, 1 cerclages, 2 fonds.",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          },
+          {
+            "name": "geometry_node_asset_traits_flag",
+            "type": "IDP_INT",
+            "value": 64
+          }
+        ]
+      }
     }
   ],
   "files": [
@@ -48,6 +413,12 @@
       "path": "assets/geometry_nodes/outline_backface.blend",
       "size_in_bytes": 161855,
       "hash": "SHA256:ea27f4aaad47230d45ee34bff800699d294cae506ac29a24e33d9ad16cd686ab",
+      "blender_version": "5.2.45"
+    },
+    {
+      "path": "assets/geometry_nodes/tonneau.blend",
+      "size_in_bytes": 195349,
+      "hash": "SHA256:bb5e6b86fda353bdbcb9ecc5a305bb6b78542dbb9cd95166d6f10c60e9dcd03b",
       "blender_version": "5.2.45"
     }
   ]
