@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+
+id = "quick_flatten_axis"
+version = "1.3.0"
+name = "Quick Flatten Axis"
+tagline = "Aplatit la sélection sur un axe ou la fusionne en un point"
+maintainer = "Marc Gardent"
+type = "add-on"
+website = "https://github.com/marcgardent/marcs-blender-library"
+tags = ["Mesh"]
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]

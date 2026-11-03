@@ -1,4 +1,4 @@
-# Publie l'endpoint de la library distante Blender sur GitHub Pages.
+# Publie l'endpoint de la library distante Blender et le dépôt d'extensions sur GitHub Pages.
 # Pages ne sert pas les fichiers LFS : on les récupère ici avant de déployer.
 name: Endpoint Blender
 
@@ -30,7 +30,7 @@ jobs:
       - name: Prépare le site
         run: |
           mkdir _site
-          cp -r _asset-library-meta.json _v1 blender_assets.cats.txt assets _site/
+          cp -r _asset-library-meta.json _v1 blender_assets.cats.txt assets extensions _site/
           touch _site/.nojekyll
 
       - uses: actions/configure-pages@v5

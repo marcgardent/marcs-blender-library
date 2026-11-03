@@ -15,6 +15,23 @@ Dans Blender : Préférences > File Paths > Asset Libraries > `+` > **Add Remote
 Library**, coller l'URL. Blender télécharge l'index et les assets à la demande, rien à
 cloner.
 
+## Dépôt d'extensions (Blender 4.2+)
+
+Les mini add-ons sont publiés comme dépôt d'extensions, sur le même GitHub Pages :
+
+```
+https://marcgardent.github.io/marcs-blender-library/extensions/index.json
+```
+
+Dans Blender : Préférences > Get Extensions > Repositories > `+` > **Add Remote
+Repository**, coller l'URL, cocher *Check for Updates on Startup*. Les extensions
+apparaissent ensuite dans Get Extensions, à installer en un clic.
+
+| Extension | Blender | Usage |
+|---|---|---|
+| Quick Flatten Axis | 4.2+ | Edit Mode : Ctrl+Alt+X/Y/Z aplatit la sélection sur l'axe, Ctrl+Alt+M la ramène à un point et fusionne |
+| Constant Brush Size | 5.0+ | Texture Paint : sidebar (N) > Tool, garde la taille physique du pinceau quand on zoome |
+
 ## Installation locale (clone git)
 
 ```bash
@@ -109,8 +126,23 @@ src/                      scripts qui génèrent les assets
 install.py                déclare la library locale dans Blender
 _asset-library-meta.json  point d'entrée de l'endpoint distant (nom, contact)
 _v1/                      index de l'endpoint, généré par Blender
-.github/workflows/        publication de l'endpoint sur GitHub Pages
+addons/                   sources des extensions (un dossier + blender_manifest.toml chacune)
+extensions/               dépôt d'extensions publié : zips et index.json, générés par Blender
+.github/workflows/        publication de l'endpoint et des extensions sur GitHub Pages
 ```
+
+## Rebuilder les extensions
+
+Après un changement dans `addons/`, monter `version` dans le `blender_manifest.toml`
+(sinon Blender ne propose pas la mise à jour), puis :
+
+```bash
+for d in addons/*/; do blender --factory-startup --command extension build --source-dir "$d" --output-dir extensions; done
+blender --factory-startup --command extension server-generate --repo-dir=extensions
+```
+
+Supprimer l'ancien zip de `extensions/` avant le `server-generate`, sinon les deux
+versions restent dans l'index.
 
 ## Reconstruire un asset
 

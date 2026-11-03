@@ -1,0 +1,46 @@
+{
+  "version": "v1",
+  "blocklist": [],
+  "data": [
+    {
+      "schema_version": "1.0.0",
+      "id": "quick_flatten_axis",
+      "name": "Quick Flatten Axis",
+      "tagline": "Aplatit la s\u00e9lection sur un axe ou la fusionne en un point",
+      "version": "1.3.0",
+      "type": "add-on",
+      "maintainer": "Marc Gardent",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "4.2.0",
+      "website": "https://github.com/marcgardent/marcs-blender-library",
+      "tags": [
+        "Mesh"
+      ],
+      "archive_url": "./quick_flatten_axis-1.3.0.zip",
+      "archive_size": 1606,
+      "archive_hash": "sha256:6771345b94a9d5fb4239908560061e605ea7ff3700e6eadfb9650ae988b1978c"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "constant_brush_size",
+      "name": "Constant Brush Size",
+      "tagline": "Taille physique du pinceau constante en Texture Paint",
+      "version": "1.5.0",
+      "type": "add-on",
+      "maintainer": "Marc Gardent",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://github.com/marcgardent/marcs-blender-library",
+      "tags": [
+        "Paint"
+      ],
+      "archive_url": "./constant_brush_size-1.5.0.zip",
+      "archive_size": 3159,
+      "archive_hash": "sha256:af6ba066f613bddb1d7e53162af8bd33d28cd148521b8c02f8509c6b64a8276f"
+    }
+  ]
+}
