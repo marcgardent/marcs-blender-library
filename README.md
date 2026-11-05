@@ -74,6 +74,30 @@ Les calques verrouillés ne sont pas touchés. Il faut *Stroke Depth Order* sur
 *2D Layers* (Object Data > Strokes). Pour un tri qui suit aussi les strokes tracés
 ensuite, utiliser plutôt le modifier [Tri par Matériau](#tri-par-matériau).
 
+### Move Markers with Keys
+
+Blender 5.0+. Dope Sheet, Timeline, Graph Editor, NLA, Sequencer.
+
+| Raccourci | Action |
+|---|---|
+| Ctrl+G (souris sur la bande des markers) | Déplace les markers sélectionnés et toutes les keys posées sur eux |
+
+Aussi dans le menu Marker > **Move Markers with Keys**. Comme G : la souris ou un nombre
+tapé au clavier donne le décalage en frames, clic ou Entrée valide, clic droit ou Échap
+annule. Le décalage se règle ensuite dans le panneau Adjust Last Operation.
+
+- Keys concernées : toutes celles de la scène qui sont sur la frame d'un marker sélectionné
+  (objets, leurs données, shape keys, matériaux, monde, scène) et les frames Grease Pencil.
+- Une key déplacée remplace la key qu'elle recouvre, comme avec G.
+- Les F-curves verrouillées, les calques Grease Pencil verrouillés et les actions liées
+  depuis une autre library ne bougent pas. Les strips NLA non plus : seule l'action active compte.
+- Ne marche pas si *Lock Markers* est activé.
+
+Ailleurs que sur la bande des markers, Ctrl+G garde son rôle natif (Jump to Keyframes,
+Group Channels…). En natif, Blender ne fait que l'inverse dans le Dope Sheet :
+Marker > *Sync Markers* déplace les markers avec les keys, après Select > *Columns on
+Selected Markers* (Shift+K) puis G.
+
 ## Installation locale (clone git)
 
 ```bash

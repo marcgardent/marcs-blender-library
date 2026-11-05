@@ -24,6 +24,26 @@
     },
     {
       "schema_version": "1.0.0",
+      "id": "marker_move_keys",
+      "name": "Move Markers with Keys",
+      "tagline": "D\u00e9place les markers s\u00e9lectionn\u00e9s avec les keys pos\u00e9es dessus",
+      "version": "1.0.0",
+      "type": "add-on",
+      "maintainer": "Marc Gardent",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://github.com/marcgardent/marcs-blender-library#move-markers-with-keys",
+      "tags": [
+        "Animation"
+      ],
+      "archive_url": "./marker_move_keys-1.0.0.zip",
+      "archive_size": 3707,
+      "archive_hash": "sha256:40e80508f43fea1997e718e2cdc6f578ae914be9ab5bab39e010055c9506f00e"
+    },
+    {
+      "schema_version": "1.0.0",
       "id": "gp_tools",
       "name": "Grease Pencil Tools",
       "tagline": "Nettoie les segments superpos\u00e9s, trie les strokes par mat\u00e9riau",

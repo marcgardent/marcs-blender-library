@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+
+id = "marker_move_keys"
+version = "1.0.0"
+name = "Move Markers with Keys"
+tagline = "Déplace les markers sélectionnés avec les keys posées dessus"
+maintainer = "Marc Gardent"
+type = "add-on"
+website = "https://github.com/marcgardent/marcs-blender-library#move-markers-with-keys"
+tags = ["Animation"]
+
+blender_version_min = "5.0.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
