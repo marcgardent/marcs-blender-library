@@ -80,7 +80,7 @@ Blender 5.0+. Dope Sheet, Timeline, Graph Editor, NLA, Sequencer.
 
 | Raccourci | Action |
 |---|---|
-| Ctrl+G (souris sur la bande des markers) | Déplace les markers sélectionnés et toutes les keys posées sur eux |
+| Ctrl+Alt+G (souris sur la bande des markers) | Déplace les markers sélectionnés et toutes les keys posées sur eux |
 
 Aussi dans le menu Marker > **Move Markers with Keys**. Comme G : la souris ou un nombre
 tapé au clavier donne le décalage en frames, clic ou Entrée valide, clic droit ou Échap
@@ -93,8 +93,8 @@ annule. Le décalage se règle ensuite dans le panneau Adjust Last Operation.
   depuis une autre library ne bougent pas. Les strips NLA non plus : seule l'action active compte.
 - Ne marche pas si *Lock Markers* est activé.
 
-Ailleurs que sur la bande des markers, Ctrl+G garde son rôle natif (Jump to Keyframes,
-Group Channels…). En natif, Blender ne fait que l'inverse dans le Dope Sheet :
+Le raccourci ne joue que sur la bande des markers. Dans le NLA et le Sequencer, il y
+remplace *Remove Meta* (Ctrl+Alt+G), qui marche toujours ailleurs dans l'éditeur. En natif, Blender ne fait que l'inverse dans le Dope Sheet :
 Marker > *Sync Markers* déplace les markers avec les keys, après Select > *Columns on
 Selected Markers* (Shift+K) puis G.
 

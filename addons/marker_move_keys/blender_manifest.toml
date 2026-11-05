@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "marker_move_keys"
-version = "1.0.0"
+version = "1.0.1"
 name = "Move Markers with Keys"
 tagline = "Déplace les markers sélectionnés avec les keys posées dessus"
 maintainer = "Marc Gardent"

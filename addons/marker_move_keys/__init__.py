@@ -256,9 +256,10 @@ def register():
 
     kc = bpy.context.window_manager.keyconfigs.addon
     if kc:
-        # Keymap Markers : actif quand la souris est sur la bande des markers, comme G
+        # Keymap Markers : actif quand la souris est sur la bande des markers, comme G.
+        # Ctrl+Alt+G : Ctrl+G y masquerait Jump to Keyframes
         km = kc.keymaps.new(name="Markers", space_type='EMPTY', region_type='WINDOW')
-        kmi = km.keymap_items.new(MARKER_OT_move_with_keys.bl_idname, 'G', 'PRESS', ctrl=True)
+        kmi = km.keymap_items.new(MARKER_OT_move_with_keys.bl_idname, 'G', 'PRESS', ctrl=True, alt=True)
         addon_keymaps.append((km, kmi))
 
 
