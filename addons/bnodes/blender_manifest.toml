@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+
+id = "bnodes"
+version = "0.1.0"
+name = "Nodes as Text"
+tagline = "Écrit les arbres de nœuds comme des fonctions, dans les deux sens"
+maintainer = "Marc Gardent"
+type = "add-on"
+website = "https://github.com/marcgardent/marcs-blender-library#nodes-as-text"
+tags = ["Node", "Geometry Nodes"]
+
+blender_version_min = "5.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]

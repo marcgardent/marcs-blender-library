@@ -1,0 +1,7 @@
+// wave, written with plain node calls: formulas come in v2
+geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
+  p = Position()
+  s = Math(SeparateXYZ(p).x, t, operation: ADD)
+  h = Math(Math(s, operation: SINE), 0.2, operation: MULTIPLY)
+  return SetPosition(geometry, offset: CombineXYZ(z: h))
+}

@@ -1,0 +1,66 @@
+"""Layered placement: links go left to right, one column per depth."""
+
+from . import ir
+
+COLUMN = 200   # node width (140) plus the gap
+HEADER = 40    # title bar and margins
+ROW = 22       # one socket row
+GAP = 30       # between nodes of a column
+
+
+def height(node):
+    return HEADER + ROW * (node.n_inputs + node.n_outputs)
+
+
+def layout(graph):
+    """{node id: (x, y)}, Blender coordinates (y up), the top-left node at the origin."""
+    preds = {n.id: [] for n in graph.nodes}
+    succs = {n.id: [] for n in graph.nodes}
+    for src, dst in graph.edges():
+        preds[dst].append(src)
+        succs[src].append(dst)
+
+    # Longest path from the sources
+    depth = {}
+
+    def depth_of(nid):
+        if nid not in depth:
+            depth[nid] = 1 + max((depth_of(p) for p in preds[nid]), default=-1)
+        return depth[nid]
+
+    for n in graph.nodes:
+        depth_of(n.id)
+
+    last = max(depth.values(), default=0)
+    if preds[ir.GROUP_OUTPUT] or len(graph.nodes) > 2:
+        last = max(last, 1)
+    depth[ir.GROUP_OUTPUT] = last
+    depth[ir.GROUP_INPUT] = 0
+
+    # A source with no input (Position, a constant) sits just before its first user
+    for n in graph.nodes:
+        if n.id not in (ir.GROUP_INPUT, ir.GROUP_OUTPUT) and not preds[n.id] and succs[n.id]:
+            depth[n.id] = max(0, min(depth[s] for s in succs[n.id]) - 1)
+
+    columns = {}
+    for n in graph.nodes:
+        columns.setdefault(depth[n.id], []).append(n)
+
+    # Order each column by the mean rank of its predecessors, to cut crossings
+    rank = {}
+    pos = {}
+    for d in sorted(columns):
+        col = columns[d]
+        order = {n.id: i for i, n in enumerate(col)}
+
+        def key(n):
+            ranks = [rank[p] for p in preds[n.id] if p in rank]
+            return (sum(ranks) / len(ranks) if ranks else order[n.id], order[n.id])
+
+        col.sort(key=key)
+        y = 0
+        for i, n in enumerate(col):
+            rank[n.id] = i
+            pos[n.id] = (d * COLUMN, -y)
+            y += height(n) + GAP
+    return pos

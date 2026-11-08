@@ -1,0 +1,83 @@
+"""What the checker needs to know about nodes, and how it asks for it.
+
+host/schema.py answers from Blender itself; tests answer with a small fake.
+"""
+
+import re
+from dataclasses import dataclass, field
+from typing import Protocol
+
+# Text type name -> interface socket type, for graph parameters and outputs
+TYPES = {
+    "Float": "NodeSocketFloat",
+    "Int": "NodeSocketInt",
+    "Bool": "NodeSocketBool",
+    "Vector": "NodeSocketVector",
+    "Color": "NodeSocketColor",
+    "Rotation": "NodeSocketRotation",
+    "Matrix": "NodeSocketMatrix",
+    "String": "NodeSocketString",
+    "Menu": "NodeSocketMenu",
+    "Geometry": "NodeSocketGeometry",
+    "Shader": "NodeSocketShader",
+    "Object": "NodeSocketObject",
+    "Collection": "NodeSocketCollection",
+    "Material": "NodeSocketMaterial",
+    "Image": "NodeSocketImage",
+    "Texture": "NodeSocketTexture",
+    "Bundle": "NodeSocketBundle",
+    "Closure": "NodeSocketClosure",
+}
+
+# These only link to their own type. Between the others (numbers, vectors,
+# colors, rotations) Blender converts, and has the last word on the details.
+STRICT = {"Geometry", "Shader", "String", "Menu", "Matrix", "Object", "Collection",
+          "Material", "Image", "Texture", "Bundle", "Closure"}
+
+TREE_KINDS = ("geometry", "shader", "compositor")
+
+
+def can_link(src, dst):
+    return src == dst or (src not in STRICT and dst not in STRICT)
+
+
+def snake(name):
+    """Socket name as written in text: `Base Color` -> `base_color`."""
+    return re.sub(r"[^0-9a-z]+", "_", name.lower()).strip("_")
+
+
+@dataclass(frozen=True)
+class Socket:
+    name: str        # UI name, e.g. "Base Color"
+    identifier: str  # stable internal name, e.g. "Value_001"
+    type: str        # a key of TYPES, or another Blender type name
+    multi_input: bool = False
+
+    @property
+    def key(self):
+        return snake(self.name)
+
+
+@dataclass(frozen=True)
+class Prop:
+    name: str
+    kind: str  # ENUM, BOOLEAN, INT, FLOAT or STRING
+    items: tuple = ()  # enum values; empty when Blender computes them at runtime
+
+
+@dataclass(frozen=True)
+class NodeSpec:
+    name: str       # text name, e.g. SetPosition
+    bl_idname: str  # e.g. GeometryNodeSetPosition
+    props: dict = field(default_factory=dict, hash=False)
+
+
+class Schema(Protocol):
+    def node(self, kind, name):
+        """NodeSpec for a text name in a tree kind, or None."""
+
+    def node_names(self, kind):
+        """Every text name of the tree kind, for suggestions."""
+
+    def sockets(self, kind, spec, props):
+        """(inputs, outputs) available once `props` are set: lists of Socket."""
