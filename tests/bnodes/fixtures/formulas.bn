@@ -1,0 +1,8 @@
+geometry graph ripple(geometry: Geometry, t: Float, center: Vector) -> Geometry {
+  p = Position()
+  d = distance(p, center)
+  h = sin(d * 4.0 - t) / (d + 1.0)
+  lift = CombineXYZ(z: -h + (p - center).z * 0.5)
+  offset = normalize(p - center) * h * 0.1 + lift
+  return SetPosition(geometry, offset: offset - 1.0)
+}

@@ -10,7 +10,7 @@ from .schema import RESERVED, key
 INDENT = "  "
 WIDTH = 100
 
-# Binding strength, for parentheses
+# Binding strength, for parentheses: unary minus is 4, `.socket` is 9
 PRECEDENCE = {"|>": 1, "+": 2, "-": 2, "*": 3, "/": 3}
 
 
@@ -95,7 +95,8 @@ def expr(e, outer=0):
     if isinstance(e, ast.Call):
         return f"{e.name}({args(e.args)})"
     if isinstance(e, ast.Neg):
-        return "-" + expr(e.value, 9)
+        text = "-" + expr(e.value, 9)
+        return f"({text})" if outer > 4 else text
     if isinstance(e, (ast.BinOp, ast.Pipe)):
         op = e.op if isinstance(e, ast.BinOp) else "|>"
         p = PRECEDENCE[op]

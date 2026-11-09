@@ -2,8 +2,13 @@
 
 from lang.schema import NodeSpec, Prop, Socket
 
-MATH_OPS = ("ADD", "SUBTRACT", "MULTIPLY", "DIVIDE", "POWER", "SINE", "COSINE")
-UNARY = {"SINE", "COSINE"}
+MATH_OPS = ("ADD", "SUBTRACT", "MULTIPLY", "DIVIDE", "POWER", "MINIMUM", "MAXIMUM", "ARCTAN2",
+            "SINE", "COSINE", "SQRT", "ABSOLUTE")
+UNARY = {"SINE", "COSINE", "SQRT", "ABSOLUTE"}
+VECTOR_OPS = ("ADD", "SUBTRACT", "MULTIPLY", "DIVIDE", "SCALE", "MINIMUM", "MAXIMUM", "DOT_PRODUCT",
+              "DISTANCE", "CROSS_PRODUCT", "LENGTH", "NORMALIZE", "SINE", "ABSOLUTE")
+VECTOR_UNARY = {"LENGTH", "NORMALIZE", "SINE", "ABSOLUTE"}
+VECTOR_TO_FLOAT = {"LENGTH", "DOT_PRODUCT", "DISTANCE"}
 
 
 def S(name, type, identifier=None, multi=False):
@@ -11,12 +16,16 @@ def S(name, type, identifier=None, multi=False):
 
 
 VALUES = [S("Value", "Float"), S("Value", "Float", "Value_001"), S("Value", "Float", "Value_002")]
+VECTORS = [S("Vector", "Vector"), S("Vector", "Vector", "Vector_001"), S("Vector", "Vector", "Vector_002")]
 
 NODES = {
     "Math": (NodeSpec("Math", "ShaderNodeMath", {
         "operation": Prop("operation", "ENUM", MATH_OPS),
         "use_clamp": Prop("use_clamp", "BOOLEAN"),
     }), None, [S("Value", "Float")]),
+    "VectorMath": (NodeSpec("VectorMath", "ShaderNodeVectorMath", {
+        "operation": Prop("operation", "ENUM", VECTOR_OPS),
+    }), None, None),
     "Position": (NodeSpec("Position", "GeometryNodeInputPosition"), [], [S("Position", "Vector")]),
     "SeparateXYZ": (NodeSpec("SeparateXYZ", "ShaderNodeSeparateXYZ"),
                     [S("Vector", "Vector")], [S("X", "Float"), S("Y", "Float"), S("Z", "Float")]),
@@ -60,4 +69,11 @@ class FakeSchema:
             # Like Blender: a unary operation leaves one Value available
             op = props.get("operation", "ADD")
             inputs = VALUES[:1] if op in UNARY else VALUES[:2]
+        if spec.name == "VectorMath":
+            op = props.get("operation", "ADD")
+            if op == "SCALE":
+                inputs = [VECTORS[0], S("Scale", "Float")]
+            else:
+                inputs = VECTORS[:1] if op in VECTOR_UNARY else VECTORS[:2]
+            outputs = [S("Value", "Float")] if op in VECTOR_TO_FLOAT else [S("Vector", "Vector")]
         return list(inputs), list(outputs)

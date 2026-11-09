@@ -11,7 +11,7 @@ import re
 
 import bpy
 
-from ..lang import ast
+from ..lang import ast, sugar
 from ..lang.printer import to_source
 from ..lang.schema import RESERVED, TYPES, key, snake
 from .schema import SOCKET_TYPES, TREE_TYPES, BlenderSchema, snapshot, text_name
@@ -23,6 +23,9 @@ SKIP = {"NodeFrame", "NodeReroute"}
 
 # Kept for statements even when they hold their default
 ALWAYS = {"operation"}
+
+FORMULA_NODES = {"ShaderNodeMath": "Math", "ShaderNodeVectorMath": "VectorMath"}
+COMPONENT = {"X": "x", "Y": "y", "Z": "z"}
 
 
 def export_tree(tree):
@@ -94,10 +97,18 @@ class GraphReader:
             for links in self.incoming.get(n.name, {}).values():
                 for src, _sock in links:
                     uses[src.name] = uses.get(src.name, 0) + 1
+        # A Separate XYZ reads as v.x: it vanishes, and v is written once per component
+        self.separates = {}
+        for n in reached:
+            vector = self.incoming.get(n.name, {}).get("Vector")
+            if n.bl_idname == "ShaderNodeSeparateXYZ" and vector and not self.hand_named(n):
+                self.separates[n.name] = vector[0]
+                src = vector[0][0].name
+                uses[src] = uses.get(src, 0) + uses.get(n.name, 0) - 1
         taken = set(self.param_keys)
         self.bound = {}
         for n in sorted(reached, key=lambda n: self.index[n.name]):
-            if n.bl_idname in ("NodeGroupInput", "NodeGroupOutput"):
+            if n.bl_idname in ("NodeGroupInput", "NodeGroupOutput") or n.name in self.separates:
                 continue
             if uses.get(n.name, 0) > 1 or self.hand_named(n):
                 self.bound[n.name] = unique(self.binding_name(n), taken)
@@ -199,6 +210,8 @@ class GraphReader:
         if node.bl_idname == "NodeGroupInput":
             i = [s for s in node.outputs if s.type != "CUSTOM"].index(sock)
             return ast.Ref(self.param_keys[i], 0, 0)
+        if node.name in self.separates:
+            return member(self.use(*self.separates[node.name]), COMPONENT[sock.identifier])
         outputs = [s for s in node.outputs if not s.is_unavailable and s.type != "CUSTOM"]
         if node.name in self.bound:
             target = ast.Ref(self.bound[node.name], 0, 0)
@@ -207,10 +220,7 @@ class GraphReader:
         # With one output there is nothing to pick; with several, say which
         if len(outputs) == 1 and sock == outputs[0]:
             return target
-        name = socket_name(sock, outputs, node.bl_idname in GROUP_NODES)
-        if isinstance(target, ast.Pipe):
-            return ast.Pipe(target.left, ast.Member(target.call, name, 0, 0), 0, 0)
-        return ast.Member(target, name, 0, 0)
+        return member(target, socket_name(sock, outputs, node.bl_idname in GROUP_NODES))
 
     def expr(self, node):
         if node.name not in self.exprs:
@@ -242,6 +252,10 @@ class GraphReader:
                 value = getattr(node, p.name)
                 if p.name in ALWAYS or not same(value, prop_defaults.get(p.name)):
                     props[p.name] = value
+        if spec is not None and spec.bl_idname in FORMULA_NODES and list(props) == ["operation"]:
+            formula = self.formula(node, FORMULA_NODES[spec.bl_idname], props["operation"])
+            if formula is not None:
+                return formula
         if group:
             defaults = {i.identifier: snapshot(i) for i in node.node_tree.interface.items_tree
                         if i.item_type == "SOCKET" and i.in_out == "INPUT"}
@@ -287,6 +301,52 @@ class GraphReader:
             return ast.Pipe(first, rest, 0, 0)
         self.chain_heads.add(id(call))
         return call
+
+    def formula(self, node, name, operation):
+        """`a * 2.0 + sin(t)` for a Math or Vector Math node, when it reads back as that node."""
+        operands = []
+        for sock in [s for s in node.inputs if not s.is_unavailable]:
+            links = self.incoming.get(node.name, {}).get(sock.identifier)
+            if links:
+                src = links[0][1]
+                operands.append([(self.use(*links[0]), SOCKET_TYPES.get(src.type, src.type))])
+                continue
+            value = snapshot(sock)
+            if sock.type == "VALUE":
+                operands.append([(number(value), "Float")])
+            elif sock.type == "VECTOR":
+                lit = [(ast.Tuple([number(v) for v in value], 0, 0), "Vector")]
+                if len(set(value)) == 1:
+                    lit.insert(0, (number(value[0]), "Float"))  # (1, 1, 1) reads as 1.0 where it means the same
+                operands.append(lit)
+            else:
+                return None
+
+        def means(op, types):
+            try:
+                return sugar.choose(op, types) == (name, operation, tuple(range(len(types))))
+            except ValueError:
+                return False
+
+        if (name, operation) in (("Math", "MULTIPLY"), ("VectorMath", "SCALE")) and len(operands) == 2:
+            last = operands[1][-1][0]
+            if isinstance(last, ast.Number) and last.value == -1.0 and not self.incoming.get(
+                    node.name, {}).get(node.inputs[1].identifier if name == "Math" else "Scale"):
+                expr, t = operands[0][0]
+                if means("neg", [t, "Float"]):
+                    return ast.Neg(expr, 0, 0)
+
+        for op in sugar.spellings(name, operation):
+            for choice in combinations(operands):
+                if not means(op, [t for _e, t in choice]):
+                    continue
+                exprs = [e for e, _t in choice]
+                if op in sugar.BINOPS:
+                    if len(exprs) == 2:
+                        return ast.BinOp(op, exprs[0], exprs[1], 0, 0)
+                    continue
+                return ast.Call(op, [ast.Arg(None, e, 0, 0) for e in exprs], 0, 0)
+        return None
 
     def literal(self, node, sock, defaults):
         if not hasattr(sock, "default_value") or node.bl_idname == "NodeGroupOutput":
@@ -338,6 +398,23 @@ class GraphReader:
                     if not ds:
                         heapq.heappush(ready, (self.index[m], m))
         return order
+
+
+def member(target, name):
+    """`target.name`, put inside a pipe's last call rather than around the pipe."""
+    if isinstance(target, ast.Pipe):
+        return ast.Pipe(target.left, ast.Member(target.call, name, 0, 0), 0, 0)
+    return ast.Member(target, name, 0, 0)
+
+
+def combinations(operands):
+    """Every pick of one spelling per operand, the plainest first."""
+    if not operands:
+        yield []
+        return
+    for first in operands[0]:
+        for rest in combinations(operands[1:]):
+            yield [first] + rest
 
 
 def has_items(node):
@@ -408,3 +485,8 @@ def refs(e):
     elif isinstance(e, ast.Tuple):
         for i in e.items:
             yield from refs(i)
+    elif isinstance(e, ast.BinOp):
+        yield from refs(e.left)
+        yield from refs(e.right)
+    elif isinstance(e, ast.Neg):
+        yield from refs(e.value)

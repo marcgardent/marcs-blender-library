@@ -6,7 +6,7 @@ Every error is collected with its position, so one pass reports them all.
 import difflib
 from dataclasses import dataclass
 
-from . import ast, ir
+from . import ast, ir, sugar
 from .errors import BnError, Diagnostic
 from .schema import DATABLOCKS, STRICT, TREE_KINDS, TYPES, Socket, can_link, key
 
@@ -93,6 +93,7 @@ class GraphChecker:
         self.nodes = []
         self.env = {}
         self.calls = set()
+        self.separated = {}  # (node id, output identifier) -> SeparateXYZ node id, for p.x
 
     def error(self, at, message):
         self.diags.append(Diagnostic(self.filename, at.line, at.col, message))
@@ -208,9 +209,16 @@ class GraphChecker:
             if isinstance(e.call, ast.Member):
                 return self.member(e.call, self.call(e.call.target, piped=left))
             return self.call(e.call, piped=left)
-        if isinstance(e, (ast.BinOp, ast.Neg)):
-            self.error(e, "les formules arrivent en v2 ; écrivez Math(a, b, operation: ADD)")
-            return None
+        if isinstance(e, ast.BinOp):
+            return self.formula(e, e.op, [(self.eval(e.left), e.left), (self.eval(e.right), e.right)])
+        if isinstance(e, ast.Neg):
+            v = self.eval(e.value)
+            if isinstance(v, Lit) and v.type in ("Int", "Float"):
+                return Lit(-v.value, v.type)
+            if isinstance(v, Lit) and isinstance(v.value, tuple):
+                return Lit(tuple(-x for x in v.value), v.type)
+            # -x is x times -1: Math Multiply, or Vector Math Scale
+            return self.formula(e, "neg", [(v, e.value), (Lit(-1.0, "Float"), e)])
         raise TypeError(e)
 
     def tuple(self, e):
@@ -235,6 +243,9 @@ class GraphChecker:
         if not isinstance(target, Out):
             self.error(e, f"« .{e.socket} » ne s'applique qu'à un nœud")
             return None
+        if e.socket in sugar.COMPONENTS and target.socket is not None and target.socket.type == "Vector" \
+                and (target.chosen is not None or find_socket(target.outputs, e.socket) is None):
+            return self.component(e, target)
         if target.chosen is not None:
             self.error(e, f"« {target.label} » est déjà une sortie ({target.chosen.type}) ; « .{e.socket} » n'existe pas")
             return None
@@ -247,7 +258,68 @@ class GraphChecker:
             return None
         return Out(target.node, target.outputs, sock, f"{target.label}.{e.socket}")
 
+    def component(self, e, target):
+        """`v.x`: one Separate XYZ per vector, shared by its components."""
+        src = target.socket
+        spec = self.schema.node(self.g.kind, "SeparateXYZ")
+        if spec is None:
+            self.error(e, f"pas de SeparateXYZ dans un arbre {self.g.kind}")
+            return None
+        inputs, outputs = self.schema.sockets(self.g.kind, spec, {})
+        memo = (target.node, src.identifier)
+        if memo not in self.separated:
+            node = ir.Node(f"n{len(self.nodes)}", spec.bl_idname, n_inputs=len(inputs),
+                           n_outputs=len(outputs), line=e.line, col=e.col)
+            self.nodes.append(node)
+            self.connect(node, inputs[0], target, e, "SeparateXYZ")
+            self.separated[memo] = node.id
+        sock = find_socket(outputs, e.socket)
+        return Out(self.separated[memo], outputs, sock, f"{target.label}.{e.socket}")
+
+    def is_function(self, name):
+        return (name in sugar.FUNCS and name not in self.graphs
+                and self.schema.node(self.g.kind, name) is None)
+
+    def formula(self, at, op, operands):
+        """A Math or Vector Math node for an operator or a function, from evaluated operands."""
+        for v, a in operands:
+            if v is None:
+                return None
+            if isinstance(v, Sym):
+                self.error(a, f"nom inconnu « {v.name} »")
+                return None
+        try:
+            name, operation, order = sugar.choose(op, [value_type(v) for v, _a in operands])
+        except ValueError as err:
+            self.error(at, str(err))
+            return None
+        spec = self.schema.node(self.g.kind, name)
+        if spec is None:
+            self.error(at, f"pas de {name} dans un arbre {self.g.kind}")
+            return None
+        props = {"operation": operation}
+        inputs, outputs = self.schema.sockets(self.g.kind, spec, props)
+        if len(inputs) != len(operands):
+            self.error(at, f"{op} attend {len(inputs)} argument(s), en reçoit {len(operands)}")
+            return None
+        node = ir.Node(f"n{len(self.nodes)}", spec.bl_idname, props=props, n_inputs=len(inputs),
+                       n_outputs=len(outputs), line=at.line, col=at.col)
+        self.nodes.append(node)
+        for sock, i in zip(inputs, order):
+            v, a = operands[i]
+            self.connect(node, sock, v, a, op)
+        return Out(node.id, outputs, None, op)
+
     def call(self, c, piped=None):
+        if self.is_function(c.name):
+            operands = [(piped, c)] if piped is not None else []
+            for a in c.args:
+                if a.name is not None:
+                    self.error(a, f"{c.name} ne prend pas d'argument nommé")
+                    return None
+                operands.append((self.eval(a.value), a.value))
+            return self.formula(c, c.name, operands)
+
         positional = [(piped, c)] if piped is not None else []
         named = []
         failed = False
@@ -379,6 +451,14 @@ class GraphChecker:
             self.error(at, f"{where} attend {sock.type}, reçoit {v.type}")
             return
         node.values[sock.identifier] = v.value
+
+
+def value_type(v):
+    if isinstance(v, Out):
+        return v.socket.type if v.socket else None
+    if isinstance(v, Lit):
+        return v.type
+    return None
 
 
 def find_socket(sockets, name):

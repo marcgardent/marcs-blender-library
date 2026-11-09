@@ -25,11 +25,25 @@ def fixture(name):
 
 
 def test_wave_comes_back_identical():
-    src = fixture("wave_v0.bn")
-    (tree,) = build_source(src, "wave_v0.bn")
+    src = fixture("wave.bn")
+    (tree,) = build_source(src, "wave.bn")
+    assert len(tree.nodes) == 9 and len(tree.links) == 9
     text, warnings = export_tree(tree)
     assert text == src, text
     assert warnings == []
+
+
+def test_formulas_come_back_identical():
+    src = fixture("formulas.bn")
+    (tree,) = build_source(src, "formulas.bn")
+    text, _ = export_tree(tree)
+    assert text == src, text
+
+
+def test_math_calls_read_back_as_formulas():
+    (tree,) = build_source(fixture("wave_v0.bn"), "wave_v0.bn")
+    text, _ = export_tree(tree)
+    assert "  s = p.x + t\n  h = sin(s) * 0.2\n" in text, text
 
 
 def test_groups_pipes_and_quoted_names_come_back_identical():

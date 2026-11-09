@@ -1,0 +1,5 @@
+geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
+  p = Position()
+  h = sin(p.x + t) * 0.2
+  return SetPosition(geometry, offset: CombineXYZ(z: h))
+}

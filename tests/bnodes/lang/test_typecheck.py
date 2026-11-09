@@ -99,9 +99,6 @@ def test_unknown_name_is_reported(schema):
     assert msgs == ["t.bn:2:22  nom inconnu « geometrie »"]
 
 
-def test_formulas_wait_for_v2(schema):
-    msgs = errors(graph("  h = t * 2\n  return geometry"), schema)
-    assert "v2" in msgs[0]
 
 
 def test_group_call_and_order(schema):
