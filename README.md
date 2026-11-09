@@ -98,6 +98,46 @@ remplace *Remove Meta* (Ctrl+Alt+G), qui marche toujours ailleurs dans l'éditeu
 Marker > *Sync Markers* déplace les markers avec les keys, après Select > *Columns on
 Selected Markers* (Shift+K) puis G.
 
+### Nodes as Text
+
+Blender 5.2+. Text Editor et Node Editor, Geometry Nodes seulement pour l'instant.
+
+Un arbre de nœuds s'écrit comme une fonction dans un texte `.bn`, et un arbre existant
+se réécrit en texte :
+
+```
+geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
+  p = Position()
+  h = sin(p.x + t) * 0.2
+  return SetPosition(geometry, offset: CombineXYZ(z: h))
+}
+```
+
+- Un `graph` donne un node group ; ses paramètres et ses sorties deviennent l'interface.
+- Les nœuds s'appellent par leur nom anglais sans préfixe (`SetPosition`), avec les
+  entrées dans l'ordre puis par nom (`offset: …`). `.x`, `.mesh` choisit une sortie.
+- `a |> F(b)` enchaîne : la géométrie `a` devient la première entrée de `F`.
+- `+ - * /`, `sin`, `min`, `length`, `dot`… donnent des nœuds Math et Vector Math.
+- Un nom avec des espaces se déclare entre guillemets (`"Point Count": Int`) et
+  s'utilise en snake_case (`point_count`). Commentaires : `//`.
+
+| Raccourci / bouton | Action |
+|---|---|
+| Ctrl+Entrée (Text Editor, texte `.bn`) | Construit ou met à jour les node groups du texte |
+| Node Editor > Sidebar (N) > Text > **Ouvrir en texte** | Écrit l'arbre dans son `.bn` (le crée au besoin) et l'ouvre |
+
+Text Editor > Sidebar (N) > Nodes : erreurs cliquables, arbres construits avec
+**Add as Modifier** et **Tree → Text**, case **Sync Selection**.
+
+- Mettre à jour un groupe garde ses modifiers, leurs valeurs et ses appels depuis
+  d'autres groupes, tant que l'entrée ou la sortie existe encore.
+- Erreur dans le texte : rien n'est modifié, le curseur va sur la première erreur.
+- Text Editor et Node Editor côte à côte : cliquer un nœud place le curseur sur sa
+  ligne, et déplacer le curseur sélectionne les nœuds de la ligne.
+- Pas encore pris en charge : zones (Simulation, Repeat…), nœuds aux sockets ajoutés
+  à la main (Capture Attribute, Bake, Menu Switch…, signalés à l'export), shaders et
+  compositing.
+
 ## Installation locale (clone git)
 
 ```bash
