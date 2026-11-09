@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from . import ast, ir
 from .errors import BnError, Diagnostic
-from .schema import STRICT, TREE_KINDS, TYPES, Socket, can_link
+from .schema import DATABLOCKS, STRICT, TREE_KINDS, TYPES, Socket, can_link, key
 
 GROUP_NODES = {
     "geometry": "GeometryNodeGroup",
@@ -46,16 +46,17 @@ def check(file, schema, filename="<text>"):
     """Checked graphs, callees before callers. Raises BnError."""
     diags = []
     by_name = {}
+    # Graphs are called by their key: "Smooth by Angle" is called as smooth_by_angle(...)
     for g in file.graphs:
-        if g.name in by_name:
-            diags.append(Diagnostic(filename, g.line, g.col, f"graph « {g.name} » défini deux fois"))
-        by_name[g.name] = g
+        if key(g.name) in by_name:
+            diags.append(Diagnostic(filename, g.line, g.col, f"graph « {key(g.name)} » défini deux fois"))
+        by_name[key(g.name)] = g
 
     checked, calls = {}, {}
     for g in file.graphs:
         c = GraphChecker(g, by_name, schema, filename, diags)
-        checked[g.name] = c.run()
-        calls[g.name] = c.calls
+        checked[key(g.name)] = c.run()
+        calls[key(g.name)] = c.calls
 
     order = []
     state = {}
@@ -75,7 +76,7 @@ def check(file, schema, filename="<text>"):
             order.append(checked[name])
 
     for g in file.graphs:
-        visit(g.name, g.name)
+        visit(key(g.name), key(g.name))
 
     if diags:
         raise BnError(diags)
@@ -117,10 +118,10 @@ class GraphChecker:
         gout = ir.Node(ir.GROUP_OUTPUT, "NodeGroupOutput", n_inputs=len(g.outputs), line=g.line, col=g.col)
         self.nodes += [gin, gout]
         for p in g.params:
-            if p.name in self.env:
-                self.error(p, f"paramètre « {p.name} » défini deux fois")
+            if key(p.name) in self.env:
+                self.error(p, f"paramètre « {key(p.name)} » défini deux fois")
             sock = Socket(p.name, p.name, p.type)
-            self.env[p.name] = Out(ir.GROUP_INPUT, [sock], sock, p.name)
+            self.env[key(p.name)] = Out(ir.GROUP_INPUT, [sock], sock, key(p.name))
 
         returned = None
         for stmt in g.body:
@@ -159,12 +160,10 @@ class GraphChecker:
     def return_stmt(self, stmt, gout):
         outs = [Socket(o.name, o.name, o.type) for o in self.g.outputs]
         if isinstance(stmt.value, ast.Record):
-            if self.g.single_output:
-                self.error(stmt, "ce graph a une seule sortie : return valeur")
-                return
+            # Outputs left out stay unlinked, as Blender allows
             given = {}
             for f in stmt.value.fields:
-                sock = next((s for s in outs if s.name == f.name), None)
+                sock = next((s for s in outs if f.name in (s.name, key(s.name))), None)
                 if sock is None:
                     self.error(f, f"« {f.name} » n'est pas une sortie ; sorties : {', '.join(s.name for s in outs)}")
                     continue
@@ -175,9 +174,6 @@ class GraphChecker:
                 value = self.eval(f.value)
                 if value is not None:
                     self.connect(gout, sock, value, f, "return")
-            missing = [s.name for s in outs if s.name not in given]
-            if missing:
-                self.error(stmt, f"sorties sans valeur : {', '.join(missing)}")
             return
         if not self.g.single_output:
             self.error(stmt, f"ce graph a plusieurs sorties : return ({', '.join(s.name + ': …' for s in outs)})")
@@ -326,7 +322,7 @@ class GraphChecker:
             return None, None
         self.calls.add(c.name)
         node.bl_idname = GROUP_NODES[self.g.kind]
-        node.group = c.name
+        node.group = callee.name
         return ([Socket(p.name, p.name, p.type) for p in callee.params],
                 [Socket(o.name, o.name, o.type) for o in callee.outputs])
 
@@ -377,6 +373,7 @@ class GraphChecker:
             return
         ok = (v.type == sock.type
               or (sock.type == "Menu" and v.type == "String")
+              or (sock.type in DATABLOCKS and v.type == "String")
               or (sock.type not in STRICT and v.type not in STRICT))
         if not ok:
             self.error(at, f"{where} attend {sock.type}, reçoit {v.type}")

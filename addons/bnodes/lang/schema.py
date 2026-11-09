@@ -34,7 +34,12 @@ TYPES = {
 STRICT = {"Geometry", "Shader", "String", "Menu", "Matrix", "Object", "Collection",
           "Material", "Image", "Texture", "Bundle", "Closure"}
 
+# Written in text as the datablock's name: material: "Rust"
+DATABLOCKS = {"Object", "Collection", "Material", "Image", "Texture"}
+
 TREE_KINDS = ("geometry", "shader", "compositor")
+
+RESERVED = {"graph", "return", "true", "false"}
 
 
 def can_link(src, dst):
@@ -43,7 +48,19 @@ def can_link(src, dst):
 
 def snake(name):
     """Socket name as written in text: `Base Color` -> `base_color`."""
-    return re.sub(r"[^0-9a-z]+", "_", name.lower()).strip("_")
+    s = re.sub(r"\W+", "_", name.lower()).strip("_")
+    if not s or s[0].isdigit():
+        s = "_" + s
+    return s + "_" if s in RESERVED else s
+
+
+def key(name):
+    """How a parameter or graph is named in code: itself when it can be, else snake_case.
+
+    A name that is not its own key is written quoted where it is declared:
+    `"Fur Density": Float`, then used as `fur_density`.
+    """
+    return name if name.isidentifier() and name not in RESERVED else snake(name)
 
 
 @dataclass(frozen=True)

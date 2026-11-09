@@ -65,14 +65,12 @@ class Parser:
     def graph(self):
         kind = self.expect("IDENT", what="type d'arbre (geometry, shader, compositor)")
         self.expect("KEYWORD", "graph")
-        name = self.expect("IDENT", what="nom du graph")
+        name = self.accept("STRING") or self.expect("IDENT", what="nom du graph")
         self.expect("(")
         params = self.typed_list(")")
         self.expect("->")
         if self.accept("("):
             outputs, single = self.typed_list(")"), False
-            if not outputs:
-                self.fail("au moins une sortie attendue")
         else:
             t = self.expect("IDENT", what="type de retour")
             outputs, single = [ast.Param(t.text, t.text, t.line, t.col)], True
@@ -88,7 +86,7 @@ class Parser:
         """`name: Type, ...` up to `close`, which is consumed."""
         items = []
         while not self.accept(close):
-            name = self.expect("IDENT", what="nom")
+            name = self.accept("STRING") or self.expect("IDENT", what="nom")
             self.expect(":")
             t = self.expect("IDENT", what="type")
             items.append(ast.Param(name.text, t.text, name.line, name.col))
@@ -100,7 +98,8 @@ class Parser:
     def statement(self):
         t = self.tok
         if self.accept("KEYWORD", "return"):
-            if self.at("(") and self.peek().kind in ("IDENT", "STRING") and self.peek(2).kind == ":":
+            if self.at("(") and (self.peek().kind == ")" or
+                                 self.peek().kind in ("IDENT", "STRING") and self.peek(2).kind == ":"):
                 self.advance()
                 fields = self.args(named_only=True)
                 return ast.Return(ast.Record(fields, t.line, t.col), t.line, t.col)

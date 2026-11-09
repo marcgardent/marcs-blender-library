@@ -100,6 +100,8 @@ class BlenderSchema:
             for p in node.bl_rna.properties:
                 if p.identifier in base or p.type not in PROP_KINDS or p.is_readonly:
                     continue
+                if getattr(p, "is_array", False) or getattr(p, "array_length", 0):
+                    continue  # a color or a vector property: not in the text yet
                 if p.type == "ENUM" and p.is_enum_flag:
                     continue
                 items = tuple(i.identifier for i in p.enum_items) if p.type == "ENUM" else ()
@@ -139,6 +141,15 @@ class BlenderSchema:
         return sorted({s.name for s in self.specs(kind).values()}) if kind in TREE_TYPES else []
 
     def sockets(self, kind, spec, props):
+        inputs, outputs, _values, _props = self.fresh(kind, spec, props)
+        return list(inputs), list(outputs)
+
+    def defaults(self, kind, spec, props):
+        """What a new node holds once `props` are set: ({input identifier: value}, {prop: value})."""
+        _inputs, _outputs, values, prop_values = self.fresh(kind, spec, props)
+        return values, prop_values
+
+    def fresh(self, kind, spec, props):
         key = (self.version, kind, spec.bl_idname, tuple(sorted(props.items())))
         if key not in _sockets:
             tree = self.tree(kind)
@@ -149,11 +160,22 @@ class BlenderSchema:
                         setattr(node, name, value)
                     except (TypeError, ValueError, AttributeError):
                         pass  # the builder reports it, with Blender's own message
-                _sockets[key] = (available(node.inputs), available(node.outputs))
+                values = {s.identifier: snapshot(s) for s in node.inputs}
+                prop_values = {p: getattr(node, p) for p in spec.props}
+                _sockets[key] = (available(node.inputs), available(node.outputs), values, prop_values)
             finally:
                 tree.nodes.remove(node)
-        inputs, outputs = _sockets[key]
-        return list(inputs), list(outputs)
+        return _sockets[key]
+
+
+def snapshot(sock):
+    """A socket's default_value as plain Python: tuples for vectors, names for datablocks."""
+    value = getattr(sock, "default_value", None)
+    if isinstance(value, bpy.types.ID):
+        return value.name
+    if hasattr(value, "__len__") and not isinstance(value, str):
+        return tuple(value)
+    return value
 
 
 def text_name_free(short, found):

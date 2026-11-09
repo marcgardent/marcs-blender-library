@@ -1,4 +1,3 @@
-// wave, written with plain node calls: formulas come in v2
 geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
   p = Position()
   s = Math(SeparateXYZ(p).x, t, operation: ADD)

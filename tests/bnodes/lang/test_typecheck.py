@@ -137,3 +137,36 @@ def test_layout_goes_left_to_right(schema, fixture_text):
         assert pos[src][0] < pos[dst][0]
     assert pos[ir.GROUP_OUTPUT][0] == max(x for x, _y in pos.values())
     assert layout(g) == pos
+
+
+def test_quoted_names_are_used_by_their_key(schema):
+    src = ('geometry graph "Smooth by Angle"(Mesh: Geometry, "Fur Density": Float) -> Geometry {\n'
+           "  return SetPosition(Mesh, offset: CombineXYZ(z: fur_density))\n}\n"
+           "geometry graph main(geometry: Geometry) -> Geometry {\n"
+           "  return smooth_by_angle(geometry, fur_density: 0.5)\n}\n")
+    callee, main = compile_source(src, schema)
+    assert callee.inputs == [("Mesh", "Geometry"), ("Fur Density", "Float")]
+    call = main.nodes[2]
+    assert call.group == "Smooth by Angle"
+    assert call.values == {"Fur Density": 0.5}
+
+
+def test_outputs_may_stay_unlinked(schema):
+    g = compile_one("geometry graph g(a: Geometry) -> (mesh: Geometry, n: Int) {\n  return (n: 3)\n}", schema)
+    assert g.node(ir.GROUP_OUTPUT).values == {"n": 3}
+    g = compile_one("geometry graph g(a: Geometry) -> () {\n  return ()\n}", schema)
+    assert g.outputs == []
+
+
+def test_datablock_by_name(schema):
+    from fake_schema import NODES, S
+    from lang.schema import NodeSpec
+    NODES["SetMaterial"] = (NodeSpec("SetMaterial", "GeometryNodeSetMaterial"),
+                            [S("Geometry", "Geometry"), S("Selection", "Bool"), S("Material", "Material")],
+                            [S("Geometry", "Geometry")])
+    try:
+        g = compile_one(graph('  return SetMaterial(geometry, material: "Rust")'), schema)
+        assert g.nodes[2].values == {"Material": "Rust"}
+        assert "attend Material" in errors(graph("  return SetMaterial(geometry, material: 3)"), schema)[0]
+    finally:
+        del NODES["SetMaterial"]
