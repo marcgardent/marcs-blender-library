@@ -118,6 +118,10 @@ geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
   entrées dans l'ordre puis par nom (`offset: …`). `.x`, `.mesh` choisit une sortie.
 - `a |> F(b)` enchaîne : la géométrie `a` devient la première entrée de `F`.
 - `+ - * /`, `sin`, `min`, `length`, `dot`… donnent des nœuds Math et Vector Math.
+- `+` entre géométries donne un Join Geometry : `a + b + c` en fait un seul, avec ses
+  entrées dans cet ordre, et `a + b |> SetShadeSmooth()` lisse le tout. Les parenthèses
+  ne changent rien : un Join qui n'alimente qu'un autre Join fond dedans, même à la
+  relecture d'un arbre (même géométrie, même ordre, un nœud de moins).
 - `< <= > >= == !=` donnent des nœuds Compare (Float, Int, Vector, Color ou String
   selon les deux côtés) et un Bool. Un Compare avec un epsilon changé ou un mode
   vecteur autre que *Element* reste écrit `Compare(…)`.

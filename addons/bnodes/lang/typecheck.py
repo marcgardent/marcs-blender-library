@@ -210,6 +210,8 @@ class GraphChecker:
             if isinstance(e.call, ast.Member):
                 return self.member(e.call, self.call(e.call.target, piped=left))
             return self.call(e.call, piped=left)
+        if isinstance(e, ast.BinOp) and e.op == "+":
+            return self.plus(e)
         if isinstance(e, ast.BinOp):
             return self.formula(e, e.op, [(self.eval(e.left), e.left), (self.eval(e.right), e.right)])
         if isinstance(e, ast.Not):
@@ -278,6 +280,50 @@ class GraphChecker:
             self.separated[memo] = node.id
         sock = find_socket(outputs, e.socket)
         return Out(self.separated[memo], outputs, sock, f"{target.label}.{e.socket}")
+
+    def plus(self, e):
+        """`a + b + c`: one Join Geometry for geometries, else Math or Vector Math, pair by pair.
+
+        Joining is the same whatever the parentheses, so `a + (b + c)` is one
+        Join too: the canonical graph has no Join feeding a Join of its own.
+        """
+        steps = []
+        while isinstance(e, ast.BinOp) and e.op == "+":
+            steps.append(e)
+            e = e.left
+        steps.reverse()
+        v = self.eval(e)
+        if value_type(v) == "Geometry":
+            return self.join(steps[0], [(v, e)] + [(self.eval(t), t) for s in steps for t in plus_terms(s.right)])
+        for s in steps:
+            right = self.eval(s.right)
+            if value_type(right) == "Geometry" and v is not None:
+                self.error(s.left, f"« + » joint des Geometry, pas {value_type(v)}")
+                return None
+            v = self.formula(s, "+", [(v, s.left), (right, s.right)])
+        return v
+
+    def join(self, at, terms):
+        for v, a in terms:
+            if v is None:
+                return None
+            if isinstance(v, Sym):
+                self.error(a, f"nom inconnu « {v.name} »")
+                return None
+            if value_type(v) != "Geometry":
+                self.error(a, f"« + » joint des Geometry, pas {value_type(v)}")
+                return None
+        spec = self.schema.node(self.g.kind, "JoinGeometry")
+        if spec is None:
+            self.error(at, f"pas de JoinGeometry dans un arbre {self.g.kind}")
+            return None
+        inputs, outputs = self.schema.sockets(self.g.kind, spec, {})
+        node = ir.Node(f"n{len(self.nodes)}", spec.bl_idname, n_inputs=len(inputs), n_outputs=len(outputs),
+                       line=at.line, col=at.col)
+        self.nodes.append(node)
+        for v, a in terms:
+            self.connect(node, inputs[0], v, a, "+")
+        return Out(node.id, outputs, None, "+")
 
     def is_function(self, name):
         return (name in sugar.FUNCS and name not in self.graphs
@@ -456,6 +502,13 @@ class GraphChecker:
             self.error(at, f"{where} attend {sock.type}, reçoit {v.type}")
             return
         node.values[sock.identifier] = v.value
+
+
+def plus_terms(e):
+    """The terms of `a + (b + c)`, parentheses aside."""
+    if isinstance(e, ast.BinOp) and e.op == "+":
+        return plus_terms(e.left) + plus_terms(e.right)
+    return [e]
 
 
 def value_type(v):

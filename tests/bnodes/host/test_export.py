@@ -60,6 +60,21 @@ def test_compare_calls_read_back_as_symbols():
     assert "  high = p.z > t\n" in text, text
 
 
+def test_joins_read_back_as_one_plus():
+    head = "geometry graph j(a: Geometry, b: Geometry, c: Geometry) -> (x: Geometry, y: Geometry, z: Geometry) {\n"
+    src = head + "  return (x: JoinGeometry(a + b, c), y: JoinGeometry(a), z: a + (b + c))\n}\n"
+    (tree,) = build_source(src, "j.bn")
+    assert sum(n.bl_idname == "GeometryNodeJoinGeometry" for n in tree.nodes) == 4  # x is a join of a join
+    text, _ = export_tree(tree)
+    canonical = head + "  return (x: a + b + c, y: JoinGeometry(a), z: a + b + c)\n}\n"
+    assert text == canonical, text
+    (tree,) = build_source(text, "j.bn")
+    assert sum(n.bl_idname == "GeometryNodeJoinGeometry" for n in tree.nodes) == 3
+    shared = head + "  ab = a + b\n  return (x: ab + c, y: ab, z: c)\n}\n"
+    (tree,) = build_source(shared, "j.bn")
+    assert export_tree(tree)[0] == shared  # a join used twice stays its own node
+
+
 def test_math_calls_read_back_as_formulas():
     (tree,) = build_source(fixture("wave_v0.bn"), "wave_v0.bn")
     text, _ = export_tree(tree)
@@ -115,6 +130,7 @@ def test_bundled_assets_export_and_come_back_stable():
         stats["compare as call"] += text.count("Compare(")
         stats["logic as symbol"] += sum(text.count(f" {op} ") for op in ("and", "or")) + text.count("not ")
         stats["logic as call"] += text.count("BooleanMath(")
+        stats["join as call"] += text.count("JoinGeometry(")
         if any("pas encore pris en charge" in w for w in warnings):
             stats["not yet"] += 1
             continue

@@ -24,6 +24,7 @@ SKIP = {"NodeFrame", "NodeReroute"}
 # Kept for statements even when they hold their default
 ALWAYS = {"operation"}
 
+JOIN = "GeometryNodeJoinGeometry"
 FORMULA_NODES = {"ShaderNodeMath": "Math", "ShaderNodeVectorMath": "VectorMath", "FunctionNodeCompare": "Compare",
                  "FunctionNodeBooleanMath": "BooleanMath"}
 COMPONENT = {"X": "x", "Y": "y", "Z": "z"}
@@ -253,6 +254,10 @@ class GraphReader:
                 value = getattr(node, p.name)
                 if p.name in ALWAYS or not same(value, prop_defaults.get(p.name)):
                     props[p.name] = value
+        if spec is not None and spec.bl_idname == JOIN and not props:
+            joined = self.join(node)
+            if joined is not None:
+                return joined
         if spec is not None and spec.bl_idname in FORMULA_NODES:
             formula = self.formula(node, spec, props)
             if formula is not None:
@@ -302,6 +307,23 @@ class GraphReader:
             return ast.Pipe(first, rest, 0, 0)
         self.chain_heads.add(id(call))
         return call
+
+    def join(self, node):
+        """`a + b + c` for a Join Geometry of two links or more.
+
+        A Join written inline in another one (used nowhere else) melts into
+        it: the same geometry in the same order, one node fewer.
+        """
+        links = self.incoming.get(node.name, {}).get(node.inputs[0].identifier, [])
+        if len(links) < 2:
+            return None
+        terms = []
+        for src in links:
+            terms += plus_terms(self.use(*src))
+        e = terms[0]
+        for t in terms[1:]:
+            e = ast.BinOp("+", e, t, 0, 0)
+        return e
 
     def formula(self, node, spec, props):
         """`a * 2.0 + sin(t)`, `h > 0.5`, `a and not b` for a Math, Vector Math, Compare or Boolean Math node,
@@ -493,6 +515,13 @@ def prop_literal(prop, value):
     if prop.kind == "FLOAT":
         return number(value)
     return ast.String(str(value), 0, 0)
+
+
+def plus_terms(e):
+    """Terms of a Join read inline: its operands are geometries, so every + is a join."""
+    if isinstance(e, ast.BinOp) and e.op == "+":
+        return plus_terms(e.left) + plus_terms(e.right)
+    return [e]
 
 
 def refs(e):

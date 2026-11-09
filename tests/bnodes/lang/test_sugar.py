@@ -80,7 +80,8 @@ def test_negative_literals_fold(schema):
 
 
 @pytest.mark.parametrize("body, message", [
-    ("  a = geometry + 1.0", "« + » ne s'applique pas à Geometry"),
+    ("  a = geometry + 1.0", "« + » joint des Geometry, pas Float"),
+    ("  a = t + geometry", "« + » joint des Geometry, pas Float"),
     ("  a = length(t)", "length attend des vecteurs"),
     ("  a = atan2(t)", "atan2 attend 2 argument(s), en reçoit 1"),
     ("  a = sin(t, base: 2.0)", "sin ne prend pas d'argument nommé"),
@@ -144,3 +145,32 @@ def test_and_or_not_make_boolean_math(schema):
 
 def test_logic_errors(schema):
     assert errors(graph("  a = v and true"), schema) == ["« and » attend des Bool, pas Vector"]
+
+
+def test_plus_joins_geometries_in_one_node(schema):
+    g = compile_one(graph("  grid = MeshGrid(1.0, 1.0, 2, 2)\n"
+                          "  a = geometry + grid.mesh + SetShadeSmooth(grid.mesh)\n"
+                          "  b = (geometry + grid.mesh) + geometry\n"
+                          "  c = geometry + (grid.mesh + geometry)\n"
+                          "  d = t + t + t"), schema)
+    joins = [n for n in g.nodes if n.bl_idname == "GeometryNodeJoinGeometry"]
+    assert len(joins) == 3  # parentheses change nothing: one join each for a, b and c
+    c = node(g, "c")
+    assert [l.node for _s, l in c.links] == [ir.GROUP_INPUT, grid_id(g), ir.GROUP_INPUT]
+    a = node(g, "a")
+    smooth = next(n for n in g.nodes if n.bl_idname == "GeometryNodeSetShadeSmooth")
+    assert [l for _s, l in a.links] == [ir.Link(ir.GROUP_INPUT, "geometry"), ir.Link(grid_id(g), "Mesh"),
+                                        ir.Link(smooth.id, "Geometry")]
+    assert ops(g) == [("Math", "ADD"), ("Math", "ADD")]
+
+
+def grid_id(g):
+    return next(n.id for n in g.nodes if n.bl_idname == "GeometryNodeMeshGrid")
+
+
+def test_joined_geometry_pipes_on(schema):
+    g = compile_one("geometry graph g(a: Geometry, b: Geometry) -> Geometry {\n"
+                    "  return a + b\n    |> SetShadeSmooth()\n}", schema)
+    join = next(n for n in g.nodes if n.bl_idname == "GeometryNodeJoinGeometry")
+    smooth = next(n for n in g.nodes if n.bl_idname == "GeometryNodeSetShadeSmooth")
+    assert smooth.links == [("Geometry", ir.Link(join.id, "Geometry"))]
