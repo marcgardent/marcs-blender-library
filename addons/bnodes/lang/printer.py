@@ -11,7 +11,7 @@ INDENT = "  "
 WIDTH = 100
 
 # Binding strength, for parentheses: unary minus is 4, `.socket` is 9
-PRECEDENCE = {"|>": 1, "or": 2, "and": 3, "not": 4, "<": 5, "<=": 5, ">": 5, ">=": 5, "==": 5, "!=": 5,
+PRECEDENCE = {"|>": 1, "or": 2, "xor": 2, "and": 3, "not": 4, "<": 5, "<=": 5, ">": 5, ">=": 5, "==": 5, "!=": 5,
               "+": 6, "-": 6, "*": 7, "/": 7, "⋅": 7, "×": 7}
 
 
@@ -141,9 +141,9 @@ def expr(e, outer=0):
         op = e.op if isinstance(e, ast.BinOp) else "|>"
         p = PRECEDENCE[op]
         right = e.right if isinstance(e, ast.BinOp) else e.call
-        # Comparisons do not chain: a comparison on the left takes parentheses. Neither does a
-        # product beside another of `* / ⋅ ×`, which would be hard to read: `(n ⋅ u) * 2.0`
-        mixed = isinstance(e.left, ast.BinOp) and e.left.op != op and {op, e.left.op} & {"⋅", "×"}
+        # Comparisons do not chain: a comparison on the left takes parentheses. Neither do
+        # `⋅ ×` beside `* /` nor `xor` beside `or`, which would be hard to read: `(n ⋅ u) * 2.0`
+        mixed = isinstance(e.left, ast.BinOp) and e.left.op != op and {op, e.left.op} & {"⋅", "×", "xor"}
         left = expr(e.left, p + 1 if p == PRECEDENCE["=="] or mixed else p)
         text = f"{left} {op} {expr(right, p + 1)}"
         return f"({text})" if p < outer else text

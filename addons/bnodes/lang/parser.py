@@ -1,6 +1,6 @@
 """Recursive descent parser.
 
-Precedence, loosest first: `|>`, `or`, `and`, `not`, comparisons, `+ -`,
+Precedence, loosest first: `|>`, `or xor`, `and`, `not`, comparisons, `+ -`,
 `* / ⋅ ×`, unary `-`, then `.socket`. Statements need no separator: an
 expression ends where the next token cannot continue it.
 """
@@ -143,9 +143,9 @@ class Parser:
 
     def disjunction(self):
         left = self.conjunction()
-        while self.at("KEYWORD", "or"):
+        while self.at("KEYWORD", "or") or self.at("KEYWORD", "xor"):
             op = self.advance()
-            left = ast.BinOp("or", left, self.conjunction(), op.line, op.col)
+            left = ast.BinOp(op.text, left, self.conjunction(), op.line, op.col)
         return left
 
     def conjunction(self):
@@ -214,6 +214,11 @@ class Parser:
             return ast.String(t.text, t.line, t.col)
         if self.accept("KEYWORD", "true") or self.accept("KEYWORD", "false"):
             return ast.Bool(t.text == "true", t.line, t.col)
+        if self.at("KEYWORD", "xor") and self.peek().kind == "(":
+            # The function form, kept from before `xor` was an operator
+            self.advance()
+            self.advance()
+            return ast.Call("xor", self.args(), t.line, t.col)
         if self.accept("IDENT"):
             if self.accept("("):
                 return ast.Call(t.text, self.args(), t.line, t.col)

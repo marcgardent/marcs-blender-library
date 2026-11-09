@@ -1,0 +1,36 @@
+// Des rochers semés sur un sol : un bruit pour le relief, un rocher, puis le semis.
+
+// Un relief entre -1 et 1
+geometry graph relief(p: Vector, échelle: Float) -> Float {
+  return (TexNoise(p, échelle).factor - 0.5) * 2.0
+}
+
+geometry graph "Rocher brut"(taille: Float, détail: Int) -> (Mesh: Geometry, Hauteur: Float) {
+  boule = MeshIcoSphere(taille, détail)
+  p = Position()
+  "Forme" #e07030 {
+    "Bosses" {
+      bosses = relief(p, 1.5) * taille * 0.8
+    }
+    // Le dessous est aplati
+    bas = max(p.z, -(taille * 0.4))
+  }
+  forme = SetPosition(boule.mesh, position: CombineXYZ(p.x, p.y, bas) + Normal().normal * bosses)
+  return (Mesh: forme, Hauteur: BoundBox(forme).max.z)
+}
+
+geometry graph rochers(sol: Geometry, densité: Float, graine: Int) -> Geometry {
+  {
+    rocher = rocher_brut(1.0, 4)
+  }
+  "Semis" #slategray {
+    points = DistributePointsOnFaces(sol, density: densité, seed: graine)
+    // Entre 0.3 et 1.0, le maximum par défaut
+    taille = RandomValue(0.3, seed: graine)
+    // Enfoncés d'un cinquième de leur hauteur
+    posés = points.points |> InstanceOnPoints(instance: rocher.mesh, rotation: points.rotation, scale: taille)
+      |> TranslateInstances(translation: CombineXYZ(z: -(rocher.hauteur * taille * 0.2)))
+  }
+  "À régler : la densité dépend de l'aire du sol" #tomato {}
+  return sol + RealizeInstances(posés)
+}

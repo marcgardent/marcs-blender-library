@@ -136,8 +136,9 @@ def logic(g):
 
 
 def test_and_or_not_make_boolean_math(schema):
-    g = compile_one(graph("  a = t > 0.0 and t < 1.0 or not t > 2.0\n  b = xor(true, t > 0.0)"), schema)
-    assert logic(g) == ["AND", "NOT", "OR", "XOR"]
+    g = compile_one(graph("  a = t > 0.0 and t < 1.0 or not t > 2.0\n  b = xor(true, t > 0.0)\n"
+                          "  c = true xor t > 0.0 or false"), schema)
+    assert logic(g) == ["AND", "NOT", "OR", "XOR", "XOR", "OR"]
     a = node(g, "a")
     assert [s for s, _l in a.links] == ["Boolean", "Boolean_001"]
     assert node(g, "b").values == {"Boolean": True}

@@ -15,7 +15,7 @@ from .sugar import COMPONENTS, FUNCS, VECTOR, WORDS
 OPENERS = ("(", ".", ":", "#")
 
 # Keywords that a value follows
-KEYWORDS = ("return", "and", "or", "not")
+KEYWORDS = ("return", "and", "or", "xor", "not")
 OPERATORS = ("=", "+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!=", "⋅", "·", "×")
 
 

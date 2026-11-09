@@ -16,9 +16,12 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "addons"))
 
 from bnodes.host import build_source, export_tree  # noqa: E402
-from bnodes.lang import sugar  # noqa: E402
+from bnodes.lang import parse, sugar  # noqa: E402
+from bnodes.lang.format import format_source  # noqa: E402
+from bnodes.lang.printer import to_source  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "bnodes" / "fixtures"
+DOCS = ROOT / "docs"
 
 
 def fixture(name):
@@ -85,6 +88,21 @@ def test_products_come_back_as_signs():
     text, warnings = export_tree(tree)
     assert text == src, text
     assert warnings == []
+
+
+def test_doc_examples_build_and_read_back():
+    page = (DOCS / "nodes-as-text.md").read_text()
+    examples = sorted((DOCS / "exemples").glob("*.bn"))
+    assert len(examples) == 3
+    for path in examples:
+        src = path.read_text()
+        assert format_source(src) == src, f"{path.name} is not formatted"
+        assert f"```\n{src}```" in page, f"{path.name} differs from its copy in the page"
+        trees = build_source(src, path.name)
+        text, warnings = export_tree(trees[-1])
+        # Comments and blank lines are not in a tree: the program itself comes back
+        assert text == to_source(parse(src)), text
+        assert warnings == [], warnings
 
 
 def test_formulas_come_back_identical():

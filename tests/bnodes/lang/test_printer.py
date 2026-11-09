@@ -31,7 +31,9 @@ CANONICAL = [
     "  top = t + 1.0 >= t * 2.0\n"
     "  same = (t < 0.0) == (t > 1.0)\n"
     "  inside = t > 0.0 and not (t > 1.0 or t == 0.5) and (not same) == top\n"
-    "  either = (t > 0.0 or same) and xor(top, same)\n"
+    "  either = (t > 0.0 or same) and (top xor same)\n"
+    "  flip = (top or same) xor inside\n"
+    "  odd = top xor same xor inside\n"
     '  return SetPosition(geometry, selection: top != (t == 0.5), offset: (0.0, 0.0, -t))\n'
     "}\n",
     "geometry graph g(n: Vector, u: Vector) -> Float {\n"
@@ -72,3 +74,9 @@ def test_long_signature_breaks_per_parameter():
 def test_words_print_as_signs():
     text = to_source(parse("geometry graph g(n: Vector, u: Vector) -> Float {\n  return n dot (u cross n)\n}"))
     assert "  return n ⋅ (u × n)\n" in text
+
+
+def test_xor_beside_or_takes_parentheses():
+    # Same strength as `or`, read from the left: the parentheses say so
+    text = to_source(parse("geometry graph g(a: Bool, b: Bool) -> Bool {\n  return a or b xor a\n}"))
+    assert "  return (a or b) xor a\n" in text, text

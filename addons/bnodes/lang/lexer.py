@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from .errors import BnError, Diagnostic
 
-KEYWORDS = {"graph", "return", "true", "false", "and", "or", "not"}
+KEYWORDS = {"graph", "return", "true", "false", "and", "or", "xor", "not"}
 
 # Longest first, so "->" wins over "-" and "==" over "="
 PUNCT = ("|>", "->", "<=", ">=", "==", "!=", "<", ">", "(", ")", "{", "}", ",", ":", ".", "=", "+", "-", "*", "/",

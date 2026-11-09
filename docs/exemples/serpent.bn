@@ -1,0 +1,16 @@
+// Un tuyau qui ondule de part et d'autre d'une courbe, à l'horizontale.
+geometry graph serpent(
+    courbe: Geometry,
+    amplitude: Float,
+    ondulations: Float,
+    épaisseur: Float
+) -> Geometry {
+  "Ondulation" #steelblue {
+    // Tangente × verticale : à plat et perpendiculaire à la courbe
+    côté = normalize(Tangent() × (0.0, 0.0, 1.0))
+    onde = sin(SplineParameter().factor * ondulations * 6.2832) * amplitude
+  }
+  return courbe |> SetPosition(offset: côté * onde)
+    |> CurveToMesh(CurvePrimitiveCircle(radius: épaisseur), fill_caps: true)
+    |> SetShadeSmooth()
+}

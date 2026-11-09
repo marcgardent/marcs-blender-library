@@ -12,7 +12,7 @@ geometry graph mask(
     |> SetPosition(Index() == limit, center)
     |> SetPosition(label == "top", offset: (0.0, 0.0, 1.0))
     |> SetPosition(p == center)
-    |> SetPosition(high and not near or xor(high, label == "top"))
+    |> SetPosition(high and not near or (high xor label == "top"))
     |> SetPosition(Compare(t, 1.0, 0.1, operation: EQUAL))
     |> SetPosition(Compare(p, center, operation: LESS_THAN, data_type: VECTOR, mode: LENGTH))
 }

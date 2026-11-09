@@ -101,6 +101,7 @@ Selected Markers* (Shift+K) puis G.
 ### Nodes as Text
 
 Blender 5.2+. Text Editor et Node Editor, Geometry Nodes seulement pour l'instant.
+Trois exemples commentés, avec leurs images : [docs/nodes-as-text.md](docs/nodes-as-text.md).
 
 Un arbre de nœuds s'écrit comme une fonction dans un texte `.bn`, et un arbre existant
 se réécrit en texte :
@@ -129,8 +130,9 @@ geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
 - `< <= > >= == !=` donnent des nœuds Compare (Float, Int, Vector, Color ou String
   selon les deux côtés) et un Bool. Un Compare avec un epsilon changé ou un mode
   vecteur autre que *Element* reste écrit `Compare(…)`.
-- `and`, `or`, `not` donnent des nœuds Boolean Math, comme `xor`, `xnor`, `nand`,
-  `nor`, `imply` et `nimply` : `p.z > 0.0 and not edge`.
+- `and`, `or`, `xor`, `not` donnent des nœuds Boolean Math : `p.z > 0.0 and not edge`.
+  `xor` lie comme `or` (`a or b xor c` se lit `(a or b) xor c`). `xnor`, `nand`, `nor`,
+  `imply` et `nimply` s'écrivent en fonctions : `nand(a, b)`.
 - Un nom avec des espaces se déclare entre guillemets (`"Point Count": Int`) et
   s'utilise en snake_case (`point_count`). Commentaires : `//`.
 - `"Bruit" #orange { … }` met dans un frame les nœuds des instructions du bloc. Titre

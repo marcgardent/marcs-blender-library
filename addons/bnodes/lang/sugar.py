@@ -1,4 +1,4 @@
-"""Formulas: `a * 2 + sin(t)`, `p.x`, `n ⋅ up`, `h > 0.5 and not edge`, written as Math,
+"""Formulas: `a * 2 + sin(t)`, `p.x`, `n ⋅ up`, `h > 0.5 and not edge xor flip`, written as Math,
 Vector Math, Compare and Boolean Math nodes.
 
 `choose` decides which node and props a formula means from the types of
@@ -19,7 +19,7 @@ WORDS = {"dot": "⋅", "cross": "×", "·": "⋅"}
 COMPARE = {"<": "LESS_THAN", "<=": "LESS_EQUAL", ">": "GREATER_THAN", ">=": "GREATER_EQUAL",
            "==": "EQUAL", "!=": "NOT_EQUAL"}
 
-LOGIC = {"and": "AND", "or": "OR", "not": "NOT"}
+LOGIC = {"and": "AND", "or": "OR", "xor": "XOR", "not": "NOT"}
 BOOL_FUNCS = {"xor": "XOR", "xnor": "XNOR", "nand": "NAND", "nor": "NOR", "imply": "IMPLY", "nimply": "NIMPLY"}
 
 # Nodes whose formula fills only their first inputs; the others must keep
