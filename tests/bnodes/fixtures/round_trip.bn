@@ -1,6 +1,5 @@
 geometry graph "Smooth Mesh"(Mesh: Geometry, Level: Int) -> Geometry {
-  return Mesh
-    |> SubdivideMesh(Level)
+  return Mesh |> SubdivideMesh(Level)
     |> SetShadeSmooth()
 }
 

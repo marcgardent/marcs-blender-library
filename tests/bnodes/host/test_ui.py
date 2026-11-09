@@ -53,6 +53,31 @@ def test_error_moves_the_cursor_and_is_kept_for_the_panel():
     assert "broken" not in bpy.data.node_groups
 
 
+def test_format_rewrites_the_text_and_rebuilds_its_trees():
+    source = WAVE.replace("graph wave", "graph fmt")
+    text = new_text("fmt.bn", "// wave\n\n" + source.replace("p = Position()", "p=Position()  // here"))
+    actions.text_to_tree(text)
+    text.cursor_set(3, character=4)
+    assert actions.format_text(text)
+    assert text.as_string() == "// wave\n\n" + source.replace("p = Position()", "p = Position()  // here")
+    assert (text.current_line_index, text.current_character) == (3, 4)
+    (tree,) = actions.linked_trees(text)
+    assert [n.name for n in actions.nodes_on_line(tree, 4)] == ["p"]  # the comment moved the nodes down
+    assert not actions.format_text(text)
+
+
+def test_format_leaves_broken_text_alone():
+    text = new_text("fmt_broken.bn", "geometry graph g() -> Geometry {\n  return\n")
+    try:
+        actions.format_text(text)
+    except BnError:
+        pass
+    else:
+        raise AssertionError("no error")
+    assert text.as_string() == "geometry graph g() -> Geometry {\n  return\n"
+    assert actions.DIAGNOSTICS["fmt_broken.bn"]
+
+
 def test_tree_to_text_writes_the_linked_text():
     text = bpy.data.texts["wave.bn"]
     text.from_string("// edited by hand\n" + WAVE)
@@ -103,6 +128,9 @@ def test_highlight_classes():
     got = [(t.text, c) for t, c in highlight.classify(tokenize(head, strict=False)[:-1])]
     assert got == [("geometry", "keyword"), ("graph", "keyword"), ("wave", "node"), ("Geometry", "Geometry"),
                    ("Float", "Float"), ("Geometry", "Geometry")], got
+    frame = '  "Noise" #fff #nope {'
+    got = [(t.text, c) for t, c in highlight.classify(tokenize(frame, strict=False)[:-1])]
+    assert got == [("Noise", "literal"), ("#fff", (1.0, 1.0, 1.0))], got
 
 
 def test_unregister_and_register_again():

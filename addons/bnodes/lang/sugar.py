@@ -1,5 +1,5 @@
-"""Formulas: `a * 2 + sin(t)`, `p.x`, `h > 0.5 and not edge`, written as Math, Vector Math,
-Compare and Boolean Math nodes.
+"""Formulas: `a * 2 + sin(t)`, `p.x`, `n ⋅ up`, `h > 0.5 and not edge`, written as Math,
+Vector Math, Compare and Boolean Math nodes.
 
 `choose` decides which node and props a formula means from the types of
 its operands. The checker uses it to build, the reader to check that a
@@ -10,6 +10,11 @@ SCALAR = {"Float", "Int", "Bool"}
 VECTOR = {"Vector", "Color"}  # Blender converts a color to a vector for Vector Math
 
 BINOPS = {"+": "ADD", "-": "SUBTRACT", "*": "MULTIPLY", "/": "DIVIDE"}
+
+# Products of two vectors. AZERTY has neither sign: `dot` and `cross` are
+# written in their place (the editor swaps them as you type), `·` too
+PRODUCTS = {"⋅": "DOT_PRODUCT", "×": "CROSS_PRODUCT"}
+WORDS = {"dot": "⋅", "cross": "×", "·": "⋅"}
 
 COMPARE = {"<": "LESS_THAN", "<=": "LESS_EQUAL", ">": "GREATER_THAN", ">=": "GREATER_EQUAL",
            "==": "EQUAL", "!=": "NOT_EQUAL"}
@@ -55,6 +60,11 @@ def choose(op, types):
     """
     if op in COMPARE:
         return "Compare", compare(op, types), (0, 1)
+    if op in PRODUCTS:
+        for t in types:
+            if kind(t) != "vector":
+                raise ValueError(f"« {op} » attend deux Vector, pas {t}")
+        return "VectorMath", {"operation": PRODUCTS[op]}, (0, 1)
     if op in LOGIC or op in BOOL_FUNCS:
         for t in types:
             if kind(t) != "scalar":
@@ -116,6 +126,8 @@ def spellings(node, operation):
     if node == "BooleanMath":
         return [s for s, o in {**LOGIC, **BOOL_FUNCS}.items() if o == operation]
     ops = [s for s, o in BINOPS.items() if o == operation]
+    if node == "VectorMath":
+        ops += [s for s, o in PRODUCTS.items() if o == operation]
     if node == "VectorMath" and operation == "SCALE":
         ops = ["*"]
     funcs = MATH_FUNCS if node == "Math" else VECTOR_FUNCS

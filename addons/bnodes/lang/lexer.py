@@ -5,12 +5,13 @@ from .errors import BnError, Diagnostic
 KEYWORDS = {"graph", "return", "true", "false", "and", "or", "not"}
 
 # Longest first, so "->" wins over "-" and "==" over "="
-PUNCT = ("|>", "->", "<=", ">=", "==", "!=", "<", ">", "(", ")", "{", "}", ",", ":", ".", "=", "+", "-", "*", "/")
+PUNCT = ("|>", "->", "<=", ">=", "==", "!=", "<", ">", "(", ")", "{", "}", ",", ":", ".", "=", "+", "-", "*", "/",
+         "⋅", "·", "×")
 
 
 @dataclass(frozen=True)
 class Token:
-    kind: str  # IDENT, NUMBER, STRING, KEYWORD, COMMENT, a PUNCT string, or EOF
+    kind: str  # IDENT, NUMBER, STRING, KEYWORD, COLOR, COMMENT, a PUNCT string, or EOF
     text: str
     line: int
     col: int
@@ -65,6 +66,12 @@ def tokenize(source, filename="<text>", strict=True):
                     while i < n and source[i].isdigit():
                         i += 1
             text, kind = source[start:i], "NUMBER"
+        elif c == "#":
+            # A frame color, its text with the `#`: checked later, so `#nope` gets a clear error
+            i += 1
+            while i < n and (source[i].isalnum() or source[i] == "_"):
+                i += 1
+            text, kind = source[start:i], "COLOR"
         elif c == '"':
             i += 1
             while i < n and source[i] not in '"\n':

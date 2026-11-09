@@ -1,0 +1,18 @@
+geometry graph rocks(geometry: Geometry, t: Float) -> Geometry {
+  "Noise" #orange {
+    p = Position()
+    "Detail" {
+      d = p.z * 0.1
+    }
+  }
+  #ee7733 {
+    k = d + t
+  }
+  {
+    m = k * 2.0
+  }
+  "Check the scale" #tomato {}
+  "Output" {
+    return SetPosition(geometry, offset: CombineXYZ(z: m * 0.5))
+  }
+}

@@ -117,7 +117,11 @@ geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
 - Les nœuds s'appellent par leur nom anglais sans préfixe (`SetPosition`), avec les
   entrées dans l'ordre puis par nom (`offset: …`). `.x`, `.mesh` choisit une sortie.
 - `a |> F(b)` enchaîne : la géométrie `a` devient la première entrée de `F`.
-- `+ - * /`, `sin`, `min`, `length`, `dot`… donnent des nœuds Math et Vector Math.
+- `+ - * /`, `sin`, `min`, `length`… donnent des nœuds Math et Vector Math.
+- `n ⋅ u` (produit scalaire) et `n × u` (produit vectoriel) donnent des Vector Math.
+  Au clavier, taper `n dot u` ou `n cross u` : à l'espace, l'éditeur remplace le mot
+  par son signe (Ctrl+Z rend le mot), et Formater fait de même. `dot` et `cross` sont
+  réservés ; `dot(n, u)` reste accepté.
 - `+` entre géométries donne un Join Geometry : `a + b + c` en fait un seul, avec ses
   entrées dans cet ordre, et `a + b |> SetShadeSmooth()` lisse le tout. Les parenthèses
   ne changent rien : un Join qui n'alimente qu'un autre Join fond dedans, même à la
@@ -129,6 +133,12 @@ geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
   `nor`, `imply` et `nimply` : `p.z > 0.0 and not edge`.
 - Un nom avec des espaces se déclare entre guillemets (`"Point Count": Int`) et
   s'utilise en snake_case (`point_count`). Commentaires : `//`.
+- `"Bruit" #orange { … }` met dans un frame les nœuds des instructions du bloc. Titre
+  et couleur sont facultatifs (`#e07030 { … }`, `{ … }`). La couleur s'écrit en hexa
+  (`#e07030`, `#e73`) ou par un des 148 noms CSS (`#orange`, `#teal`, `#tomato`…).
+  Un frame n'est pas une portée : ses noms restent utilisables après. Les frames
+  s'imbriquent, et `"À revoir" {}` vide pose une note. À la relecture d'un arbre, un
+  nœud placé dans un autre frame que celui qui l'utilise reçoit son propre nom.
 
 | Raccourci / bouton | Action |
 |---|---|
@@ -136,11 +146,17 @@ geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
 | Alt+Espace (Text Editor, texte `.bn`) | Suggestions : nœuds, entrées, sorties, valeurs, noms du graph |
 | Node Editor > Sidebar (N) > Text > **Ouvrir en texte** | Écrit l'arbre dans son `.bn` (le crée au besoin) et l'ouvre |
 
-Text Editor > Sidebar (N) > Nodes : erreurs cliquables, arbres construits avec
-**Add as Modifier** et **Tree → Text**, cases **Sync Selection**, **Surlignage** et
-**Suggestions auto**.
+Text Editor > Sidebar (N) > Nodes : **Text → Tree**, **Formater**, erreurs cliquables,
+arbres construits avec **Add as Modifier** et **Tree → Text**, cases **Sync Selection**,
+**Surlignage** et **Suggestions auto**.
 
-- Les suggestions s'ouvrent aussi seules après `(`, `.` et `:`. Dans la liste : ↑ ↓,
+- **Formater** réécrit le texte dans la mise en page canonique, celle de Tree → Text :
+  espaces normalisés, un `|>` en bout de ligne puis un par ligne à partir du
+  deuxième, appels trop longs à un argument par ligne, contenu des frames indenté. Les commentaires restent à leur
+  place, une ligne vide entre deux instructions aussi. Texte en erreur : rien ne change.
+  Ctrl+Z annule.
+
+- Les suggestions s'ouvrent aussi seules après `(`, `.`, `:` et `#` (couleurs). Dans la liste : ↑ ↓,
   Tab ou Entrée pour écrire, Échap pour fermer ; continuer à taper filtre la liste.
   Après un nœud, ses entrées suivent ; après `operation:`, ses valeurs.
 - Le raccourci se change dans Préférences > Add-ons > Nodes as Text : Alt+Espace,
@@ -148,7 +164,8 @@ Text Editor > Sidebar (N) > Nodes : erreurs cliquables, arbres construits avec
   alors Maj+Espace. Ctrl+Espace agrandit la zone dans Blender ; choisi ici, il ne le
   remplace que sur les textes `.bn`.
 - Le surlignage pose un fond translucide sous les mots-clés, les nœuds, les formules,
-  les valeurs et les types (couleur de leur socket). Le texte garde sa couleur.
+  les valeurs et les types (couleur de leur socket), et la couleur même sous un
+  `#orange`. Le texte garde sa couleur.
 
 - Mettre à jour un groupe garde ses modifiers, leurs valeurs et ses appels depuis
   d'autres groupes, tant que l'entrée ou la sortie existe encore.

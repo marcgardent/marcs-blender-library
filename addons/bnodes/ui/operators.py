@@ -46,6 +46,27 @@ class BNODES_OT_text_to_tree(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class BNODES_OT_format(bpy.types.Operator):
+    """Rewrite this text in the canonical layout, keeping its comments"""
+    bl_idname = "bnodes.format"
+    bl_label = "Format"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.space_data and context.space_data.type == "TEXT_EDITOR" \
+            and actions.is_bn(context.space_data.text)
+
+    def execute(self, context):
+        try:
+            changed = actions.format_text(context.space_data.text)
+        except BnError as e:
+            self.report({"ERROR"}, f"rien n'est formaté : {e.diagnostics[0]}")
+            return {"CANCELLED"}
+        self.report({"INFO"}, "texte formaté" if changed else "texte déjà formaté")
+        return {"FINISHED"}
+
+
 class BNODES_OT_tree_to_text(bpy.types.Operator):
     """Write this node tree, and the groups it calls, as text"""
     bl_idname = "bnodes.tree_to_text"
@@ -118,4 +139,5 @@ class BNODES_OT_add_modifier(bpy.types.Operator):
         return {"FINISHED"}
 
 
-classes = (BNODES_OT_text_to_tree, BNODES_OT_tree_to_text, BNODES_OT_goto, BNODES_OT_add_modifier)
+classes = (BNODES_OT_text_to_tree, BNODES_OT_format, BNODES_OT_tree_to_text, BNODES_OT_goto,
+           BNODES_OT_add_modifier)

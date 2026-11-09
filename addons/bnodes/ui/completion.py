@@ -9,7 +9,7 @@ import blf
 import bpy
 
 from ..host import BlenderSchema
-from ..lang.complete import OPENERS, complete
+from ..lang.complete import OPENERS, complete, product_sign
 from . import actions, draw, prefs
 
 ROWS = 10
@@ -194,8 +194,6 @@ def watch():
         if not any(op.bl_idname == "BNODES_OT_complete" for w in wm.windows for op in w.modal_operators):
             close()
         return WATCH
-    if not prefs.get().auto_complete:
-        return WATCH
     for window in wm.windows:
         for area in window.screen.areas if window.screen else ():
             if area.type != "TEXT_EDITOR":
@@ -208,12 +206,28 @@ def watch():
             last = _typed.get(text.name)
             _typed[text.name] = now
             typed_one = last and now[0] == last[0] and now[1] == last[1] + 1 and now[2] == last[2] + 1
-            if typed_one and body[now[1] - 1:now[1]] in OPENERS:
-                region = next(r for r in area.regions if r.type == "WINDOW")
+            if not typed_one:
+                continue
+            region = next(r for r in area.regions if r.type == "WINDOW")
+            swap = product_sign(body[:now[1]])
+            if swap:
+                swap_sign(text, window, area, region, *swap)
+                return WATCH
+            if prefs.get().auto_complete and body[now[1] - 1:now[1]] in OPENERS:
                 with bpy.context.temp_override(window=window, area=area, region=region):
                     bpy.ops.bnodes.complete("INVOKE_DEFAULT", auto=True)
                 return WATCH
     return WATCH
+
+
+def swap_sign(text, window, area, region, start, end, sign):
+    """`n dot ` becomes `n ⋅ ` as it is typed; one undo step brings the word back."""
+    row = text.current_line_index
+    with bpy.context.temp_override(window=window, area=area, region=region):
+        text.select_set(row, start, row, end)
+        bpy.ops.text.insert("EXEC_DEFAULT", True, text=sign)
+        text.cursor_set(row, character=start + len(sign) + 1)
+    _typed[text.name] = (row, text.current_character, len(text.current_line.body))
 
 
 classes = (BNODES_OT_complete,)

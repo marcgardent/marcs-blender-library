@@ -6,7 +6,7 @@ Every error is collected with its position, so one pass reports them all.
 import difflib
 from dataclasses import dataclass
 
-from . import ast, ir, sugar
+from . import ast, colors, ir, sugar
 from .errors import BnError, Diagnostic
 from .schema import DATABLOCKS, STRICT, TREE_KINDS, TYPES, Socket, can_link, key
 
@@ -94,6 +94,8 @@ class GraphChecker:
         self.env = {}
         self.calls = set()
         self.separated = {}  # (node id, output identifier) -> SeparateXYZ node id, for p.x
+        self.frames = []
+        self.returned = None
 
     def error(self, at, message):
         self.diags.append(Diagnostic(self.filename, at.line, at.col, message))
@@ -124,23 +126,43 @@ class GraphChecker:
             sock = Socket(p.name, p.name, p.type)
             self.env[key(p.name)] = Out(ir.GROUP_INPUT, [sock], sock, key(p.name))
 
-        returned = None
-        for stmt in g.body:
-            if returned:
+        self.statements(g.body, gout, None)
+        if not self.returned:
+            self.error(g, f"return manquant dans « {g.name} »")
+
+        return ir.Graph(g.kind, g.name, [(p.name, p.type) for p in g.params],
+                        [(o.name, o.type) for o in g.outputs], self.nodes, g.line, g.col, self.frames)
+
+    # Statements
+
+    def statements(self, body, gout, frame):
+        """Check a block; the nodes each statement makes go into `frame`."""
+        for stmt in body:
+            if self.returned and not (isinstance(stmt, ast.Frame) and not stmt.body):
                 self.error(stmt, "instruction après return")
-                break
+                return
+            created = len(self.nodes)
+            if isinstance(stmt, ast.Frame):
+                self.frame_stmt(stmt, gout, frame)
+                continue
             if isinstance(stmt, ast.Assign):
                 self.assign_stmt(stmt)
             else:
                 self.return_stmt(stmt, gout)
-                returned = stmt
-        if not returned:
-            self.error(g, f"return manquant dans « {g.name} »")
+                self.returned = stmt
+                gout.frame = frame
+            for n in self.nodes[created:]:
+                n.frame = frame
 
-        return ir.Graph(g.kind, g.name, [(p.name, p.type) for p in g.params],
-                        [(o.name, o.type) for o in g.outputs], self.nodes, g.line, g.col)
-
-    # Statements
+    def frame_stmt(self, f, gout, parent):
+        color = None
+        if f.color is not None:
+            color = colors.rgb(f.color[1:])
+            if color is None:
+                self.error(f, f"couleur « {f.color} » inconnue : #rrggbb, #rgb ou un nom CSS (#orange, #teal…)")
+        frame = ir.Frame(f"f{len(self.frames)}", f.label, color, parent, f.line, f.col)
+        self.frames.append(frame)
+        self.statements(f.body, gout, frame.id)
 
     def assign_stmt(self, stmt):
         if stmt.name in self.env:

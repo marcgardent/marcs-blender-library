@@ -34,6 +34,59 @@ def test_wave_comes_back_identical():
     assert warnings == []
 
 
+def test_frames_come_back_identical():
+    src = fixture("frames.bn")
+    (tree,) = build_source(src, "frames.bn")
+    frames = {f.label or f.name: f for f in tree.nodes if f.bl_idname == "NodeFrame"}
+    assert sorted(frames) == ["Check the scale", "Detail", "Frame", "Frame.001", "Noise", "Output"], sorted(frames)
+    assert frames["Detail"].parent == frames["Noise"]
+    assert frames["Noise"].use_custom_color and tuple(round(c, 3) for c in frames["Noise"].color) == (1.0, 0.647, 0.0)
+    assert not frames["Output"].use_custom_color
+    assert tree.nodes["p"].parent == frames["Noise"] and tree.nodes["d"].parent == frames["Detail"]
+    assert tree.nodes["Group Output"].parent == frames["Output"]
+    text, warnings = export_tree(tree)
+    assert text == src, text
+    assert warnings == []
+
+
+def test_a_node_in_another_frame_than_its_user_gets_a_name():
+    (tree,) = build_source(fixture("wave.bn"), "wave.bn")
+    frame = tree.nodes.new("NodeFrame")
+    frame.label = "Wave"
+    sine = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeMath" and n.operation == "SINE")
+    sine.parent = frame
+    text, warnings = export_tree(tree)
+    # The Add before it stays out of the frame, so it gets a name too
+    assert '  math = p.x + t\n  "Wave" {\n    math_2 = sin(math)\n  }\n  h = math_2 * 0.2\n' in text, text
+    assert warnings == []
+    build_source(text, "wave.bn")
+    assert tree.nodes["math_2"].parent.label == "Wave" and tree.nodes["math"].parent is None
+
+
+def test_a_frame_split_by_its_links_is_reported():
+    (tree,) = build_source(fixture("wave.bn"), "wave.bn")
+    frame = tree.nodes.new("NodeFrame")
+    frame.label = "Ends"
+    for name in ("p", "Group Output"):
+        tree.nodes[name].parent = frame
+    tree.nodes["h"].parent = None
+    text, warnings = export_tree(tree)
+    assert text.count('"Ends" {') == 2, text
+    assert any("coupé en deux" in w for w in warnings), warnings
+
+
+def test_products_come_back_as_signs():
+    src = ("geometry graph lean(geometry: Geometry, up: Vector) -> Geometry {\n"
+           "  p = Position()\n"
+           "  side = p × up\n"
+           "  return SetPosition(geometry, offset: side * (p ⋅ up))\n"
+           "}\n")
+    (tree,) = build_source(src.replace("p ⋅ up", "dot(p, up)").replace("p × up", "p cross up"), "lean.bn")
+    text, warnings = export_tree(tree)
+    assert text == src, text
+    assert warnings == []
+
+
 def test_formulas_come_back_identical():
     src = fixture("formulas.bn")
     (tree,) = build_source(src, "formulas.bn")

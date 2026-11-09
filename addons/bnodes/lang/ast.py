@@ -121,6 +121,17 @@ class Return:
 
 
 @dataclass
+class Frame:
+    """`"Title" #color { … }`: a Blender frame around the nodes its statements make. Not a scope."""
+    label: str | None
+    color: object  # the color's text with its `#`, or None; an (r, g, b) when read from a tree
+    body: list
+    line: int
+    col: int
+    end: int = 0  # line of the closing brace
+
+
+@dataclass
 class Param:
     name: str
     type: str
@@ -138,6 +149,7 @@ class Graph:
     body: list
     line: int
     col: int
+    end: int = 0  # line of the closing brace
 
 
 @dataclass

@@ -5,6 +5,7 @@ import bpy
 from ..host import build_source, export_tree
 from ..host.builder import LINE
 from ..lang import BnError
+from ..lang.format import format_source
 
 EXT = ".bn"
 
@@ -35,6 +36,34 @@ def text_to_tree(text):
     for tree in trees:
         tree.bnodes_text = text
     return trees
+
+
+def format_text(text):
+    """Rewrite the text in the canonical layout. True when it changed; raises BnError.
+
+    Its linked trees are built again, so that their nodes keep pointing at the right lines.
+    """
+    source = text.as_string()
+    DIAGNOSTICS.pop(text.name, None)
+    try:
+        formatted = format_source(source, text.name)
+    except BnError as e:
+        DIAGNOSTICS[text.name] = e.diagnostics
+        first = e.diagnostics[0]
+        text.cursor_set(first.line - 1, character=max(0, first.col - 1))
+        raise
+    if formatted == source:
+        return False
+    line, char = text.current_line_index, text.current_character
+    text.from_string(formatted)
+    line = min(line, len(text.lines) - 1)
+    text.cursor_set(line, character=min(char, len(text.lines[line].body)))
+    if linked_trees(text):
+        try:
+            text_to_tree(text)
+        except BnError:
+            pass  # the panel lists the errors; the text is formatted all the same
+    return True
 
 
 def tree_to_text(tree):

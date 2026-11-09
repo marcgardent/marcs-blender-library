@@ -25,6 +25,17 @@ class Node:
     n_outputs: int = 0
     line: int = 0
     col: int = 0
+    frame: str | None = None  # id of the frame it sits in
+
+
+@dataclass
+class Frame:
+    id: str
+    label: str | None
+    color: tuple | None  # (r, g, b) in 0..1; None keeps the theme's
+    parent: str | None = None
+    line: int = 0
+    col: int = 0
 
 
 @dataclass
@@ -36,6 +47,7 @@ class Graph:
     nodes: list
     line: int = 0
     col: int = 0
+    frames: list = field(default_factory=list)  # parents before their children
 
     def node(self, node_id):
         return next(n for n in self.nodes if n.id == node_id)

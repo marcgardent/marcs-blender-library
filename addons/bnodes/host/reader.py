@@ -1,12 +1,12 @@
 """Node group -> AST, the other way round from builder.py.
 
-A node becomes a named statement when several links use it or when its
-name was given by hand; otherwise it is written inline where it is used.
-Reroutes are followed, frames dropped. What text cannot hold yet is
-reported as warnings, never as a failed export.
+A node becomes a named statement when several links use it, when its
+name was given by hand, or when it sits in another frame than its user;
+otherwise it is written inline where it is used. Frames become blocks
+around their statements, reroutes are followed. What text cannot hold
+yet is reported as warnings, never as a failed export.
 """
 
-import heapq
 import re
 
 import bpy
@@ -94,11 +94,12 @@ class GraphReader:
                 self.warn(f"« {n.name} » est désactivé (mute) ; le texte l'exporte actif")
 
         self.callees = {n.node_tree for n in reached if n.bl_idname in GROUP_NODES and n.node_tree is not None}
-        uses = {}
+        uses, user = {}, {}
         for n in reached:
             for links in self.incoming.get(n.name, {}).values():
                 for src, _sock in links:
                     uses[src.name] = uses.get(src.name, 0) + 1
+                    user[src.name] = n
         # A Separate XYZ reads as v.x: it vanishes, and v is written once per component
         self.separates = {}
         for n in reached:
@@ -112,7 +113,12 @@ class GraphReader:
         for n in sorted(reached, key=lambda n: self.index[n.name]):
             if n.bl_idname in ("NodeGroupInput", "NodeGroupOutput") or n.name in self.separates:
                 continue
-            if uses.get(n.name, 0) > 1 or self.hand_named(n):
+            # Written inline, a node would land in its user's frame
+            used_by = user.get(n.name)
+            while used_by is not None and used_by.name in self.separates:
+                used_by = user.get(used_by.name)
+            framed_apart = used_by is not None and frame_name(n) != frame_name(used_by)
+            if uses.get(n.name, 0) > 1 or self.hand_named(n) or framed_apart:
                 self.bound[n.name] = unique(self.binding_name(n), taken)
 
         body = []
@@ -125,13 +131,13 @@ class GraphReader:
                     fields.append((o_name, self.use(*links[0])))
         for name in self.statement_order():
             node = self.tree.nodes[name]
-            body.append(ast.Assign(self.bound[name], self.expr(node), 0, 0))
+            body.append((node, ast.Assign(self.bound[name], self.expr(node), 0, 0)))
         if single and fields:
             value = fields[0][1]
         else:
             value = ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0)
-        body.append(ast.Return(value, 0, 0))
-        return ast.Graph(self.kind, tree.name, params, outputs, single, body, 0, 0)
+        body.append((out, ast.Return(value, 0, 0)))
+        return ast.Graph(self.kind, tree.name, params, outputs, single, self.framed(body), 0, 0)
 
     def param(self, item):
         type = INTERFACE_TYPES.get(item.socket_type)
@@ -388,7 +394,7 @@ class GraphReader:
                 exprs = [e for e, _t in choice]
                 if op == "not":
                     return ast.Not(exprs[0], 0, 0)
-                if op in sugar.BINOPS or op in sugar.COMPARE or op in sugar.LOGIC:
+                if op in sugar.BINOPS or op in sugar.PRODUCTS or op in sugar.COMPARE or op in sugar.LOGIC:
                     if len(exprs) == 2:
                         return ast.BinOp(op, exprs[0], exprs[1], 0, 0)
                     continue
@@ -426,25 +432,99 @@ class GraphReader:
         return ast.String(value, 0, 0)
 
     def statement_order(self):
-        """Bound nodes, each after the ones it uses, otherwise in tree order."""
+        """Bound nodes, each after the ones it uses, staying in the current frame when it can, else in tree order."""
         deps = {}
         for name in self.bound:
             deps[name] = {r for r in refs(self.expr(self.tree.nodes[name]))
                           if r in self.bound.values()}
         by_binding = {b: n for n, b in self.bound.items()}
         waiting = {n: {by_binding[d] for d in ds if by_binding[d] != n} for n, ds in deps.items()}
-        ready = [(self.index[n], n) for n, ds in waiting.items() if not ds]
-        heapq.heapify(ready)
-        order = []
+        ready = [n for n, ds in waiting.items() if not ds]
+        order, path = [], []
         while ready:
-            _i, n = heapq.heappop(ready)
+            n = min(ready, key=lambda n: (-shared(path, frame_path(self.tree.nodes[n])), self.index[n]))
+            ready.remove(n)
             order.append(n)
+            path = frame_path(self.tree.nodes[n])
             for m, ds in waiting.items():
                 if n in ds:
                     ds.discard(n)
                     if not ds:
-                        heapq.heappush(ready, (self.index[m], m))
+                        ready.append(m)
         return order
+
+    # Frames
+
+    def framed(self, statements):
+        """[(node, statement)] in order -> the body, with frames as blocks around their statements."""
+        body = []
+        stack = [(None, body)]
+        opened = set()
+        blocks = {}
+        for node, stmt in statements:
+            path = frame_path(node) if node is not None else []
+            names = [f.name for f in path]
+            while len(stack) > 1 and stack[-1][0].name not in names:
+                stack.pop()
+            for f in path[len(stack) - 1:]:
+                if f.name in opened:
+                    self.warn(f"le frame « {f.label or f.name} » est coupé en deux : ses nœuds dépendent "
+                              "de nœuds d'un autre frame qui dépendent d'eux")
+                opened.add(f.name)
+                block = blocks[f.name] = self.frame(f)
+                stack[-1][1].append(block)
+                stack.append((f, block.body))
+            stack[-1][1].append(stmt)
+
+        # Frames around no exported node are notes, written where their parent is
+        frames = sorted((n for n in self.tree.nodes if n.bl_idname == "NodeFrame"), key=lambda n: self.index[n.name])
+
+        def note(f):
+            block = blocks[f.name] = self.frame(f)
+            block.body = [note(c) for c in frames if frame_name(c) == f.name and c.name not in opened]
+            return block
+
+        for f in frames:
+            if f.name in blocks:
+                continue
+            parent = frame_name(f)
+            if parent is None or parent in opened:
+                where = body if parent is None else blocks[parent].body
+                # Before the return, which nothing may follow
+                at = len(where) - 1 if where and holds_return(where[-1]) else len(where)
+                where.insert(at, note(f))
+        return body
+
+    def frame(self, f):
+        label = f.label.replace('"', "'") or None
+        color = tuple(f.color) if f.use_custom_color else None
+        return ast.Frame(label, color, [], 0, 0)
+
+
+def frame_name(node):
+    parent = node.parent
+    return parent.name if parent is not None and parent.bl_idname == "NodeFrame" else None
+
+
+def frame_path(node):
+    """The frames around a node, outermost first."""
+    path = []
+    parent = node.parent
+    while parent is not None and parent.bl_idname == "NodeFrame":
+        path.insert(0, parent)
+        parent = parent.parent
+    return path
+
+
+def shared(a, b):
+    n = 0
+    while n < len(a) and n < len(b) and a[n].name == b[n].name:
+        n += 1
+    return n
+
+
+def holds_return(s):
+    return isinstance(s, ast.Return) or isinstance(s, ast.Frame) and any(holds_return(i) for i in s.body)
 
 
 def member(target, name):

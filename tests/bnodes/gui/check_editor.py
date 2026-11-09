@@ -124,6 +124,36 @@ def check_selection():
     return 0.5
 
 
+def text_override():
+    area = areas["text"]
+    return bpy.context.temp_override(window=bpy.context.window, area=area, region=window_region(area),
+                                     space_data=area.spaces.active)
+
+
+def format_text():
+    # Typed through the editor, so that undo has the messy line to come back to. Python calls
+    # push undo steps only when asked to, as a click on the button does
+    text = bpy.data.texts["wave.bn"]
+    with text_override():
+        text.select_set(1, 0, 1, len(text.lines[1].body))
+        bpy.ops.text.insert("EXEC_DEFAULT", True, text="  p=Position()  // here")
+        bpy.ops.bnodes.format("EXEC_DEFAULT", True)
+    check("Format rewrites the text and keeps its comment",
+          text.as_string() == WAVE.replace("p = Position()", "p = Position()  // here"), text.lines[1].body)
+    return 0.5
+
+
+def undo_format():
+    area = areas["text"]
+    with bpy.context.temp_override(window=bpy.context.window, area=area, region=window_region(area)):
+        bpy.ops.ed.undo()
+    text = bpy.data.texts["wave.bn"]  # undo may load the data again
+    check("undo brings the text back", text.lines[1].body == "  p=Position()  // here", text.lines[1].body)
+    with bpy.context.temp_override(window=bpy.context.window, area=area, region=window_region(area)):
+        bpy.ops.ed.redo()
+    return 0.5
+
+
 def shoot():
     for area, tab in ((areas["text"], "Nodes"), (areas["nodes"], "Text")):
         try:
@@ -147,7 +177,8 @@ def finish():
     os._exit(1 if failures else 0)
 
 
-STEPS = [close_splash, setup, build, show_tree, frame_tree, click_node, check_cursor_then_move, check_selection, shoot, save_shot]
+STEPS = [close_splash, setup, build, show_tree, frame_tree, click_node, check_cursor_then_move, check_selection, format_text, undo_format,
+         shoot, save_shot]
 
 
 def run():

@@ -70,7 +70,7 @@ class Builder:
 
     def build(self, g, tree, built):
         # Named nodes keep their place across rebuilds
-        kept = {n.name: n.location.copy() for n in tree.nodes}
+        kept = {n.name: n.location_absolute.copy() for n in tree.nodes}
         tree.nodes.clear()
         sync_interface(tree, g)
         if (g.name not in self.called and g.inputs[:1] and g.outputs[:1]
@@ -80,6 +80,24 @@ class Builder:
         return tree
 
     def fill(self, tree, g, built, kept):
+        pos = layout(g)
+        frames = {}
+        for f in g.frames:
+            frame = tree.nodes.new("NodeFrame")
+            frames[f.id] = frame
+            if f.label:
+                frame.name = frame.label = f.label
+            if f.color:
+                frame.use_custom_color = True
+                frame.color = f.color
+            frame[LINE] = f.line
+            if f.parent:
+                frame.parent = frames[f.parent]
+            # A frame around nodes shrinks to them; a note needs a place and a size of its own
+            if f.id in pos:
+                frame.location_absolute = kept.get(frame.name, pos[f.id])
+                frame.width = max(frame.width, 12 * len(f.label or ""))
+
         nodes = {}
         for n in g.nodes:
             node = tree.nodes.new(n.bl_idname)
@@ -88,6 +106,8 @@ class Builder:
             if name:
                 node.name = name
             node[LINE] = n.line
+            if n.frame:
+                node.parent = frames[n.frame]
             if n.group:
                 node.node_tree = built[n.group]
             for prop, value in n.props.items():
@@ -96,11 +116,10 @@ class Builder:
                 except (TypeError, ValueError, AttributeError) as e:
                     self.fail(n, f"{prop}: {e}")
 
-        pos = layout(g)
         for n in g.nodes:
             node = nodes[n.id]
             name = n.name or FIXED_NAMES.get(n.id)
-            node.location = kept[name] if name in kept else pos[n.id]
+            node.location_absolute = kept[name] if name in kept else pos[n.id]
 
             for ident, value in n.values.items():
                 sock = self.socket(g, n, node, ident, "inputs")

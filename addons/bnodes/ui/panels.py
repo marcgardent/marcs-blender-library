@@ -17,7 +17,9 @@ class TEXT_PT_bnodes(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         text = context.space_data.text
-        layout.operator("bnodes.text_to_tree", icon="NODETREE")
+        col = layout.column(align=True)
+        col.operator("bnodes.text_to_tree", icon="NODETREE")
+        col.operator("bnodes.format", text="Formater", icon="ALIGN_LEFT")
         layout.prop(context.window_manager, "bnodes_sync")
         options = prefs.get()
         if isinstance(options, bpy.types.AddonPreferences):

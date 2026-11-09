@@ -6,16 +6,17 @@ the parse tree: what comes just before the cursor says what may follow.
 
 from dataclasses import dataclass
 
+from .colors import CSS
 from .lexer import tokenize
 from .schema import TREE_KINDS, TYPES, key, snake
-from .sugar import COMPONENTS, FUNCS, VECTOR
+from .sugar import COMPONENTS, FUNCS, VECTOR, WORDS
 
 # Typing one of these opens the suggestions by itself
-OPENERS = ("(", ".", ":")
+OPENERS = ("(", ".", ":", "#")
 
 # Keywords that a value follows
 KEYWORDS = ("return", "and", "or", "not")
-OPERATORS = ("=", "+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!=")
+OPERATORS = ("=", "+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!=", "⋅", "·", "×")
 
 
 @dataclass(frozen=True)
@@ -23,7 +24,7 @@ class Item:
     label: str
     insert: str     # replaces the word being typed
     detail: str = ""
-    kind: str = ""  # node, graph, function, input, prop, enum, output, local, param, type, keyword
+    kind: str = ""  # node, graph, function, input, prop, enum, output, local, param, type, keyword, color
 
 
 @dataclass
@@ -49,10 +50,30 @@ def complete(source, line, col, schema):
     tokens = tokenize("\n".join(lines[:line - 1] + [typed[:len(typed) - len(prefix)]]), strict=False)[:-1]
     if tokens and tokens[-1].kind in ("COMMENT", "OPEN_STRING"):
         return start, []
+    if tokens and tokens[-1].kind == "COLOR":
+        return start, matching([Item(name, name, "#" + code, "color") for name, code in CSS.items()], prefix)
     tokens = [t for t in tokens if t.kind != "COMMENT"]
     everything = [t for t in tokenize(source, strict=False) if t.kind != "COMMENT"]
     items = Context(tokens, line, outlines(everything), schema).items()
     return start, matching(items, prefix)
+
+
+def product_sign(typed):
+    """(start, end, sign) when `typed`, a line up to the cursor, ends with `dot ` or `cross ` used as a product.
+
+    Only after an operand: `dot(a, b)` and a comment stay as they are.
+    """
+    if not typed.endswith(" "):
+        return None
+    tokens = tokenize(typed, strict=False)[:-1]
+    if len(tokens) < 2:
+        return None
+    before, word = tokens[-2:]
+    start, end = word.col - 1, word.col - 1 + len(word.text)
+    operand = before.kind in ("IDENT", "NUMBER", "STRING", ")") or before.text in ("true", "false")
+    if word.kind == "IDENT" and word.text in WORDS and operand and end == len(typed) - 1:
+        return start, end, WORDS[word.text]
+    return None
 
 
 def matching(items, prefix):

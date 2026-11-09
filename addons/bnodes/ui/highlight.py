@@ -6,12 +6,14 @@ the text instead of recoloring it. Types take the color of their socket.
 
 import bpy
 
+from ..lang.colors import rgb
 from ..lang.lexer import tokenize
 from ..lang.schema import TREE_KINDS, TYPES
 from ..lang.sugar import FUNCS
 from . import actions, draw, prefs
 
 ALPHA = 0.22
+SWATCH = 0.6  # a frame color shows itself, more opaque
 
 COLORS = {
     "keyword": (0.65, 0.40, 0.95),
@@ -44,6 +46,8 @@ def classify(tokens):
             out.append((t, "literal"))
         elif t.kind == "COMMENT":
             out.append((t, "comment"))
+        elif t.kind == "COLOR" and rgb(t.text[1:]):
+            out.append((t, rgb(t.text[1:])))
         elif t.kind == "IDENT":
             if t.text in TREE_KINDS and nxt is not None and nxt.text == "graph":
                 out.append((t, "keyword"))
@@ -95,8 +99,10 @@ def draw_highlight():
         for color, rects in boxes(space, row, tokens).items():
             found.setdefault(color, []).extend(rects)
     for color, rects in found.items():
-        rgb = COLORS.get(color) or SOCKETS.get(color, COLORS["comment"])
-        draw.rects(rects, (*rgb, ALPHA))
+        if isinstance(color, tuple):
+            draw.rects(rects, (*color, SWATCH))
+        else:
+            draw.rects(rects, (*(COLORS.get(color) or SOCKETS.get(color, COLORS["comment"])), ALPHA))
 
 
 _handler = None

@@ -1,14 +1,14 @@
 """Recursive descent parser.
 
-Precedence, loosest first: `|>`, then `+ -`, then `* /`, then unary `-`,
-then `.socket`. Statements need no separator: an expression ends where
-the next token cannot continue it.
+Precedence, loosest first: `|>`, `or`, `and`, `not`, comparisons, `+ -`,
+`* / ⋅ ×`, unary `-`, then `.socket`. Statements need no separator: an
+expression ends where the next token cannot continue it.
 """
 
 from . import ast
 from .errors import BnError, Diagnostic
 from .lexer import tokenize
-from .sugar import COMPARE
+from .sugar import COMPARE, WORDS
 
 
 def parse(source, filename="<text>"):
@@ -77,11 +77,12 @@ class Parser:
             outputs, single = [ast.Param(t.text, t.text, t.line, t.col)], True
         self.expect("{")
         body = []
-        while not self.accept("}"):
+        while not self.at("}"):
             if self.at("EOF"):
                 self.fail("« } » attendu avant la fin du fichier")
             body.append(self.statement())
-        return ast.Graph(kind.text, name.text, params, outputs, single, body, kind.line, kind.col)
+        end = self.advance()
+        return ast.Graph(kind.text, name.text, params, outputs, single, body, kind.line, kind.col, end.line)
 
     def typed_list(self, close):
         """`name: Type, ...` up to `close`, which is consumed."""
@@ -98,6 +99,8 @@ class Parser:
 
     def statement(self):
         t = self.tok
+        if self.at("{") or self.at("COLOR") or self.at("STRING") and self.peek().kind in ("{", "COLOR"):
+            return self.frame()
         if self.accept("KEYWORD", "return"):
             if self.at("(") and (self.peek().kind == ")" or
                                  self.peek().kind in ("IDENT", "STRING") and self.peek(2).kind == ":"):
@@ -106,10 +109,26 @@ class Parser:
                 return ast.Return(ast.Record(fields, t.line, t.col), t.line, t.col)
             return ast.Return(self.expr(), t.line, t.col)
         if self.at("IDENT") and self.peek().kind == "=":
+            if t.text in WORDS:
+                self.fail(f"« {t.text} » est réservé au produit {'scalaire' if t.text == 'dot' else 'vectoriel'} : "
+                          "choisir un autre nom")
             self.advance()
             self.advance()
             return ast.Assign(t.text, self.expr(), t.line, t.col)
-        self.fail(f"instruction attendue (nom = …, ou return), trouvé {describe(t)}")
+        self.fail(f"instruction attendue (nom = …, return, ou un frame \"titre\" {{ … }}), trouvé {describe(t)}")
+
+    def frame(self):
+        t = self.tok
+        label = self.accept("STRING")
+        color = self.accept("COLOR")
+        self.expect("{")
+        body = []
+        while not self.at("}"):
+            if self.at("EOF"):
+                self.fail("« } » attendu avant la fin du fichier")
+            body.append(self.statement())
+        end = self.advance()
+        return ast.Frame(label and label.text, color and color.text, body, t.line, t.col, end.line)
 
     def expr(self):
         left = self.disjunction()
@@ -160,9 +179,11 @@ class Parser:
 
     def multiplicative(self):
         left = self.unary()
-        while self.at("*") or self.at("/"):
+        # After an operand, `dot` and `cross` can only be products: they are reserved names
+        while self.tok.kind in ("*", "/", "⋅", "·", "×") or \
+                self.at("IDENT") and self.tok.text in WORDS and self.peek().kind != "=":
             op = self.advance()
-            left = ast.BinOp(op.text, left, self.unary(), op.line, op.col)
+            left = ast.BinOp(WORDS.get(op.text, op.text), left, self.unary(), op.line, op.col)
         return left
 
     def unary(self):

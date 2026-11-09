@@ -174,3 +174,25 @@ def test_joined_geometry_pipes_on(schema):
     join = next(n for n in g.nodes if n.bl_idname == "GeometryNodeJoinGeometry")
     smooth = next(n for n in g.nodes if n.bl_idname == "GeometryNodeSetShadeSmooth")
     assert smooth.links == [("Geometry", ir.Link(join.id, "Geometry"))]
+
+
+def test_dot_and_cross_products(schema):
+    g = compile_one(graph("  a = v dot w\n  b = v · w * 2.0\n  c = v cross w\n  d = (v × w) ⋅ v\n  e = dot(v, w)"),
+                    schema)
+    assert ops(g) == [("VectorMath", "DOT_PRODUCT"), ("VectorMath", "DOT_PRODUCT"), ("Math", "MULTIPLY"),
+                      ("VectorMath", "CROSS_PRODUCT"), ("VectorMath", "CROSS_PRODUCT"),
+                      ("VectorMath", "DOT_PRODUCT"), ("VectorMath", "DOT_PRODUCT")]
+    assert [s for s, _l in node(g, "a").links] == ["Vector", "Vector_001"]
+
+
+@pytest.mark.parametrize("body, message", [
+    ("  a = t dot v", "« ⋅ » attend deux Vector, pas Float"),
+    ("  a = v × 2.0", "« × » attend deux Vector, pas Float"),
+])
+def test_product_errors(schema, body, message):
+    assert errors(graph(body), schema) == [message]
+
+
+def test_dot_and_cross_are_reserved(schema):
+    assert errors(graph("  dot = 1.0"), schema) == ["« dot » est réservé au produit scalaire : choisir un autre nom"]
+    assert choose("⋅", ["Vector", "Color"]) == ("VectorMath", {"operation": "DOT_PRODUCT"}, (0, 1))

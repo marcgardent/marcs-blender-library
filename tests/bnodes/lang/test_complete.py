@@ -1,4 +1,6 @@
-from lang.complete import complete
+import pytest
+
+from lang.complete import complete, product_sign
 
 from fake_schema import MATH_OPS
 
@@ -111,3 +113,23 @@ def test_nothing_in_strings_comments_or_after_a_value(schema):
 
 def test_values_after_a_comparison(schema):
     assert labels(HEAD + "  x = t >= ", schema)[:3] == ["geometry", "t", "v"]
+
+
+def test_colors_after_a_hash(schema):
+    start, items = at_end(HEAD + '  "Noise" #tom', schema)
+    assert items[0].label == "tomato" and items[0].insert == "tomato" and items[0].detail == "#ff6347"
+    assert start == len('  "Noise" #') + 1
+
+
+def test_names_from_a_frame_are_seen_after_it(schema):
+    got = labels(HEAD + '  "Noise" #orange {\n    p = Position()\n  }\n  "Relief" {\n    ', schema)
+    assert "p" in got and "return" in got
+
+
+@pytest.mark.parametrize("typed, expected", [
+    ("  a = n dot ", (8, 11, "⋅")), ("  a = (n + u) cross ", (14, 19, "×")), ('  a = "x" dot ', (10, 13, "⋅")),
+    ("  a = dot ", None), ("  a = n dot", None), ("  // n dot ", None), ("  a = n.dotx ", None),
+    ("  return dot ", None),
+])
+def test_product_words_swap_after_an_operand(typed, expected):
+    assert product_sign(typed) == expected

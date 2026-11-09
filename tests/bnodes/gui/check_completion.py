@@ -132,8 +132,34 @@ def shoot_node_inputs():
     return 0.4
 
 
-def full_text():
+def type_dot():
     check("closing ends the operator", not running())
+    # Typed through the editor with undo steps, as keys would; the watcher sees one character at a time
+    text = bpy.data.texts["wave.bn"]
+    text.from_string(WAVE)
+    text.cursor_set(2, character=len(text.lines[2].body))
+    with override():
+        bpy.ops.text.insert("EXEC_DEFAULT", True, text="\n  k = p dot")
+    return 0.4
+
+
+def type_space():
+    with override():
+        bpy.ops.text.insert("EXEC_DEFAULT", True, text=" ")
+    return 0.4
+
+
+def check_dot():
+    check("dot becomes ⋅ once typed", last_line() == "  k = p ⋅ ", last_line())
+    with bpy.context.temp_override(window=bpy.context.window, area=area["text"],
+                                   region=next(r for r in area["text"].regions if r.type == "WINDOW")):
+        bpy.ops.ed.undo()
+    check("undo brings dot back", bpy.data.texts["wave.bn"].lines[3].body == "  k = p dot ",
+          bpy.data.texts["wave.bn"].lines[3].body)
+    return 0.4
+
+
+def full_text():
     text = bpy.data.texts["wave.bn"]
     text.from_string(WAVE + "\n// a comment\n")
     text.cursor_set(0)
@@ -161,7 +187,8 @@ def finish():
 
 
 STEPS = [close_splash, setup, type_paren, check_auto_open, shoot_inputs, accept_offset, type_word,
-         check_refilter, shoot_node_inputs, full_text, shoot_highlight, shoot_zoomed]
+         check_refilter, shoot_node_inputs, type_dot, type_space, check_dot, full_text, shoot_highlight,
+         shoot_zoomed]
 
 
 def run():
