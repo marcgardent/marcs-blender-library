@@ -159,6 +159,7 @@ class GraphChecker:
         self.env[stmt.name] = value
 
     def return_stmt(self, stmt, gout):
+        gout.line, gout.col = stmt.line, stmt.col
         outs = [Socket(o.name, o.name, o.type) for o in self.g.outputs]
         if isinstance(stmt.value, ast.Record):
             # Outputs left out stay unlinked, as Blender allows

@@ -1,10 +1,12 @@
-# lang/ is pure Python (no bpy), host/ turns its output into node trees.
-# No UI yet: the text editor operators and panel come with v4.
+# lang/ is pure Python (no bpy), host/ turns its output into node trees,
+# ui/ is the text editor side: operators, panels and the selection sync.
 
 
 def register():
-    pass
+    from . import ui
+    ui.register()
 
 
 def unregister():
-    pass
+    from . import ui
+    ui.unregister()

@@ -18,6 +18,9 @@ from .schema import TREE_TYPES, BlenderSchema
 DATABLOCKS = {"OBJECT": "objects", "COLLECTION": "collections", "MATERIAL": "materials",
               "IMAGE": "images", "TEXTURE": "textures"}
 
+# Source line of each node, for the text and node editors to follow each other
+LINE = "bnodes_line"
+
 # Set rather than left to Blender, which translates new names when asked to
 FIXED_NAMES = {ir.GROUP_INPUT: "Group Input", ir.GROUP_OUTPUT: "Group Output"}
 
@@ -84,6 +87,7 @@ class Builder:
             name = n.name or FIXED_NAMES.get(n.id)
             if name:
                 node.name = name
+            node[LINE] = n.line
             if n.group:
                 node.node_tree = built[n.group]
             for prop, value in n.props.items():
