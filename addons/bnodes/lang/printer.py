@@ -11,7 +11,8 @@ INDENT = "  "
 WIDTH = 100
 
 # Binding strength, for parentheses: unary minus is 4, `.socket` is 9
-PRECEDENCE = {"|>": 1, "+": 2, "-": 2, "*": 3, "/": 3}
+PRECEDENCE = {"|>": 1, "or": 2, "and": 3, "not": 4, "<": 5, "<=": 5, ">": 5, ">=": 5, "==": 5, "!=": 5,
+              "+": 6, "-": 6, "*": 7, "/": 7}
 
 
 def to_source(file):
@@ -96,11 +97,15 @@ def expr(e, outer=0):
         return f"{e.name}({args(e.args)})"
     if isinstance(e, ast.Neg):
         text = "-" + expr(e.value, 9)
-        return f"({text})" if outer > 4 else text
+        return f"({text})" if outer > 8 else text
+    if isinstance(e, ast.Not):
+        text = "not " + expr(e.value, PRECEDENCE["not"])
+        return f"({text})" if outer > PRECEDENCE["not"] else text
     if isinstance(e, (ast.BinOp, ast.Pipe)):
         op = e.op if isinstance(e, ast.BinOp) else "|>"
         p = PRECEDENCE[op]
         right = e.right if isinstance(e, ast.BinOp) else e.call
-        text = f"{expr(e.left, p)} {op} {expr(right, p + 1)}"
+        # Comparisons do not chain: a comparison on the left takes parentheses
+        text = f"{expr(e.left, p + 1 if p == PRECEDENCE['=='] else p)} {op} {expr(right, p + 1)}"
         return f"({text})" if p < outer else text
     raise TypeError(e)

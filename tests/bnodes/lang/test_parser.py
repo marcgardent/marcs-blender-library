@@ -46,6 +46,19 @@ def test_precedence():
     assert add.op == "+" and add.right.op == "*"
 
 
+def test_comparison_precedence():
+    ret = parse("geometry graph g() -> Float {\n  return a + 1 > b * 2 |> F()\n}").graphs[0].body[0]
+    cmp = ret.value.left
+    assert cmp.op == ">" and cmp.left.op == "+" and cmp.right.op == "*"
+
+
+def test_logic_precedence():
+    ret = parse("geometry graph g() -> Bool {\n  return not a > b and c or d\n}").graphs[0].body[0]
+    e = ret.value
+    assert e.op == "or" and e.left.op == "and"
+    assert isinstance(e.left.left, ast.Not) and e.left.left.value.op == ">"
+
+
 def test_negative_number_folds():
     ret = parse("geometry graph g() -> Float {\n  return -0.5\n}").graphs[0].body[0]
     assert isinstance(ret.value, ast.Number) and ret.value.value == -0.5
@@ -73,6 +86,7 @@ def test_record_return():
     ("geometry graph g() -> Float {\n  F()\n}", 2, 3, "instruction attendue"),
     ("geometry graph g() -> Float {\n  return x |> 3\n}", 2, 12, "après |>"),
     ('geometry graph g() -> Float {\n  return "abc\n}', 2, 10, "chaîne non fermée"),
+    ("geometry graph g() -> Float {\n  return a < b < c\n}", 2, 16, "une seule comparaison"),
 ])
 def test_syntax_errors(source, line, col, text):
     with pytest.raises(BnError) as err:

@@ -9,6 +9,8 @@ VECTOR_OPS = ("ADD", "SUBTRACT", "MULTIPLY", "DIVIDE", "SCALE", "MINIMUM", "MAXI
               "DISTANCE", "CROSS_PRODUCT", "LENGTH", "NORMALIZE", "SINE", "ABSOLUTE")
 VECTOR_UNARY = {"LENGTH", "NORMALIZE", "SINE", "ABSOLUTE"}
 VECTOR_TO_FLOAT = {"LENGTH", "DOT_PRODUCT", "DISTANCE"}
+COMPARE_OPS = ("LESS_THAN", "LESS_EQUAL", "GREATER_THAN", "GREATER_EQUAL", "EQUAL", "NOT_EQUAL", "BRIGHTER", "DARKER")
+COMPARE_TYPES = {"FLOAT": "Float", "INT": "Int", "VECTOR": "Vector", "RGBA": "Color", "STRING": "String"}
 
 
 def S(name, type, identifier=None, multi=False):
@@ -45,6 +47,14 @@ NODES = {
     "MeshGrid": (NodeSpec("MeshGrid", "GeometryNodeMeshGrid"),
                  [S("Size X", "Float"), S("Size Y", "Float"), S("Vertices X", "Int"), S("Vertices Y", "Int")],
                  [S("Mesh", "Geometry"), S("UV Map", "Vector")]),
+    "Compare": (NodeSpec("Compare", "FunctionNodeCompare", {
+        "data_type": Prop("data_type", "ENUM", ("FLOAT", "INT", "VECTOR", "RGBA", "STRING")),
+        "operation": Prop("operation", "ENUM", COMPARE_OPS),
+        "mode": Prop("mode", "ENUM", ("ELEMENT", "LENGTH", "AVERAGE", "DOT_PRODUCT", "DIRECTION")),
+    }), None, [S("Result", "Bool")]),
+    "BooleanMath": (NodeSpec("BooleanMath", "FunctionNodeBooleanMath", {
+        "operation": Prop("operation", "ENUM", ("AND", "OR", "NOT", "NAND", "NOR", "XNOR", "XOR", "IMPLY", "NIMPLY")),
+    }), None, [S("Boolean", "Bool")]),
     "FindInString": (NodeSpec("FindInString", "FunctionNodeFindInString"),
                      [S("String", "String"), S("Search", "String"), S("Mode", "Menu")], [S("First Found", "Int")]),
 }
@@ -76,4 +86,14 @@ class FakeSchema:
             else:
                 inputs = VECTORS[:1] if op in VECTOR_UNARY else VECTORS[:2]
             outputs = [S("Value", "Float")] if op in VECTOR_TO_FLOAT else [S("Vector", "Vector")]
+        if spec.name == "BooleanMath":
+            unary = props.get("operation", "AND") == "NOT"
+            inputs = [S("Boolean", "Bool")] + ([] if unary else [S("Boolean", "Bool", "Boolean_001")])
+        if spec.name == "Compare":
+            # Like Blender: A and B of the data type, and an Epsilon for == and != on numbers
+            data, op = props.get("data_type", "FLOAT"), props.get("operation", "GREATER_THAN")
+            t = COMPARE_TYPES[data]
+            inputs = [S("A", t), S("B", t)]
+            if op in ("EQUAL", "NOT_EQUAL") and data in ("FLOAT", "VECTOR", "RGBA"):
+                inputs.append(S("Epsilon", "Float"))
         return list(inputs), list(outputs)

@@ -1,6 +1,6 @@
 import bpy
 
-from . import actions
+from . import actions, prefs
 from .operators import edit_tree
 
 
@@ -19,6 +19,11 @@ class TEXT_PT_bnodes(bpy.types.Panel):
         text = context.space_data.text
         layout.operator("bnodes.text_to_tree", icon="NODETREE")
         layout.prop(context.window_manager, "bnodes_sync")
+        options = prefs.get()
+        if isinstance(options, bpy.types.AddonPreferences):
+            row = layout.row(align=True)
+            row.prop(options, "highlight", toggle=True)
+            row.prop(options, "auto_complete", text="Suggestions auto", toggle=True)
 
         trees = actions.linked_trees(text)
         if trees:

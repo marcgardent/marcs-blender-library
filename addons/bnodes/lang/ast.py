@@ -91,6 +91,13 @@ class Neg:
 
 
 @dataclass
+class Not:
+    value: object
+    line: int
+    col: int
+
+
+@dataclass
 class Assign:
     name: str
     value: object

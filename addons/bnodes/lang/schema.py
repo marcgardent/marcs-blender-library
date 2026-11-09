@@ -39,7 +39,7 @@ DATABLOCKS = {"Object", "Collection", "Material", "Image", "Texture"}
 
 TREE_KINDS = ("geometry", "shader", "compositor")
 
-RESERVED = {"graph", "return", "true", "false"}
+RESERVED = {"graph", "return", "true", "false", "and", "or", "not"}
 
 
 def can_link(src, dst):

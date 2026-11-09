@@ -24,7 +24,8 @@ SKIP = {"NodeFrame", "NodeReroute"}
 # Kept for statements even when they hold their default
 ALWAYS = {"operation"}
 
-FORMULA_NODES = {"ShaderNodeMath": "Math", "ShaderNodeVectorMath": "VectorMath"}
+FORMULA_NODES = {"ShaderNodeMath": "Math", "ShaderNodeVectorMath": "VectorMath", "FunctionNodeCompare": "Compare",
+                 "FunctionNodeBooleanMath": "BooleanMath"}
 COMPONENT = {"X": "x", "Y": "y", "Z": "z"}
 
 
@@ -252,8 +253,8 @@ class GraphReader:
                 value = getattr(node, p.name)
                 if p.name in ALWAYS or not same(value, prop_defaults.get(p.name)):
                     props[p.name] = value
-        if spec is not None and spec.bl_idname in FORMULA_NODES and list(props) == ["operation"]:
-            formula = self.formula(node, FORMULA_NODES[spec.bl_idname], props["operation"])
+        if spec is not None and spec.bl_idname in FORMULA_NODES:
+            formula = self.formula(node, spec, props)
             if formula is not None:
                 return formula
         if group:
@@ -302,10 +303,22 @@ class GraphReader:
         self.chain_heads.add(id(call))
         return call
 
-    def formula(self, node, name, operation):
-        """`a * 2.0 + sin(t)` for a Math or Vector Math node, when it reads back as that node."""
+    def formula(self, node, spec, props):
+        """`a * 2.0 + sin(t)`, `h > 0.5`, `a and not b` for a Math, Vector Math, Compare or Boolean Math node,
+        when it reads back as that node. `props` are the node's non-default props."""
+        name, operation = FORMULA_NODES[spec.bl_idname], node.operation
+        inputs = [s for s in node.inputs if not s.is_unavailable]
+        if name in sugar.OPERANDS:
+            # The inputs a formula does not write must be left alone
+            defaults, _props = self.schema.defaults(self.kind, spec, props)
+            rest = inputs[sugar.OPERANDS[name]:]
+            inputs = inputs[:sugar.OPERANDS[name]]
+            for sock in rest:
+                if self.incoming.get(node.name, {}).get(sock.identifier) \
+                        or not same(snapshot(sock), defaults.get(sock.identifier)):
+                    return None
         operands = []
-        for sock in [s for s in node.inputs if not s.is_unavailable]:
+        for sock in inputs:
             links = self.incoming.get(node.name, {}).get(sock.identifier)
             if links:
                 src = links[0][1]
@@ -319,14 +332,24 @@ class GraphReader:
                 if len(set(value)) == 1:
                     lit.insert(0, (number(value[0]), "Float"))  # (1, 1, 1) reads as 1.0 where it means the same
                 operands.append(lit)
+            elif sock.type == "BOOLEAN":
+                operands.append([(ast.Bool(bool(value), 0, 0), "Bool")])
+            elif sock.type == "INT":
+                operands.append([(ast.Number(int(value), True, 0, 0), "Int")])
+            elif sock.type == "STRING":
+                operands.append([(ast.String(value, 0, 0), "String")])
+            elif sock.type == "RGBA":
+                operands.append([(ast.Tuple([number(v) for v in value], 0, 0), "Color")])
             else:
                 return None
 
         def means(op, types):
             try:
-                return sugar.choose(op, types) == (name, operation, tuple(range(len(types))))
+                node_name, chosen, order = sugar.choose(op, types)
             except ValueError:
                 return False
+            return (node_name == name and order == tuple(range(len(types))) and set(props) <= set(chosen)
+                    and all(getattr(node, k) == v for k, v in chosen.items()))
 
         if (name, operation) in (("Math", "MULTIPLY"), ("VectorMath", "SCALE")) and len(operands) == 2:
             last = operands[1][-1][0]
@@ -341,7 +364,9 @@ class GraphReader:
                 if not means(op, [t for _e, t in choice]):
                     continue
                 exprs = [e for e, _t in choice]
-                if op in sugar.BINOPS:
+                if op == "not":
+                    return ast.Not(exprs[0], 0, 0)
+                if op in sugar.BINOPS or op in sugar.COMPARE or op in sugar.LOGIC:
                     if len(exprs) == 2:
                         return ast.BinOp(op, exprs[0], exprs[1], 0, 0)
                     continue
@@ -488,5 +513,5 @@ def refs(e):
     elif isinstance(e, ast.BinOp):
         yield from refs(e.left)
         yield from refs(e.right)
-    elif isinstance(e, ast.Neg):
+    elif isinstance(e, (ast.Neg, ast.Not)):
         yield from refs(e.value)

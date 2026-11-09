@@ -27,6 +27,13 @@ CANONICAL = [
     "geometry graph g(geometry: Geometry) -> Geometry {\n"
     "  return ()\n"
     "}\n",
+    "geometry graph g(geometry: Geometry, t: Float) -> Geometry {\n"
+    "  top = t + 1.0 >= t * 2.0\n"
+    "  same = (t < 0.0) == (t > 1.0)\n"
+    "  inside = t > 0.0 and not (t > 1.0 or t == 0.5) and (not same) == top\n"
+    "  either = (t > 0.0 or same) and xor(top, same)\n"
+    '  return SetPosition(geometry, selection: top != (t == 0.5), offset: (0.0, 0.0, -t))\n'
+    "}\n",
     "shader graph rust(uv: Vector) -> Shader {\n"
     "  n = NoiseTexture(uv, scale: 8)\n"
     "  return PrincipledBSDF(\n"

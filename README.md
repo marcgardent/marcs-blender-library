@@ -118,16 +118,33 @@ geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
   entrées dans l'ordre puis par nom (`offset: …`). `.x`, `.mesh` choisit une sortie.
 - `a |> F(b)` enchaîne : la géométrie `a` devient la première entrée de `F`.
 - `+ - * /`, `sin`, `min`, `length`, `dot`… donnent des nœuds Math et Vector Math.
+- `< <= > >= == !=` donnent des nœuds Compare (Float, Int, Vector, Color ou String
+  selon les deux côtés) et un Bool. Un Compare avec un epsilon changé ou un mode
+  vecteur autre que *Element* reste écrit `Compare(…)`.
+- `and`, `or`, `not` donnent des nœuds Boolean Math, comme `xor`, `xnor`, `nand`,
+  `nor`, `imply` et `nimply` : `p.z > 0.0 and not edge`.
 - Un nom avec des espaces se déclare entre guillemets (`"Point Count": Int`) et
   s'utilise en snake_case (`point_count`). Commentaires : `//`.
 
 | Raccourci / bouton | Action |
 |---|---|
 | Ctrl+Entrée (Text Editor, texte `.bn`) | Construit ou met à jour les node groups du texte |
+| Alt+Espace (Text Editor, texte `.bn`) | Suggestions : nœuds, entrées, sorties, valeurs, noms du graph |
 | Node Editor > Sidebar (N) > Text > **Ouvrir en texte** | Écrit l'arbre dans son `.bn` (le crée au besoin) et l'ouvre |
 
 Text Editor > Sidebar (N) > Nodes : erreurs cliquables, arbres construits avec
-**Add as Modifier** et **Tree → Text**, case **Sync Selection**.
+**Add as Modifier** et **Tree → Text**, cases **Sync Selection**, **Surlignage** et
+**Suggestions auto**.
+
+- Les suggestions s'ouvrent aussi seules après `(`, `.` et `:`. Dans la liste : ↑ ↓,
+  Tab ou Entrée pour écrire, Échap pour fermer ; continuer à taper filtre la liste.
+  Après un nœud, ses entrées suivent ; après `operation:`, ses valeurs.
+- Le raccourci se change dans Préférences > Add-ons > Nodes as Text : Alt+Espace,
+  Maj+Espace ou Ctrl+Espace. Sous KDE, Alt+Espace ouvre parfois KRunner : prendre
+  alors Maj+Espace. Ctrl+Espace agrandit la zone dans Blender ; choisi ici, il ne le
+  remplace que sur les textes `.bn`.
+- Le surlignage pose un fond translucide sous les mots-clés, les nœuds, les formules,
+  les valeurs et les types (couleur de leur socket). Le texte garde sa couleur.
 
 - Mettre à jour un groupe garde ses modifiers, leurs valeurs et ses appels depuis
   d'autres groupes, tant que l'entrée ou la sortie existe encore.

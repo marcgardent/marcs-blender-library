@@ -8,6 +8,7 @@ the next token cannot continue it.
 from . import ast
 from .errors import BnError, Diagnostic
 from .lexer import tokenize
+from .sugar import COMPARE
 
 
 def parse(source, filename="<text>"):
@@ -111,7 +112,7 @@ class Parser:
         self.fail(f"instruction attendue (nom = …, ou return), trouvé {describe(t)}")
 
     def expr(self):
-        left = self.additive()
+        left = self.disjunction()
         while self.at("|>"):
             op = self.advance()
             rhs = self.postfix()
@@ -119,6 +120,35 @@ class Parser:
             if not isinstance(call, ast.Call):
                 self.fail("un appel de nœud est attendu après |>", op)
             left = ast.Pipe(left, rhs, op.line, op.col)
+        return left
+
+    def disjunction(self):
+        left = self.conjunction()
+        while self.at("KEYWORD", "or"):
+            op = self.advance()
+            left = ast.BinOp("or", left, self.conjunction(), op.line, op.col)
+        return left
+
+    def conjunction(self):
+        left = self.negation()
+        while self.at("KEYWORD", "and"):
+            op = self.advance()
+            left = ast.BinOp("and", left, self.negation(), op.line, op.col)
+        return left
+
+    def negation(self):
+        if self.at("KEYWORD", "not"):
+            op = self.advance()
+            return ast.Not(self.negation(), op.line, op.col)
+        return self.comparison()
+
+    def comparison(self):
+        left = self.additive()
+        if self.tok.kind in COMPARE:
+            op = self.advance()
+            left = ast.BinOp(op.text, left, self.additive(), op.line, op.col)
+            if self.tok.kind in COMPARE:
+                self.fail("une seule comparaison à la fois ; pour deux, passer par un nom")
         return left
 
     def additive(self):

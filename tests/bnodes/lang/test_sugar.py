@@ -92,8 +92,55 @@ def test_formula_errors(schema, body, message):
 
 
 def test_choose_is_shared_with_export():
-    assert choose("*", ["Float", "Vector"]) == ("VectorMath", "SCALE", (1, 0))
-    assert choose("*", ["Vector", "Vector"]) == ("VectorMath", "MULTIPLY", (0, 1))
-    assert choose("sin", ["Int"]) == ("Math", "SINE", (0,))
+    assert choose("*", ["Float", "Vector"]) == ("VectorMath", {"operation": "SCALE"}, (1, 0))
+    assert choose("*", ["Vector", "Vector"]) == ("VectorMath", {"operation": "MULTIPLY"}, (0, 1))
+    assert choose("sin", ["Int"]) == ("Math", {"operation": "SINE"}, (0,))
     with pytest.raises(ValueError):
         choose("atan2", ["Vector", "Vector"])
+
+
+def compares(g):
+    return [(n.props["data_type"], n.props["operation"]) for n in g.nodes if n.bl_idname == "FunctionNodeCompare"]
+
+
+def test_comparisons_make_compare_nodes(schema):
+    g = compile_one(graph("  a = t > 0.5\n  b = v == w\n  c = 1 <= 2\n  d = \"x\" != \"y\"\n"
+                          "  e = t + 1.0 < t * 2.0\n  f = (1.0, 0.0, 0.0, 1.0) == (1.0, 0.0, 0.0, 1.0)"), schema)
+    assert compares(g) == [("FLOAT", "GREATER_THAN"), ("VECTOR", "EQUAL"), ("INT", "LESS_EQUAL"),
+                           ("STRING", "NOT_EQUAL"), ("FLOAT", "LESS_THAN"), ("RGBA", "EQUAL")]
+    a = node(g, "a")
+    assert a.links == [("A", ir.Link(ir.GROUP_INPUT, "t"))] and a.values == {"B": 0.5}
+    assert "Epsilon" not in node(g, "b").values  # == keeps Blender's epsilon
+    e = node(g, "e")
+    assert [s for s, _l in e.links] == ["A", "B"]
+
+
+def test_a_comparison_is_a_bool(schema):
+    g = compile_one(graph("  x = SetPosition(geometry, selection: t > 0.0)"), schema)
+    cmp = next(n for n in g.nodes if n.bl_idname == "FunctionNodeCompare")
+    assert ("Selection", ir.Link(cmp.id, "Result")) in node(g, "x").links
+
+
+@pytest.mark.parametrize("body, message", [
+    ('  a = "x" < "y"', "« < » : une String ne se compare qu'à une String, par == ou !="),
+    ('  a = "x" == t', "« == » : une String ne se compare qu'à une String, par == ou !="),
+    ("  a = geometry == geometry", "« == » ne s'applique pas à Geometry"),
+])
+def test_comparison_errors(schema, body, message):
+    assert errors(graph(body), schema) == [message]
+
+
+def logic(g):
+    return [n.props["operation"] for n in g.nodes if n.bl_idname == "FunctionNodeBooleanMath"]
+
+
+def test_and_or_not_make_boolean_math(schema):
+    g = compile_one(graph("  a = t > 0.0 and t < 1.0 or not t > 2.0\n  b = xor(true, t > 0.0)"), schema)
+    assert logic(g) == ["AND", "NOT", "OR", "XOR"]
+    a = node(g, "a")
+    assert [s for s, _l in a.links] == ["Boolean", "Boolean_001"]
+    assert node(g, "b").values == {"Boolean": True}
+
+
+def test_logic_errors(schema):
+    assert errors(graph("  a = v and true"), schema) == ["« and » attend des Bool, pas Vector"]

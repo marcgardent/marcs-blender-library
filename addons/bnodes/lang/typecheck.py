@@ -212,6 +212,8 @@ class GraphChecker:
             return self.call(e.call, piped=left)
         if isinstance(e, ast.BinOp):
             return self.formula(e, e.op, [(self.eval(e.left), e.left), (self.eval(e.right), e.right)])
+        if isinstance(e, ast.Not):
+            return self.formula(e, "not", [(self.eval(e.value), e.value)])
         if isinstance(e, ast.Neg):
             v = self.eval(e.value)
             if isinstance(v, Lit) and v.type in ("Int", "Float"):
@@ -282,7 +284,7 @@ class GraphChecker:
                 and self.schema.node(self.g.kind, name) is None)
 
     def formula(self, at, op, operands):
-        """A Math or Vector Math node for an operator or a function, from evaluated operands."""
+        """A Math, Vector Math or Compare node for an operator or a function, from evaluated operands."""
         for v, a in operands:
             if v is None:
                 return None
@@ -290,7 +292,7 @@ class GraphChecker:
                 self.error(a, f"nom inconnu « {v.name} »")
                 return None
         try:
-            name, operation, order = sugar.choose(op, [value_type(v) for v, _a in operands])
+            name, props, order = sugar.choose(op, [value_type(v) for v, _a in operands])
         except ValueError as err:
             self.error(at, str(err))
             return None
@@ -298,12 +300,14 @@ class GraphChecker:
         if spec is None:
             self.error(at, f"pas de {name} dans un arbre {self.g.kind}")
             return None
-        props = {"operation": operation}
         inputs, outputs = self.schema.sockets(self.g.kind, spec, props)
+        n_inputs = len(inputs)
+        if name in sugar.OPERANDS:
+            inputs = inputs[:sugar.OPERANDS[name]]
         if len(inputs) != len(operands):
             self.error(at, f"{op} attend {len(inputs)} argument(s), en reçoit {len(operands)}")
             return None
-        node = ir.Node(f"n{len(self.nodes)}", spec.bl_idname, props=props, n_inputs=len(inputs),
+        node = ir.Node(f"n{len(self.nodes)}", spec.bl_idname, props=dict(props), n_inputs=n_inputs,
                        n_outputs=len(outputs), line=at.line, col=at.col)
         self.nodes.append(node)
         for sock, i in zip(inputs, order):

@@ -2,21 +2,23 @@ from dataclasses import dataclass
 
 from .errors import BnError, Diagnostic
 
-KEYWORDS = {"graph", "return", "true", "false"}
+KEYWORDS = {"graph", "return", "true", "false", "and", "or", "not"}
 
-# Longest first, so "->" wins over "-"
-PUNCT = ("|>", "->", "(", ")", "{", "}", ",", ":", ".", "=", "+", "-", "*", "/")
+# Longest first, so "->" wins over "-" and "==" over "="
+PUNCT = ("|>", "->", "<=", ">=", "==", "!=", "<", ">", "(", ")", "{", "}", ",", ":", ".", "=", "+", "-", "*", "/")
 
 
 @dataclass(frozen=True)
 class Token:
-    kind: str  # IDENT, NUMBER, STRING, KEYWORD, a PUNCT string, or EOF
+    kind: str  # IDENT, NUMBER, STRING, KEYWORD, COMMENT, a PUNCT string, or EOF
     text: str
     line: int
     col: int
 
 
-def tokenize(source, filename="<text>"):
+def tokenize(source, filename="<text>", strict=True):
+    """Tokens of the source. Not strict, for the editor: half-typed text never
+    fails, comments are kept as tokens and an unclosed string runs to the line's end."""
     tokens = []
     i, line, col = 0, 1, 1
     n = len(source)
@@ -33,8 +35,12 @@ def tokenize(source, filename="<text>"):
             i, col = i + 1, col + 1
             continue
         if source.startswith("//", i):
+            start = i
             while i < n and source[i] != "\n":
                 i += 1
+            if not strict:
+                tokens.append(Token("COMMENT", source[start:i], line, col))
+                col += i - start
             continue
 
         start = i
@@ -63,10 +69,13 @@ def tokenize(source, filename="<text>"):
             i += 1
             while i < n and source[i] not in '"\n':
                 i += 1
-            if i >= n or source[i] != '"':
+            if i < n and source[i] == '"':
+                i += 1
+                text, kind = source[start + 1:i - 1], "STRING"
+            elif strict:
                 fail("chaîne non fermée")
-            i += 1
-            text, kind = source[start + 1:i - 1], "STRING"
+            else:
+                text, kind = source[start + 1:i], "OPEN_STRING"
         else:
             for p in PUNCT:
                 if source.startswith(p, i):
@@ -74,7 +83,10 @@ def tokenize(source, filename="<text>"):
                     text = kind = p
                     break
             else:
-                fail(f"caractère inattendu « {c} »")
+                if strict:
+                    fail(f"caractère inattendu « {c} »")
+                i, col = i + 1, col + 1
+                continue
 
         tokens.append(Token(kind, text, line, col))
         col += i - start

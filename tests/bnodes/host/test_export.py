@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "addons"))
 
 from bnodes.host import build_source, export_tree  # noqa: E402
+from bnodes.lang import sugar  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "bnodes" / "fixtures"
 
@@ -38,6 +39,25 @@ def test_formulas_come_back_identical():
     (tree,) = build_source(src, "formulas.bn")
     text, _ = export_tree(tree)
     assert text == src, text
+
+
+def test_comparisons_come_back_identical():
+    src = fixture("compare.bn")
+    (tree,) = build_source(src, "compare.bn")
+    kinds = sorted((n.data_type, n.operation) for n in tree.nodes if n.bl_idname == "FunctionNodeCompare")
+    assert ("INT", "EQUAL") in kinds and ("STRING", "EQUAL") in kinds and ("VECTOR", "EQUAL") in kinds
+    logic = sorted(n.operation for n in tree.nodes if n.bl_idname == "FunctionNodeBooleanMath")
+    assert logic == ["AND", "NOT", "OR", "XOR"], logic
+    text, warnings = export_tree(tree)
+    assert text == src, text
+    assert warnings == []
+
+
+def test_compare_calls_read_back_as_symbols():
+    src = fixture("compare.bn").replace("p.z > t", "Compare(p.z, t, operation: GREATER_THAN)")
+    (tree,) = build_source(src, "compare.bn")
+    text, _ = export_tree(tree)
+    assert "  high = p.z > t\n" in text, text
 
 
 def test_math_calls_read_back_as_formulas():
@@ -91,6 +111,10 @@ def test_bundled_assets_export_and_come_back_stable():
         before = node_kinds(tree)
         text, warnings = export_tree(tree)
         stats["exported"] += 1
+        stats["compare as symbol"] += sum(text.count(f" {op} ") for op in sugar.COMPARE)
+        stats["compare as call"] += text.count("Compare(")
+        stats["logic as symbol"] += sum(text.count(f" {op} ") for op in ("and", "or")) + text.count("not ")
+        stats["logic as call"] += text.count("BooleanMath(")
         if any("pas encore pris en charge" in w for w in warnings):
             stats["not yet"] += 1
             continue

@@ -1,7 +1,8 @@
-"""Formulas: `a * 2 + sin(t)`, `p.x`, written as Math and Vector Math nodes.
+"""Formulas: `a * 2 + sin(t)`, `p.x`, `h > 0.5 and not edge`, written as Math, Vector Math,
+Compare and Boolean Math nodes.
 
-`choose` decides which node and operation a formula means from the types
-of its operands. The checker uses it to build, the reader to check that a
+`choose` decides which node and props a formula means from the types of
+its operands. The checker uses it to build, the reader to check that a
 node reads back as the same formula.
 """
 
@@ -9,6 +10,16 @@ SCALAR = {"Float", "Int", "Bool"}
 VECTOR = {"Vector", "Color"}  # Blender converts a color to a vector for Vector Math
 
 BINOPS = {"+": "ADD", "-": "SUBTRACT", "*": "MULTIPLY", "/": "DIVIDE"}
+
+COMPARE = {"<": "LESS_THAN", "<=": "LESS_EQUAL", ">": "GREATER_THAN", ">=": "GREATER_EQUAL",
+           "==": "EQUAL", "!=": "NOT_EQUAL"}
+
+LOGIC = {"and": "AND", "or": "OR", "not": "NOT"}
+BOOL_FUNCS = {"xor": "XOR", "xnor": "XNOR", "nand": "NAND", "nor": "NOR", "imply": "IMPLY", "nimply": "NIMPLY"}
+
+# Nodes whose formula fills only their first inputs; the others must keep
+# their default (Compare's Epsilon for ==)
+OPERANDS = {"Compare": 2}
 
 MATH_FUNCS = {
     "sin": "SINE", "cos": "COSINE", "tan": "TANGENT",
@@ -28,7 +39,7 @@ VECTOR_FUNCS = {
     "distance": "DISTANCE",
 }
 
-FUNCS = set(MATH_FUNCS) | set(VECTOR_FUNCS)
+FUNCS = set(MATH_FUNCS) | set(VECTOR_FUNCS) | set(BOOL_FUNCS)
 COMPONENTS = ("x", "y", "z")
 
 
@@ -37,11 +48,43 @@ def kind(t):
 
 
 def choose(op, types):
-    """(node, operation, operand order) meant by `op` on operands of `types`.
+    """(node, props, operand order) meant by `op` on operands of `types`.
 
-    `op` is a binary operator, "neg", or a function name. Raises ValueError
-    with the message to show when the formula has no node.
+    `op` is a binary operator, a comparison, "neg", or a function name.
+    Raises ValueError with the message to show when the formula has no node.
     """
+    if op in COMPARE:
+        return "Compare", compare(op, types), (0, 1)
+    if op in LOGIC or op in BOOL_FUNCS:
+        for t in types:
+            if kind(t) != "scalar":
+                raise ValueError(f"« {op} » attend des Bool, pas {t}")
+        return "BooleanMath", {"operation": LOGIC.get(op) or BOOL_FUNCS[op]}, tuple(range(len(types)))
+    node, operation, order = math(op, types)
+    return node, {"operation": operation}, order
+
+
+def compare(op, types):
+    """Compare's props for a comparison: its data type follows the operands."""
+    equality = op in ("==", "!=")
+    if "String" in types:
+        if set(types) != {"String"} or not equality:
+            raise ValueError(f"« {op} » : une String ne se compare qu'à une String, par == ou !=")
+        data = "STRING"
+    elif set(types) == {"Color"}:
+        if not equality:
+            raise ValueError(f"« {op} » : deux couleurs se comparent par == ou !=")
+        data = "RGBA"
+    else:
+        kinds = [kind(t) for t in types]
+        for t, k in zip(types, kinds):
+            if k is None:
+                raise ValueError(f"« {op} » ne s'applique pas à {t}")
+        data = "VECTOR" if "vector" in kinds else "INT" if set(types) == {"Int"} else "FLOAT"
+    return {"data_type": data, "operation": COMPARE[op]}
+
+
+def math(op, types):
     kinds = [kind(t) for t in types]
     for t, k in zip(types, kinds):
         if k is None:
@@ -68,6 +111,10 @@ def choose(op, types):
 
 def spellings(node, operation):
     """Every way of writing (node, operation) as a formula: operators first."""
+    if node == "Compare":
+        return [s for s, o in COMPARE.items() if o == operation]
+    if node == "BooleanMath":
+        return [s for s, o in {**LOGIC, **BOOL_FUNCS}.items() if o == operation]
     ops = [s for s, o in BINOPS.items() if o == operation]
     if node == "VectorMath" and operation == "SCALE":
         ops = ["*"]

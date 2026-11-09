@@ -14,7 +14,8 @@ sys.path.insert(0, str(ROOT / "addons"))
 
 import bnodes  # noqa: E402
 from bnodes.lang import BnError  # noqa: E402
-from bnodes.ui import actions  # noqa: E402
+from bnodes.lang.lexer import tokenize  # noqa: E402
+from bnodes.ui import actions, completion, highlight  # noqa: E402
 
 WAVE = (ROOT / "tests" / "bnodes" / "fixtures" / "wave.bn").read_text()
 
@@ -72,8 +73,36 @@ def test_shortcut_is_bound_to_text_editor():
     kc = bpy.context.window_manager.keyconfigs.addon
     if kc is None:
         return  # no add-on keyconfig in this Blender session
-    items = [k for k in kc.keymaps["Text"].keymap_items if k.idname == "bnodes.text_to_tree"]
-    assert [(k.type, k.ctrl) for k in items] == [("RET", True)]
+    items = {k.idname: k for k in kc.keymaps["Text"].keymap_items if k.idname.startswith("bnodes.")}
+    build, suggest = items["bnodes.text_to_tree"], items["bnodes.complete"]
+    assert (build.type, build.ctrl) == ("RET", True)
+    assert (suggest.type, suggest.alt, suggest.ctrl, suggest.shift) == ("SPACE", True, False, False)
+
+
+def test_suggestions_come_from_blender():
+    text = new_text("draft.bn", "geometry graph d(geometry: Geometry) -> Geometry {\n  x = Math(operation: ")
+    text.cursor_set(1, character=len(text.lines[1].body))
+    assert completion.refresh(text)
+    labels = [i.label for i in completion.Popup.items]
+    assert "SINE" in labels and "ADD" in labels, labels[:5]
+    text.from_string("geometry graph d(geometry: Geometry) -> Geometry {\n  return SetPosition(")
+    text.cursor_set(1, character=len(text.lines[1].body))
+    assert completion.refresh(text)
+    labels = [i.label for i in completion.Popup.items]
+    assert labels[:4] == ["geometry", "selection", "position", "offset"], labels[:6]
+    completion.close()
+    assert ".bnodes_scratch_geometry" not in bpy.data.node_groups
+
+
+def test_highlight_classes():
+    line = '  return SetPosition(geometry, offset: CombineXYZ(z: sin(h) * 0.2)) // up'
+    got = [(t.text, c) for t, c in highlight.classify(tokenize(line, strict=False)[:-1])]
+    assert got == [("return", "keyword"), ("SetPosition", "node"), ("CombineXYZ", "node"),
+                   ("sin", "function"), ("0.2", "literal"), ("// up", "comment")], got
+    head = 'geometry graph wave(geometry: Geometry, t: Float) -> Geometry {'
+    got = [(t.text, c) for t, c in highlight.classify(tokenize(head, strict=False)[:-1])]
+    assert got == [("geometry", "keyword"), ("graph", "keyword"), ("wave", "node"), ("Geometry", "Geometry"),
+                   ("Float", "Float"), ("Geometry", "Geometry")], got
 
 
 def test_unregister_and_register_again():
