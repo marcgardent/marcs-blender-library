@@ -159,6 +159,11 @@ geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
   module, et Tree → Text réécrit le `use` au lieu de recopier ses graphs. Les groupes
   déjà dans le fichier (un asset ajouté, les Essentials de Blender) s'appellent aussi
   par leur nom en snake_case : `smooth_by_angle(mesh, angle: 0.5)`.
+- Les autres réglages d'une entrée ou d'une sortie s'écrivent en options après son type,
+  avec leur nom Blender : `t: Float(subtype: FACTOR, description: "La part à garder") =
+  0.5`, `taille: Float(structure_type: SINGLE)`, `graine: Int(hide_in_modifier: true)`.
+  Une chaîne seule en première ligne du corps est la description du groupe (son
+  infobulle, celle de son asset).
 - Les nœuds à items reçoivent leurs items de l'appel. `CaptureAttribute(geometry,
   hauteur: h, domain: FACE)` capture chaque valeur nommée (`c.hauteur` la relit).
   `IndexSwitch(i, a, b, c)` donne un item par valeur. `MenuSwitch(mode, Lisse: a,
@@ -205,7 +210,9 @@ arbres construits avec **Add as Modifier** et **Tree → Text**, cases **Sync Se
 - Text Editor et Node Editor côte à côte : cliquer un nœud place le curseur sur sa
   ligne, et déplacer le curseur sélectionne les nœuds de la ligne.
 - Pas encore pris en charge : zones Simulation et For Each, bundles et closures,
-  Format String, Bake et Field to List (signalés à l'export), shaders et compositing.
+  Format String, Bake et Field to List, panneaux de l'interface, shaders et compositing.
+  La présentation des nœuds (libellé, couleur, repli) reste hors du texte. Tree → Text
+  signale chacun de ces manques.
 
 ## Installation locale (clone git)
 

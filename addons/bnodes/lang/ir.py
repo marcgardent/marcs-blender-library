@@ -56,6 +56,9 @@ class Graph:
     # input name -> {"value", "min", "max", "implicit"}, each only when written
     defaults: dict = field(default_factory=dict)
     module: tuple | None = None  # (name, source) of the module that brought it, for a `use`
+    # ("INPUT" or "OUTPUT", socket name) -> {Blender property: value}: subtype, description…
+    options: dict = field(default_factory=dict)
+    description: str | None = None  # the group's tooltip
 
     def node(self, node_id):
         return next(n for n in self.nodes if n.id == node_id)

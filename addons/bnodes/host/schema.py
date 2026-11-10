@@ -206,6 +206,38 @@ def fresh_item(socket_type):
     return _fresh_items[socket_type]
 
 
+# Interface settings the text writes otherwise than as options, or that are the editor's
+NOT_OPTIONS = {"name", "socket_type", "bl_socket_idname", "default_value", "min_value", "max_value",
+               "default_input", "dimensions", "select"}
+_fresh_options = {}
+
+
+def option_names(item):
+    """The settings of an interface socket that the text writes as options, in Blender's order."""
+    return [p.identifier for p in item.bl_rna.properties
+            if not p.is_readonly and p.identifier not in NOT_OPTIONS
+            and p.type in ("BOOLEAN", "ENUM", "STRING", "INT", "FLOAT")
+            and not getattr(p, "is_array", False) and not (p.type == "ENUM" and p.is_enum_flag)]
+
+
+def fresh_options(socket_type, in_out):
+    """{option: value} of a new interface socket: what the text leaves out."""
+    if (socket_type, in_out) not in _fresh_options:
+        tree = bpy.data.node_groups.new(".bnodes_fresh", "GeometryNodeTree")
+        try:
+            item = tree.interface.new_socket("x", in_out=in_out, socket_type=socket_type)
+            _fresh_options[(socket_type, in_out)] = {o: getattr(item, o) for o in option_names(item)}
+        finally:
+            bpy.data.node_groups.remove(tree)
+    return _fresh_options[(socket_type, in_out)]
+
+
+def same_option(name, a, b):
+    # Sockets made before Blender 4 say NONE where new ones say DEFAULT
+    plain = {"NONE", "DEFAULT"}
+    return a == b or name == "subtype" and a in plain and b in plain
+
+
 def snapshot(sock):
     """A socket's default_value as plain Python: tuples for vectors, names for datablocks."""
     value = getattr(sock, "default_value", None)

@@ -40,6 +40,7 @@ def format_source(source, filename="<text>"):
         if i:
             printed.append((file.graphs[i - 1].end, "", False))
         printed.extend((o, t, k == 0) for k, (o, t) in enumerate(printer.header(g)))
+        printed.extend((o, t, True) for o, t in printer.description(g))
         walk(g.body, printer.INDENT)
         printed.append((g.end, "}", False))
 

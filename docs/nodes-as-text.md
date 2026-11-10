@@ -19,6 +19,8 @@ le modifier.
 | `geometry graph herbe(sol: Geometry, densité: Float) -> Geometry { … }` | un node group, ses entrées et sa sortie |
 | `"Pente max": Float`, puis `pente_max` | un nom avec espaces, utilisé en snake_case |
 | `force: Float = 0.25 in 0.0..1.0`, `p: Vector = Position()` | une entrée avec sa valeur par défaut et ses bornes, une entrée qui prend la position |
+| `t: Float(subtype: FACTOR, description: "…")` | les autres réglages d'une entrée ou d'une sortie, par leur nom Blender |
+| `"Ce que fait le groupe"` en première ligne du corps | la description du groupe, son infobulle |
 | `r = repeat(n, somme: 0.0) { return somme + iteration }` | une zone Repeat : ses états, le numéro du tour, les états suivants |
 | `-> (Mesh: Geometry, Hauteur: Float)` et `return (Mesh: m, Hauteur: h)` | plusieurs sorties |
 | `points = DistributePointsOnFaces(sol, density: 2.0)` | un nœud, entrées dans l'ordre puis par nom |
@@ -182,8 +184,9 @@ geometry graph rochers(sol: Geometry, densité: Float, graine: Int) -> Geometry 
 ## Ce que le texte ne sait pas encore écrire
 
 Les zones Simulation et For Each, les bundles et closures, Format String, Bake et Field
-to List, le sous-type des entrées (Factor, Distance…), les panneaux de l'interface, les
-arbres de shaders et de compositing. « Tree → Text » les signale par un avertissement.
+to List, les panneaux de l'interface, les réglages d'outil de l'arbre, les arbres de
+shaders et de compositing. La présentation des nœuds (libellé, couleur, repli) reste
+hors du texte. « Tree → Text » signale chacun de ces manques par un avertissement.
 
 Les images de cette page sont prises par
 `blender --factory-startup --python tests/bnodes/gui/shoot_examples.py -- docs/images`.

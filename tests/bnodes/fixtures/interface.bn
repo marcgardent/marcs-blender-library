@@ -1,0 +1,10 @@
+geometry graph réglages(
+    geometry: Geometry,
+    t: Float(subtype: FACTOR, description: "La part à garder") = 0.5 in 0.0..1.0,
+    taille: Float(subtype: DISTANCE, structure_type: SINGLE) = 1.0,
+    graine: Int(hide_in_modifier: true)
+) -> (Geometry: Geometry, Hauteur: Float(description: "La hauteur de chaque point")) {
+  "Garde une part des points, à une taille donnée"
+  p = Position()
+  return (Geometry: SetPosition(geometry, offset: CombineXYZ(z: t * taille)), Hauteur: p.z + graine)
+}

@@ -199,7 +199,7 @@ blender -b -c asset_listing generate .
 ```
 
 Le script reconstruit les groupes depuis le texte, valeurs par défaut comprises, pose les
-catalogues et les descriptions (le commentaire au-dessus de chaque graph), trace les
+catalogues et les descriptions (la chaîne en tête de chaque graph), trace les
 vignettes à partir des valeurs calculées par Blender, puis rend les images de
 cette page et `previews/maths.png`.
 

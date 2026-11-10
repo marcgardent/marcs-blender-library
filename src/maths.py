@@ -116,18 +116,13 @@ BLEU = (0.27, 0.51, 0.71)
 
 def sections(source):
     """Nom de chaque graph -> (section, description) : le titre « // ---- … ---- »
-    qui le précède et les commentaires collés au-dessus de lui."""
+    qui le précède et la chaîne en tête de son corps."""
     lines = source.splitlines()
     out = {}
     for g in parse(source).graphs:
-        k = g.line - 2
-        comment = []
-        while k >= 0 and lines[k].startswith("//"):
-            comment.insert(0, lines[k][2:].strip())
-            k -= 1
         title = next(re.match(r"// ---- (\w+)", lines[j]) for j in range(g.line - 1, -1, -1)
                      if lines[j].startswith("// ----"))
-        out[g.name] = (title.group(1), " ".join(comment))
+        out[g.name] = (title.group(1), g.description or "")
     return out
 
 

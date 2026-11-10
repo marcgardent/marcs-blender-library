@@ -12,13 +12,13 @@ sous-groupes internes (nom en `.xxx` ou sans catalogue).
 
 | Fichier | Groupes | Assets | Relus sans avertissement |
 |---|---|---|---|
-| `geometry_nodes_essentials.blend` | 33 | 27 | 24 |
-| `procedural_hair_node_assets.blend` | 32 | 22 | 11 |
-| `geometry_nodes_dynamics_assets.blend` (simulation) | 55 | 6 | 21 |
-| `principal_components.blend` | 2 | 2 | 2 |
-| `compositing_nodes_essentials.blend` | 24 | 17 | 18 |
+| `geometry_nodes_essentials.blend` | 33 | 27 | 12 |
+| `procedural_hair_node_assets.blend` | 32 | 22 | 4 |
+| `geometry_nodes_dynamics_assets.blend` (simulation) | 55 | 6 | 12 |
+| `principal_components.blend` | 2 | 2 | 0 |
+| `compositing_nodes_essentials.blend` | 24 | 17 | 10 |
 | `shading_nodes_essentials.blend` | 4 | 4 | 4 |
-| **Total** | **150** | **78** | **80** |
+| **Total** | **150** | **78** | **42** |
 
 Par usage :
 
@@ -63,12 +63,17 @@ comble ce manque.
 
 ## Ce que le texte ne sait pas encore relire
 
-70 groupes sur 150 donnent un avertissement à la relecture. Ils étaient 80 avant les
-zones Repeat, 76 avant Capture Attribute, Menu Switch et Index Switch. Nombre de
-groupes touchés, par cause :
+108 groupes sur 150 donnent un avertissement à la relecture. Depuis la LTS 1, la
+relecture dit tout ce qu'elle perd, y compris la présentation (libellés, couleurs,
+nœuds repliés), les panneaux et les réglages de l'arbre. Avant, ces pertes passaient
+sans avertissement : à causes égales, 80 groupes semblaient complets. Nombre de groupes
+touchés, par cause :
 
 | Cause | Groupes |
 |---|---|
+| Présentation : libellés, couleurs, nœuds repliés | 81 |
+| Panneaux de l'interface | 36 |
+| Réglages de l'arbre (outil, bouton de gestion du modifier) | 32 |
 | Frame coupé en deux par ses liens | 29 |
 | Nœuds sans effet sur la sortie (non exportés) | 23 |
 | Deux entrées ou sorties du même nom, dans deux panneaux | 18 |
@@ -80,9 +85,11 @@ groupes touchés, par cause :
 Sept groupes n'ont que des avertissements de forme (frame coupé, nœuds morts), dont Box
 Selection et Sphere Selection. Les zones **Repeat**, **Capture Attribute**, **Menu
 Switch** et **Index Switch** se relisent : sur les 122 arbres Geometry Nodes, 77 se
-reconstruisent à l'identique depuis leur texte (57 avant ces trois nœuds). Les noms
-répétés et les descriptions viennent des panneaux et des infobulles, que le texte
-n'écrit pas encore. Les bundles et closures ne servent qu'à la simulation.
+reconstruisent à l'identique depuis leur texte (57 avant ces trois nœuds). Le sous-type, la
+description et les autres réglages de chaque entrée s'écrivent en options
+(`t: Float(subtype: FACTOR)`), la description du groupe en tête de son corps. Les noms
+répétés viennent des panneaux, que le texte n'écrit pas encore ; la présentation reste
+hors du texte. Les bundles et closures ne servent qu'à la simulation.
 
 À noter : les arbres de shaders et de compositing se relisent aussi (`shader graph`,
 `compositor graph`), alors que la construction n'est garantie que pour Geometry Nodes.

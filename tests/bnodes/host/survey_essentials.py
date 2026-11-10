@@ -35,6 +35,12 @@ def cause(warning):
         return "nom répété dans l'interface"
     if "désactivé (mute)" in warning:
         return "nœud désactivé"
+    if "présentation non exportée" in warning:
+        return "présentation (libellés, couleurs, nœuds repliés)"
+    if "panneaux de l'interface" in warning:
+        return "panneaux de l'interface"
+    if "réglages de l'arbre" in warning:
+        return "réglages de l'arbre (outil, modifier)"
     if "part sans valeur" in warning:
         return "état de repeat sans valeur"
     return warning

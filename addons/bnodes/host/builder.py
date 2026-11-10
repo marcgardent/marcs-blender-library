@@ -15,7 +15,7 @@ from ..lang.layout import layout
 from ..lang.schema import ITEM_NODES, ITEM_TYPES, TYPES
 from ..lang.typecheck import REPEAT_ITEMS
 from . import modules
-from .schema import TREE_TYPES, BlenderSchema, fresh_item
+from .schema import TREE_TYPES, BlenderSchema, fresh_item, fresh_options, same_option
 
 DATABLOCKS = {"OBJECT": "objects", "COLLECTION": "collections", "MATERIAL": "materials",
               "IMAGE": "images", "TEXTURE": "textures"}
@@ -97,9 +97,32 @@ class Builder:
                 and g.inputs[0][1] == g.outputs[0][1] == "Geometry"):
             tree.is_modifier = True
         self.fill(tree, g, built, kept)
+        tree.description = g.description or ""
+        # The subtype first: it makes the socket again, with its own defaults
+        self.options(tree, g)
         # After the links: a menu input only has its items once it feeds a menu
         self.defaults(tree, g)
         return tree
+
+    def options(self, tree, g):
+        """Each socket's other settings as written (subtype, description…), else a new socket's."""
+        for io, names in (("INPUT", g.inputs), ("OUTPUT", g.outputs)):
+            for name, _type in names:
+                item = interface_item(tree, io, name)
+                fresh = fresh_options(item.socket_type, io)
+                wanted = g.options.get((io, name), {})
+                unknown = [o for o in wanted if o not in fresh]
+                if unknown:
+                    self.fail(g, f"« {name} » : option {unknown[0]} inconnue ; options : {', '.join(fresh)}")
+                for option in sorted(fresh, key=lambda o: o != "subtype"):
+                    value = wanted.get(option, fresh[option])
+                    if same_option(option, getattr(item, option), value):
+                        continue
+                    try:
+                        setattr(item, option, value)
+                    except (TypeError, ValueError) as e:
+                        self.fail(g, f"option {option} de « {name} » : {e}")
+                    item = interface_item(tree, io, name)
 
     def defaults(self, tree, g):
         """Each input's default, bounds and implicit field as written, else a new socket's."""
@@ -276,6 +299,11 @@ def coerce(sock, value):
     if isinstance(value, tuple) and len(value) == 3 and hasattr(current, "__len__") and len(current) == 4:
         return (*value, 1.0)
     return value
+
+
+def interface_item(tree, io, name):
+    return next(i for i in tree.interface.items_tree
+                if i.item_type == "SOCKET" and i.in_out == io and i.name == name)
 
 
 def sync_interface(tree, g):

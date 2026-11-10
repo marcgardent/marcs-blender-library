@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "addons"))
 
 from bnodes.host import build_source, export_tree  # noqa: E402
-from bnodes.host.schema import INTERFACE_FIELDS, snapshot  # noqa: E402
+from bnodes.host.schema import INTERFACE_FIELDS, fresh_options, option_names, same_option, snapshot  # noqa: E402
 from bnodes.lang import parse, sugar  # noqa: E402
 from bnodes.lang.format import format_source  # noqa: E402
 from bnodes.lang.printer import to_source  # noqa: E402
@@ -265,6 +265,30 @@ def test_item_nodes_come_back_identical():
     assert [i.name for i in switch.enum_items] == ["Lisse", "Rugueux"]
 
 
+def test_interface_options_come_back_identical():
+    src = fixture("interface.bn")
+    (tree,) = build_source(src, "interface.bn")
+    t = next(i for i in tree.interface.items_tree if i.item_type == "SOCKET" and i.name == "t")
+    assert (t.subtype, t.description, t.default_value) == ("FACTOR", "La part à garder", 0.5)
+    assert tree.description == "Garde une part des points, à une taille donnée"
+    text, warnings = export_tree(tree)
+    assert (text, warnings) == (src, []), (text, warnings)
+    # An option taken out of the text goes back to a new socket's
+    (tree,) = build_source(src.replace("subtype: FACTOR, ", "").replace('  "Garde une part des points, à une taille donnée"\n', ""), "interface.bn")
+    t = next(i for i in tree.interface.items_tree if i.item_type == "SOCKET" and i.name == "t")
+    assert t.subtype in ("NONE", "DEFAULT") and t.description == "La part à garder" and tree.description == ""
+
+
+def test_panels_and_looks_are_reported():
+    (tree,) = build_source(fixture("wave.bn"), "wave.bn")
+    tree.interface.new_panel("Réglages")
+    node = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeMath")
+    node.label, node.hide = "Hauteur", True
+    _text, warnings = export_tree(tree)
+    assert any("panneaux de l'interface (Réglages)" in w for w in warnings), warnings
+    assert any("présentation non exportée : libellé (1), replié (1)" in w for w in warnings), warnings
+
+
 ITEMS_CALLER = """geometry graph essai_items(geometry: Geometry) -> Geometry {
   r = relief(MeshGrid(2.0, 2.0, 3, 3) |> SetPosition(offset: CombineXYZ(z: 0.5)), Lisse, 1)
   return r.geometry |> StoreNamedAttribute(name: "v", value: r.v)
@@ -306,6 +330,17 @@ def interface(tree):
     return out
 
 
+def options(tree):
+    """The other settings of each socket, as the text writes them, and the group's tooltip."""
+    out = [tree.description]
+    for i in tree.interface.items_tree:
+        if i.item_type == "SOCKET":
+            fresh = fresh_options(i.socket_type, i.in_out)
+            out.append((i.in_out, i.name, {o: getattr(i, o) for o in option_names(i)
+                                           if o in fresh and not same_option(o, getattr(i, o), fresh[o])}))
+    return out
+
+
 def test_bundled_assets_export_and_come_back_stable():
     root = bpy.utils.system_resource("DATAFILES", path="assets/nodes")
     ours = {g.name for g in bpy.data.node_groups}
@@ -319,6 +354,7 @@ def test_bundled_assets_export_and_come_back_stable():
         tree = bpy.data.node_groups[name]
         before = node_kinds(tree)
         settings = interface(tree)
+        written = options(tree)
         text, warnings = export_tree(tree)
         stats["exported"] += 1
         stats["compare as symbol"] += sum(text.count(f" {op} ") for op in sugar.COMPARE)
@@ -335,6 +371,8 @@ def test_bundled_assets_export_and_come_back_stable():
         assert again == text, name
         assert node_kinds(rebuilt) == before, name
         assert all(close(a, b) for a, b in zip(interface(rebuilt), settings)), name
+        assert options(rebuilt) == [d.replace('"', "'").replace("\n", " ") if isinstance(d, str) else d
+                                    for d in written], name
         stats["stable"] += 1
     print("   bundled trees:", dict(stats))
     assert stats["exported"] == len(names) and stats["stable"] >= 75

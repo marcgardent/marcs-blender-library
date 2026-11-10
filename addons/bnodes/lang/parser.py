@@ -102,13 +102,25 @@ class Parser:
             t = self.expect("IDENT", what="type de retour")
             outputs, single = [ast.Param(t.text, t.text, t.line, t.col)], True
         self.expect("{")
+        description = None
+        if self.at_description():
+            description = self.advance()
         body = []
         while not self.at("}"):
             if self.at("EOF"):
                 self.fail("« } » attendu avant la fin du fichier")
+            if self.at_description():
+                self.fail("la description d'un graph va en première ligne de son corps")
             body.append(self.statement())
         end = self.advance()
-        return ast.Graph(kind.text, name.text, params, outputs, single, body, kind.line, kind.col, end.line)
+        g = ast.Graph(kind.text, name.text, params, outputs, single, body, kind.line, kind.col, end.line)
+        if description is not None:
+            g.description, g.description_line = description.text, description.line
+        return g
+
+    def at_description(self):
+        # A string alone: `"Titre" {` and `"Titre" #couleur {` are frames
+        return self.at("STRING") and self.peek().kind not in ("{", "COLOR")
 
     def typed_list(self, close):
         """`name: Type = default in lo..hi, ...` up to `close`, which is consumed."""
@@ -118,6 +130,8 @@ class Parser:
             self.expect(":")
             t = self.expect("IDENT", what="type")
             p = ast.Param(name.text, t.text, name.line, name.col)
+            if self.accept("("):
+                p.options = self.args(named_only=True)
             if self.accept("="):
                 p.default = self.unary()
             if self.at("IDENT", "in") and self.peek().kind != ":":

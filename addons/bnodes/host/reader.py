@@ -8,6 +8,7 @@ yet is reported as warnings, never as a failed export.
 """
 
 import re
+from collections import Counter
 
 import bpy
 
@@ -16,7 +17,8 @@ from ..lang.printer import to_source
 from ..lang.ir import REPEAT_INPUT, REPEAT_OUTPUT
 from ..lang.schema import IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_VALUE, RESERVED, TYPES, key, snake
 from .modules import module_of
-from .schema import SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, snapshot, text_name
+from .schema import (SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, fresh_options, option_names, same_option,
+                     snapshot, text_name)
 
 KINDS = {v: k for k, v in TREE_TYPES.items()}
 IMPLICIT_CALLS = {mode: name for name, (mode, _type) in IMPLICIT.items()}
@@ -26,6 +28,13 @@ SKIP = {"NodeFrame", "NodeReroute"}
 
 # Read, but written wrong: a gizmo's links point at the value it moves, not at what feeds it
 NOT_YET = {"GeometryNodeGizmoLinear", "GeometryNodeGizmoDial", "GeometryNodeGizmoTransform"}
+
+FIRST_OPTIONS = {"subtype": 0, "description": 1}
+
+# Settings of a tree as a new one has them: the text writes none of them
+TREE_FLAGS = {"is_tool": False, "is_mode_object": False, "is_mode_edit": False, "is_mode_sculpt": False,
+              "is_mode_paint": False, "is_type_mesh": False, "is_type_curve": False, "is_type_pointcloud": False,
+              "is_type_grease_pencil": False, "use_wait_for_click": False, "show_modifier_manage_panel": True}
 
 # Kept for statements even when they hold their default
 ALWAYS = {"operation"}
@@ -99,7 +108,7 @@ class GraphReader:
                     self.warn(f"deux {side} « {k} » (dans deux panneaux ?), pas encore pris en charge par le texte")
                 seen.add(k)
         self.param_keys = [key(p.name) for p in params]
-        single = len(outputs) == 1 and outputs[0].name == outputs[0].type
+        single = len(outputs) == 1 and outputs[0].name == outputs[0].type and not outputs[0].options
 
         outs = [n for n in tree.nodes if n.bl_idname == "NodeGroupOutput"]
         out = next((n for n in outs if n.is_active_output), outs[0] if outs else None)
@@ -169,14 +178,51 @@ class GraphReader:
         else:
             value = ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0)
         body.append((out, ast.Return(value, 0, 0)))
-        return ast.Graph(self.kind, tree.name, params, outputs, single, self.framed(body), 0, 0)
+        graph = ast.Graph(self.kind, tree.name, params, outputs, single, self.framed(body), 0, 0)
+        if tree.description:
+            graph.description = tree.description.replace('"', "'").replace("\n", " ")
+        self.unwritten()
+        return graph
+
+    def unwritten(self):
+        """Say what the text leaves out: panels, and how the nodes look."""
+        panels = [i.name for i in self.tree.interface.items_tree if i.item_type == "PANEL"]
+        if panels:
+            self.warn(f"panneaux de l'interface ({', '.join(panels)}) non exportés ; "
+                      "reconstruit à sa place, l'arbre les garde")
+        tree = self.tree
+        # What makes a tool or a modifier: the builder decides is_modifier from the interface alone
+        flags = [f for f in TREE_FLAGS if hasattr(tree, f) and getattr(tree, f) != TREE_FLAGS[f]]
+        sockets = [i for i in tree.interface.items_tree if i.item_type == "SOCKET"]
+        geometry_first = all(next((i.socket_type for i in sockets if i.in_out == io), None) == "NodeSocketGeometry"
+                             for io in ("INPUT", "OUTPUT"))
+        if getattr(tree, "is_modifier", False) and not geometry_first:
+            flags.insert(0, "is_modifier")
+        if flags:
+            self.warn(f"réglages de l'arbre non exportés : {', '.join(flags)}")
+        looks = Counter()
+        for n in self.tree.nodes:
+            if n.bl_idname in SKIP:
+                continue
+            looks["libellé"] += bool(n.label)
+            looks["couleur"] += n.use_custom_color
+            looks["replié"] += n.hide
+        if +looks:
+            self.warn("présentation non exportée : " + ", ".join(f"{k} ({v})" for k, v in looks.items() if v))
 
     def param(self, item):
         type = INTERFACE_TYPES.get(item.socket_type)
         if type is None:
             type = item.socket_type.removeprefix("NodeSocket")
             self.warn(f"type d'interface {item.socket_type} inconnu du texte")
-        return ast.Param(item.name, type, 0, 0)
+        p = ast.Param(item.name, type, 0, 0)
+        fresh = fresh_options(item.socket_type, item.in_out)
+        # The subtype and the description first, as one reads them; then Blender's order
+        for option in sorted(option_names(item), key=lambda o: FIRST_OPTIONS.get(o, len(FIRST_OPTIONS))):
+            value = getattr(item, option)
+            if option in fresh and not same_option(option, value, fresh[option]):
+                p.options.append(ast.Arg(option, option_literal(item, option, value), 0, 0))
+        return p
 
     def defaults(self, p, item):
         """The default, bounds and implicit field of an input, when they differ from a new socket's."""
@@ -765,6 +811,16 @@ def combinations(operands):
     for first in operands[0]:
         for rest in combinations(operands[1:]):
             yield [first] + rest
+
+
+def option_literal(item, option, value):
+    if isinstance(value, bool):
+        return ast.Bool(value, 0, 0)
+    if isinstance(value, (int, float)):
+        return number(value) if isinstance(value, float) else ast.Number(value, True, 0, 0)
+    if item.bl_rna.properties[option].type == "ENUM":
+        return enum_literal(value)
+    return ast.String(value.replace('"', "'").replace("\n", " "), 0, 0)
 
 
 def literal_type(value, sock):

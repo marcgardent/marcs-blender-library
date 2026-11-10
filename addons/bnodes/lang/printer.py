@@ -53,7 +53,7 @@ def quote(s):
 
 def graph(g):
     """A graph as (origin, text) lines; origin is the source line the printed line's code starts on."""
-    lines = header(g)
+    lines = header(g) + description(g)
     for s in g.body:
         lines += statement(s)
     return lines + [(g.end, "}")]
@@ -64,17 +64,37 @@ def header(g):
     if g.single_output:
         outputs = g.outputs[0].type
     else:
-        outputs = "(" + ", ".join(f"{name(o.name)}: {o.type}" for o in g.outputs) + ")"
+        outputs = "(" + ", ".join(param(o) for o in g.outputs) + ")"
     head = f"{g.kind} graph {name(g.name)}({', '.join(params)}) -> {outputs} {{"
-    if len(head) <= WIDTH or not params:
+    if len(head) <= WIDTH:
         return [(g.line, head)]
-    lines = [(p.line, INDENT * 2 + text + ",") for p, text in zip(g.params, params)]
+    if params:
+        lines = [(g.line, f"{g.kind} graph {name(g.name)}(")] + one_per_line(g.params, params) + \
+            [(g.params[-1].line, f") -> {outputs} {{")]
+    else:
+        lines = [(g.line, f"{g.kind} graph {name(g.name)}() -> {outputs} {{")]
+    if len(lines[-1][1]) <= WIDTH or g.single_output:
+        return lines
+    # Outputs too long for the closing line: one per line as well
+    close = ") -> (" if params else f"{g.kind} graph {name(g.name)}() -> ("
+    return lines[:-1] + [(lines[-1][0], close)] + one_per_line(g.outputs, [param(o) for o in g.outputs]) + \
+        [(g.outputs[-1].line, ") {")]
+
+
+def one_per_line(items, texts):
+    lines = [(p.line, INDENT * 2 + text + ",") for p, text in zip(items, texts)]
     lines[-1] = (lines[-1][0], lines[-1][1][:-1])
-    return [(g.line, f"{g.kind} graph {name(g.name)}(")] + lines + [(g.params[-1].line, f") -> {outputs} {{")]
+    return lines
+
+
+def description(g):
+    return [(g.description_line, INDENT + quote(g.description))] if g.description is not None else []
 
 
 def param(p):
     text = f"{name(p.name)}: {p.type}"
+    if p.options:
+        text += f"({args(p.options)})"
     if p.default is not None:
         text += f" = {expr(p.default)}"
     if p.range is not None:

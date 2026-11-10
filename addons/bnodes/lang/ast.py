@@ -155,6 +155,8 @@ class Param:
     col: int
     default: object = None  # a literal, or a call such as Position() for an implicit input
     range: tuple | None = None  # (lo, hi) literals, None for an open side
+    # `x: Float(subtype: FACTOR, description: "…")`: other interface settings, by their Blender name
+    options: list = field(default_factory=list)  # of Arg, all named
 
 
 @dataclass
@@ -168,6 +170,8 @@ class Graph:
     line: int
     col: int
     end: int = 0  # line of the closing brace
+    description: str | None = None  # a string first in the body: the group's tooltip
+    description_line: int = 0
 
 
 @dataclass

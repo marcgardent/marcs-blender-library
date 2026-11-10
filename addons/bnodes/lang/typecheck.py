@@ -249,8 +249,11 @@ class GraphChecker:
         if not self.returned:
             self.error(g, f"return manquant dans « {g.name} »")
 
-        return ir.Graph(g.kind, g.name, [(p.name, p.type) for p in g.params],
-                        [(o.name, o.type) for o in g.outputs], self.nodes, g.line, g.col, self.frames, defaults)
+        graph = ir.Graph(g.kind, g.name, [(p.name, p.type) for p in g.params],
+                         [(o.name, o.type) for o in g.outputs], self.nodes, g.line, g.col, self.frames, defaults)
+        graph.options = self.options()
+        graph.description = g.description
+        return graph
 
     # Interface
 
@@ -281,6 +284,33 @@ class GraphChecker:
                     spec.update((k, v) for k, v in zip(("min", "max"), bounds) if v is not None)
             if spec:
                 out[p.name] = spec
+        return out
+
+    def options(self):
+        """{(side, name): {property: value}} from `x: Float(subtype: FACTOR, …)`.
+
+        The property names are Blender's, checked by the builder; here only their values are."""
+        out = {}
+        for side, params in (("INPUT", self.g.params), ("OUTPUT", self.g.outputs)):
+            for p in params:
+                found = {}
+                for a in p.options:
+                    if a.name in WRITTEN_ELSEWHERE:
+                        self.error(a, f"{a.name} s'écrit {WRITTEN_ELSEWHERE[a.name]}")
+                        continue
+                    if a.name in found:
+                        self.error(a, f"option « {a.name} » donnée deux fois")
+                        continue
+                    v = a.value
+                    if isinstance(v, ast.Ref):
+                        found[a.name] = v.name
+                    elif isinstance(v, (ast.Number, ast.String, ast.Bool, ast.Neg)) and \
+                            isinstance(self.eval(v), Lit):
+                        found[a.name] = self.eval(v).value
+                    else:
+                        self.error(a, f"option « {a.name} » : un nombre, true/false, un texte ou une valeur comme FACTOR")
+                if found:
+                    out[(side, p.name)] = found
         return out
 
     def default_value(self, p, d):
@@ -897,6 +927,14 @@ class GraphChecker:
             return
         node.values[sock.identifier] = v.value
 
+
+# Interface settings the text writes in their own way, not as options
+WRITTEN_ELSEWHERE = {
+    "name": "avant les deux-points", "socket_type": "après les deux-points : x: Float",
+    "bl_socket_idname": "avec le type et subtype", "default_value": "après = : x: Float = 1.0",
+    "min_value": "avec in : x: Float in 0.0..1.0", "max_value": "avec in : x: Float in 0.0..1.0",
+    "default_input": "après = : p: Vector = Position()", "dimensions": "par la taille du défaut : (0.5, 0.5)",
+}
 
 # Text type -> the socket type of a Repeat zone item
 REPEAT_ITEMS = {t: v for t, v in ITEM_TYPES.items() if t != "Shader"}
