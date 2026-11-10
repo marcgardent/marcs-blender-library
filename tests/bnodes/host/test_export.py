@@ -279,6 +279,30 @@ def test_interface_options_come_back_identical():
     assert t.subtype in ("NONE", "DEFAULT") and t.description == "La part à garder" and tree.description == ""
 
 
+def test_gizmos_come_back_identical():
+    src = fixture("gizmos.bn")
+    (tree,) = build_source(src, "gizmos.bn")
+    arrow = tree.nodes["flèche"]
+    # The gizmo's value is linked to the input it moves, as in the editor
+    assert [(l.from_node.bl_idname, l.from_socket.name) for l in arrow.inputs["Value"].links] == \
+        [("NodeGroupInput", "hauteur")]
+    assert tree.nodes["repère"].inputs["Value"].links[0].from_node.bl_idname == "FunctionNodeCombineTransform"
+    alone = next(n for n in tree.nodes if n.bl_idname == "GeometryNodeGizmoLinear" and n.name != "flèche")
+    assert not alone.inputs["Value"].is_linked and alone.inputs["Value"].default_value == 2.0
+    text, warnings = export_tree(tree)
+    assert (text, warnings) == (src, []), (text, warnings)
+
+
+def test_inputs_after_a_multi_input_are_named():
+    src = ("geometry graph g(a: Geometry, b: Geometry) -> Geometry {\n"
+           "  return MeshBoolean(a, b, a, self_intersection: true, operation: DIFFERENCE, solver: EXACT).mesh\n}\n")
+    (tree,) = build_source(src, "g.bn")
+    boolean = next(n for n in tree.nodes if n.bl_idname == "GeometryNodeMeshBoolean")
+    assert len(boolean.inputs["Mesh 2"].links) == 2 and boolean.inputs["Self Intersection"].default_value
+    text, warnings = export_tree(tree)
+    assert (text, warnings) == (src, []), (text, warnings)
+
+
 def test_panels_and_looks_are_reported():
     (tree,) = build_source(fixture("wave.bn"), "wave.bn")
     tree.interface.new_panel("Réglages")

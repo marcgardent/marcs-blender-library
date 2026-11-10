@@ -26,9 +26,6 @@ INTERFACE_TYPES = {v: k for k, v in TYPES.items()}
 GROUP_NODES = {"GeometryNodeGroup", "ShaderNodeGroup", "CompositorNodeGroup"}
 SKIP = {"NodeFrame", "NodeReroute"}
 
-# Read, but written wrong: a gizmo's links point at the value it moves, not at what feeds it
-NOT_YET = {"GeometryNodeGizmoLinear", "GeometryNodeGizmoDial", "GeometryNodeGizmoTransform"}
-
 FIRST_OPTIONS = {"subtype": 0, "description": 1}
 
 # Settings of a tree as a new one has them: the text writes none of them
@@ -462,7 +459,7 @@ class GraphReader:
                 self.warn(f"« {node.name} » n'a pas d'arbre ; écrit comme un appel vide")
                 return ast.Call("missing_group", [], 0, 0)
             name = key(node.node_tree.name)
-        elif spec is None or node.bl_idname in NOT_YET:
+        elif spec is None:
             name = text_name(node.bl_idname)
             self.warn(f"{name} (« {node.name} ») n'est pas encore pris en charge par le texte")
         else:
@@ -508,8 +505,9 @@ class GraphReader:
             if links:
                 values = [self.use(*src) for src in links]
             else:
-                # An item is made by its value: it is always written
-                lit = self.literal(node, sock, {} if item else defaults)
+                # An item is made by its value: it is always written, and so are the inputs
+                # before items given by position (IndexSwitch(0, a, b)), which follow them
+                lit = self.literal(node, sock, {} if item or shape is not None and not shape.named else defaults)
                 values = [lit] if lit is not None else []
             if not values and item and not shape.typed:
                 values = [ast.Ref(NO_VALUE, 0, 0)]
@@ -526,6 +524,9 @@ class GraphReader:
                 geometry_first = True
             for v in values:
                 args.append(ast.Arg(label, v, 0, 0))
+            if sock.is_multi_input:
+                # Every positional value goes to a multi-input: the inputs after it are named
+                positional = False
         for pname, value in props.items():
             args.append(ast.Arg(pname, prop_literal(spec.props[pname], value), 0, 0))
 

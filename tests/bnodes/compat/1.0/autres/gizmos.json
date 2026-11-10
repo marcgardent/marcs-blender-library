@@ -1,0 +1,380 @@
+[
+ {
+  "description": "",
+  "interface": [
+   [
+    "OUTPUT",
+    "Geometry",
+    "NodeSocketGeometry",
+    {
+     "default_input": "VALUE",
+     "description": "",
+     "hide_in_modifier": false,
+     "structure_type": "AUTO"
+    }
+   ],
+   [
+    "INPUT",
+    "geometry",
+    "NodeSocketGeometry",
+    {
+     "default_input": "VALUE",
+     "description": "",
+     "hide_in_modifier": false,
+     "structure_type": "AUTO"
+    }
+   ],
+   [
+    "INPUT",
+    "hauteur",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 1.0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ],
+   [
+    "INPUT",
+    "centre",
+    "NodeSocketVector",
+    {
+     "default_input": "VALUE",
+     "default_value": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ],
+   [
+    "INPUT",
+    "angle",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 0.0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ]
+  ],
+  "is_modifier": true,
+  "links": [
+   [
+    0,
+    0,
+    4,
+    0
+   ],
+   [
+    1,
+    0,
+    6,
+    0
+   ],
+   [
+    2,
+    0,
+    6,
+    0
+   ],
+   [
+    3,
+    0,
+    5,
+    1
+   ],
+   [
+    4,
+    0,
+    6,
+    0
+   ],
+   [
+    5,
+    0,
+    6,
+    0
+   ],
+   [
+    6,
+    0,
+    9,
+    0
+   ],
+   [
+    7,
+    0,
+    6,
+    0
+   ],
+   [
+    8,
+    0,
+    7,
+    0
+   ],
+   [
+    8,
+    1,
+    2,
+    0
+   ],
+   [
+    8,
+    1,
+    10,
+    2
+   ],
+   [
+    8,
+    2,
+    0,
+    0
+   ],
+   [
+    8,
+    2,
+    2,
+    1
+   ],
+   [
+    8,
+    2,
+    4,
+    1
+   ],
+   [
+    8,
+    3,
+    1,
+    0
+   ],
+   [
+    10,
+    0,
+    7,
+    3
+   ]
+  ],
+  "name": "poignées",
+  "nodes": [
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "FunctionNodeCombineTransform",
+    "values": [
+     null,
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      1.0,
+      1.0,
+      1.0
+     ]
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "color_id": "PRIMARY",
+     "mute": false
+    },
+    "type": "GeometryNodeGizmoDial",
+    "values": [
+     null,
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.0,
+      1.0
+     ],
+     true,
+     0.8
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "color_id": "PRIMARY",
+     "draw_style": "BOX",
+     "mute": false
+    },
+    "type": "GeometryNodeGizmoLinear",
+    "values": [
+     null,
+     null,
+     [
+      0.0,
+      0.0,
+      1.0
+     ]
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "color_id": "PRIMARY",
+     "draw_style": "ARROW",
+     "mute": false
+    },
+    "type": "GeometryNodeGizmoLinear",
+    "values": [
+     2.0,
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.0,
+      1.0
+     ]
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "use_rotation_x": true,
+     "use_rotation_y": true,
+     "use_rotation_z": true,
+     "use_scale_x": true,
+     "use_scale_y": true,
+     "use_scale_z": true,
+     "use_translation_x": true,
+     "use_translation_y": true,
+     "use_translation_z": true
+    },
+    "type": "GeometryNodeGizmoTransform",
+    "values": [
+     null,
+     null,
+     [
+      0.0,
+      0.0,
+      0.0
+     ]
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "data_type": "GEOMETRY",
+     "mute": false
+    },
+    "type": "GeometryNodeIndexSwitch",
+    "values": [
+     0,
+     null,
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeJoinGeometry",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeSetPosition",
+    "values": [
+     null,
+     true,
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupInput",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupOutput",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "ShaderNodeCombineXYZ",
+    "values": [
+     0.0,
+     0.0,
+     null
+    ]
+   }
+  ]
+ }
+]

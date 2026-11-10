@@ -144,7 +144,12 @@ NomDuNœud(entrée, entrée, nom: entrée, propriété: VALEUR)
   positionnel ne suit pas un argument nommé.
 - Un argument nommé qui est une propriété du nœud (et pas une entrée) règle cette
   propriété : `domain: FACE`, `operation: POWER`, `use_clamp: true`.
-- Une entrée multiple (Join Geometry) reçoit chaque argument donné pour elle.
+- Une entrée multiple (Join Geometry, la valeur d'un gizmo) reçoit chaque argument
+  positionnel à partir d'elle : les entrées qui la suivent se donnent par leur clé,
+  `MeshBoolean(a, b, c, self_intersection: true)`.
+- Un **gizmo** se relie à la valeur qu'il déplace, comme dans l'éditeur :
+  `GizmoLinear(hauteur, position: centre)`, `GizmoTransform(CombineTransform(centre))`.
+  Sa sortie Transform se joint à la géométrie rendue.
 - **`n.sortie`** choisit une sortie d'un nœud qui en a plusieurs : `points.rotation`.
   Sans choix, c'est la première.
 - **`v.x`, `v.y`, `v.z`** : une composante d'un vecteur, par un Separate XYZ partagé.
@@ -268,7 +273,7 @@ avertissement :
 - les réglages d'outil de l'arbre (`is_tool`…), et le bouton de gestion du modifier ;
 - la description des items d'un Menu Switch ;
 - les zones Simulation et For Each, les bundles et closures, Format String, Bake, Field
-  to List et les gizmos ;
+  to List ;
 - les nœuds qui n'influencent aucune sortie.
 
 Reconstruit à sa place, un groupe garde ses panneaux, et ses modifiers et appels gardent

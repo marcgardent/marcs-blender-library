@@ -909,7 +909,8 @@ class GraphChecker:
             else:
                 node.links.append((sock.identifier, ir.Link(v.node, src.identifier)))
             return
-        if sock.multi_input:
+        # A gizmo's value holds a number when nothing is linked to it; a join, nothing
+        if sock.multi_input and sock.type in NO_DEFAULT:
             self.error(at, f"{where} n'accepte que des liens")
             return
         if isinstance(v, Sym):

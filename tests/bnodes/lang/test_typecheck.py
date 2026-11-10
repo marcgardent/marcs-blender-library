@@ -172,3 +172,22 @@ def test_datablock_by_name(schema):
 def test_a_float_literal_does_not_go_into_an_int(schema):
     with pytest.raises(BnError, match="attend un entier : 3 plutôt que 3.0"):
         compile_source("geometry graph g() -> Geometry {\n  return MeshGrid(1.0, 1.0, 3.0, 3)\n}\n", schema)
+
+
+def test_a_gizmo_links_the_value_it_moves(schema):
+    g = compile_one(graph("  m = CombineTransform(Position())\n"
+                          "  return geometry + GizmoLinear(t, position: Position(), draw_style: BOX)\n"
+                          "    + GizmoTransform(m, position: Position())"), schema)
+    linear = next(n for n in g.nodes if n.bl_idname == "GeometryNodeGizmoLinear")
+    assert [ident for ident, _ in linear.links] == ["Value", "Position"]
+    assert linear.links[0][1] == ir.Link(ir.GROUP_INPUT, "t") and linear.props == {"draw_style": "BOX"}
+    transform = next(n for n in g.nodes if n.bl_idname == "GeometryNodeGizmoTransform")
+    m = next(n for n in g.nodes if n.name == "m")
+    assert transform.links[0] == ("Value", ir.Link(m.id, "Transform"))
+
+
+def test_a_gizmo_value_takes_a_number_a_join_does_not(schema):
+    g = compile_one(graph("  return geometry + GizmoLinear(2.0)"), schema)
+    assert next(n for n in g.nodes if n.bl_idname == "GeometryNodeGizmoLinear").values == {"Value": 2.0}
+    assert "n'accepte que des liens" in errors(graph("  return JoinGeometry(1.0)"), schema)[0]
+    assert "n'accepte que des liens" in errors(graph("  return GizmoTransform((1.0, 0.0, 0.0))"), schema)[0]

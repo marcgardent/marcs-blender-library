@@ -67,6 +67,17 @@ NODES = {
     "IndexSwitch": (NodeSpec("IndexSwitch", "GeometryNodeIndexSwitch", {
         "data_type": Prop("data_type", "ENUM", tuple(DATA_TYPES)),
     }), None, None),
+    # Like Blender: the value a gizmo moves comes by a multi-input, which a number may fill
+    "GizmoLinear": (NodeSpec("GizmoLinear", "GeometryNodeGizmoLinear", {
+        "draw_style": Prop("draw_style", "ENUM", ("ARROW", "CROSS", "BOX")),
+    }), [S("Value", "Float", multi=True), S("Position", "Vector"), S("Direction", "Vector")],
+        [S("Transform", "Geometry")]),
+    "GizmoTransform": (NodeSpec("GizmoTransform", "GeometryNodeGizmoTransform"),
+                       [S("Value", "Matrix", multi=True), S("Position", "Vector"), S("Rotation", "Rotation")],
+                       [S("Transform", "Geometry")]),
+    "CombineTransform": (NodeSpec("CombineTransform", "FunctionNodeCombineTransform"),
+                         [S("Translation", "Vector"), S("Rotation", "Rotation"), S("Scale", "Vector")],
+                         [S("Transform", "Matrix")]),
     "MenuSwitch": (NodeSpec("MenuSwitch", "GeometryNodeMenuSwitch", {
         "data_type": Prop("data_type", "ENUM", tuple(DATA_TYPES)),
     }), None, None),
