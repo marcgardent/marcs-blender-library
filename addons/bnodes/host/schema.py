@@ -37,7 +37,7 @@ SOCKET_TYPES = {
 PROP_KINDS = {"ENUM", "BOOLEAN", "INT", "FLOAT", "STRING"}
 
 # Where the item list of a node stands in its panel: the editor's, not the tree's
-UI_PROPS = {"active_index"}
+UI_PROPS = {"active_index", "active_input_index", "active_output_index"}
 
 # Per Blender version: {kind: {text name: NodeSpec}}, and the socket memo
 _specs = {}
@@ -230,6 +230,25 @@ def fresh_options(socket_type, in_out):
         finally:
             bpy.data.node_groups.remove(tree)
     return _fresh_options[(socket_type, in_out)]
+
+
+_fresh_values = {}
+
+
+def fresh_item_value(bl_idname, collection, socket_type):
+    """The value the input socket of a new item holds: a closure's output, an evaluation's input."""
+    k = (bl_idname, collection, socket_type)
+    if k not in _fresh_values:
+        tree = bpy.data.node_groups.new(".bnodes_fresh", "GeometryNodeTree")
+        try:
+            node = tree.nodes.new(bl_idname)
+            items = getattr(node, collection)
+            items.clear()
+            items.new(socket_type, "x")
+            _fresh_values[k] = snapshot([s for s in node.inputs if s.type != "CUSTOM"][-1])
+        finally:
+            bpy.data.node_groups.remove(tree)
+    return _fresh_values[k]
 
 
 def same_option(name, a, b):

@@ -15,10 +15,12 @@ import bpy
 from ..lang import ast, sugar
 from ..lang.printer import to_source
 from ..lang.ir import REPEAT_INPUT, REPEAT_OUTPUT
-from ..lang.schema import IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_VALUE, RESERVED, TYPES, key, snake
+from ..lang.schema import (CLOSURE_INPUT, CLOSURE_OUTPUT, COMBINE_BUNDLE, EVALUATE_CLOSURE, IMPLICIT, ITEM_NODES,
+                           ITEM_OPTIONS, ITEM_TYPES, NO_VALUE, RESERVED, SEPARATE_BUNDLE, SIGNATURE_NODES, TYPES, key,
+                           snake)
 from .modules import module_of
-from .schema import (SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, fresh_options, option_names, same_option,
-                     snapshot, text_name)
+from .schema import (SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, fresh_item_value, fresh_options, option_names,
+                     same_option, snapshot, text_name)
 
 KINDS = {v: k for k, v in TREE_TYPES.items()}
 IMPLICIT_CALLS = {mode: name for name, (mode, _type) in IMPLICIT.items()}
@@ -43,6 +45,13 @@ JOIN = "GeometryNodeJoinGeometry"
 FORMULA_NODES = {"ShaderNodeMath": "Math", "ShaderNodeVectorMath": "VectorMath", "FunctionNodeCompare": "Compare",
                  "FunctionNodeBooleanMath": "BooleanMath"}
 COMPONENT = {"X": "x", "Y": "y", "Z": "z"}
+
+ZONE_INPUTS = (REPEAT_INPUT, CLOSURE_INPUT)
+ZONE_OUTPUTS = (REPEAT_OUTPUT, CLOSURE_OUTPUT)
+ITEM_TYPE_NAMES = {v: k for k, v in ITEM_TYPES.items()}
+# Where a node declared by the text keeps its items, as the builder makes them
+SIGNATURE_ITEMS = {COMBINE_BUNDLE: ("bundle_items", None), SEPARATE_BUNDLE: (None, "bundle_items"),
+                   EVALUATE_CLOSURE: ("input_items", "output_items")}
 
 
 def export_tree(tree):
@@ -114,9 +123,9 @@ class GraphReader:
         out = next((n for n in outs if n.is_active_output), outs[0] if outs else None)
 
         self.incoming = self.resolve_links()
-        # A Repeat output reaches its input even when no link joins them
+        # A zone's output reaches its input even when no link joins them
         self.pairs = {n.paired_output.name: n for n in tree.nodes
-                      if n.bl_idname == REPEAT_INPUT and n.paired_output is not None}
+                      if n.bl_idname in ZONE_INPUTS and n.paired_output is not None}
         reached = self.reach(out)
         self.zone_of = self.zones(reached)
         dead = [n for n in tree.nodes if n.bl_idname not in SKIP and n not in reached
@@ -142,15 +151,20 @@ class GraphReader:
                 self.separates[n.name] = vector[0]
                 src = vector[0][0].name
                 uses[src] = uses.get(src, 0) + uses.get(n.name, 0) - 1
-        taken = set(self.param_keys)
+        # A name `closure` would read as a closure zone when called
+        taken = set(self.param_keys) | {"closure"}
         for rout, rin in self.pairs.items():
             if rout in self.zone_of or any(n.name == rout for n in reached):
-                taken.update([key(s.name) for s in self.items(rin.outputs)[1:]] + ["iteration"])
+                if rin.bl_idname == REPEAT_INPUT:
+                    taken.update([key(s.name) for s in self.items(rin.outputs)[1:]] + ["iteration"])
+                else:
+                    taken.update(key(s.name) for s in self.items(rin.outputs))
+        self.taken = taken  # every name of the text, the bound ones added below
         self.bound = {}
         for n in sorted(reached, key=lambda n: self.index[n.name]):
-            if n.bl_idname in ("NodeGroupInput", "NodeGroupOutput", REPEAT_INPUT) or n.name in self.separates:
+            if n.bl_idname in ("NodeGroupInput", "NodeGroupOutput") + ZONE_INPUTS or n.name in self.separates:
                 continue
-            if n.bl_idname == REPEAT_OUTPUT:
+            if n.bl_idname in ZONE_OUTPUTS:
                 # A zone is a block: always a statement of its own
                 self.bound[n.name] = unique(self.binding_name(n), taken)
                 continue
@@ -380,6 +394,8 @@ class GraphReader:
         """The expression for one output of a node, at the place it is used."""
         if node.bl_idname == REPEAT_INPUT:
             return ast.Ref("iteration" if sock.identifier == "Iteration" else key(sock.name), 0, 0)
+        if node.bl_idname == CLOSURE_INPUT:
+            return ast.Ref(key(sock.name), 0, 0)
         if node.bl_idname == "NodeGroupInput":
             i = [s for s in node.outputs if s.type != "CUSTOM"].index(sock)
             return ast.Ref(self.param_keys[i], 0, 0)
@@ -394,12 +410,19 @@ class GraphReader:
         if len(outputs) == 1 and sock == outputs[0]:
             return target
         # Group sockets and items are named in text, not numbered: Item_1 means nothing there
-        named = node.bl_idname in GROUP_NODES or node.bl_idname in ITEM_NODES
+        named = node.bl_idname in GROUP_NODES or node.bl_idname in ITEM_NODES or node.bl_idname in SIGNATURE_NODES
         return member(target, socket_name(sock, outputs, named))
 
     def expr(self, node):
         if node.name not in self.exprs:
-            self.exprs[node.name] = self.repeat(node) if node.bl_idname == REPEAT_OUTPUT else self.call(node)
+            if node.bl_idname == REPEAT_OUTPUT:
+                self.exprs[node.name] = self.repeat(node)
+            elif node.bl_idname == CLOSURE_OUTPUT:
+                self.exprs[node.name] = self.closure(node)
+            elif node.bl_idname in SIGNATURE_ITEMS:
+                self.exprs[node.name] = self.signature(node)
+            else:
+                self.exprs[node.name] = self.call(node)
         return self.exprs[node.name]
 
     def repeat(self, rout):
@@ -417,24 +440,20 @@ class GraphReader:
                 values.append(ast.Call("JoinGeometry", [], 0, 0))
             else:
                 values.append(self.literal(rin, sock, {}))
-        for sock, v in zip(sockets, values):
-            if v is None:
-                self.warn(f"repeat « {rout.name} » : « {sock.name} » ({sock.type}) part sans valeur, "
-                          "pas encore pris en charge par le texte")
-        values = [v if v is not None else ast.Ref("aucun", 0, 0) for v in values]
         count, starts = values[0], values[1:]
-        states = [ast.Arg(s.name, v, 0, 0) for s, v in zip(sockets[1:], starts)]
+        states = []
+        for sock, v in zip(sockets[1:], starts):
+            # A state the text cannot type from its start, or with no start, is given its type
+            links = incoming.get(sock.identifier)
+            given = SOCKET_TYPES.get(links[0][1].type) if links else \
+                "Geometry" if sock.type == "GEOMETRY" else literal_type_of(v)
+            wanted = SOCKET_TYPES.get(sock.type, sock.type.title())
+            arg = ast.Arg(sock.name, v if v is not None else ast.Ref(NO_VALUE, 0, 0), 0, 0)
+            if v is None or given != wanted:
+                arg.type = ast.Param(sock.name, wanted, 0, 0)
+            states.append(arg)
         # In the body a state hides the group input of the same name
-        hidden = {key(s.name) for s in sockets[1:]} & set(self.param_keys)
-        inside = [n for n, z in self.zone_of.items() if z == rout.name] + [rout.name]
-        gin = [s for n in inside for links in self.incoming.get(n, {}).values() for s in links
-               if s[0].bl_idname == "NodeGroupInput"]
-        for src, sock in gin:
-            k = self.param_keys[self.items(src.outputs).index(sock)]
-            if k in hidden:
-                self.warn(f"repeat « {rout.name} » : son corps lit l'entrée « {k} », cachée par l'état du même nom ; "
-                          "pas encore pris en charge par le texte")
-                hidden.discard(k)
+        self.hidden(rout, {key(s.name) for s in sockets[1:]}, f"repeat « {rout.name} »", "l'état")
 
         statements = [(self.tree.nodes[n], ast.Assign(self.bound[n], self.expr(self.tree.nodes[n]), 0, 0))
                       for n in self.statement_order(rout.name)]
@@ -453,6 +472,138 @@ class GraphReader:
             ret = ast.Return(ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0), 0, 0)
         body = self.framed(statements + [(rout, ret)], base=frame_path(rout), notes=False)
         return ast.Repeat(count, states, body, 0, 0)
+
+    def hidden(self, rout, keys, zone, what):
+        """Say when a zone's body reads a group input that one of its own names hides."""
+        hidden = keys & set(self.param_keys)
+        inside = [n for n, z in self.zone_of.items() if z == rout.name] + [rout.name]
+        gin = [s for n in inside for links in self.incoming.get(n, {}).values() for s in links
+               if s[0].bl_idname == "NodeGroupInput"]
+        for src, sock in gin:
+            k = self.param_keys[self.items(src.outputs).index(sock)]
+            if k in hidden:
+                self.warn(f"{zone} : son corps lit l'entrée « {k} », cachée par {what} du même nom ; "
+                          "pas encore pris en charge par le texte")
+                hidden.discard(k)
+
+    def closure(self, cout):
+        """`closure(x: Float, …) -> (r: Float, …) { … return … }` for a Closure zone."""
+        params = [self.item_param(i) for i in cout.input_items]
+        outputs = [self.item_param(i) for i in cout.output_items]
+        single = len(outputs) == 1 and outputs[0].name == outputs[0].type and not outputs[0].options
+        if cout.define_signature:
+            self.warn(f"closure « {cout.name} » : define_signature non exporté")
+        self.hidden(cout, {key(i.name) for i in cout.input_items}, f"closure « {cout.name} »", "l'entrée")
+        keys = [key(i.name) for i in cout.input_items]
+        if len(set(keys)) < len(keys):
+            self.warn(f"closure « {cout.name} » : deux entrées de même clé, pas encore pris en charge par le texte")
+
+        statements = [(self.tree.nodes[n], ast.Assign(self.bound[n], self.expr(self.tree.nodes[n]), 0, 0))
+                      for n in self.statement_order(cout.name)]
+        fields = []
+        outgoing = self.incoming.get(cout.name, {})
+        for sock, item in zip(self.items(cout.inputs), cout.output_items):
+            links = outgoing.get(sock.identifier)
+            if links:
+                fields.append((sock.name, self.use(*links[0])))
+            elif not same(snapshot(sock), fresh_item_value(CLOSURE_OUTPUT, "output_items", item.socket_type)):
+                value = self.literal(cout, sock, {})
+                if value is not None:
+                    fields.append((sock.name, value))
+        if len(outputs) == 1 and fields:
+            ret = ast.Return(fields[0][1], 0, 0)
+        else:
+            ret = ast.Return(ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0), 0, 0)
+        body = self.framed(statements + [(cout, ret)], base=frame_path(cout), notes=False)
+        return ast.Closure(params, outputs, single, body, 0, 0)
+
+    def item_param(self, item):
+        """`name: Type(structure_type: …)` for an item of a bundle or closure node."""
+        type = ITEM_TYPE_NAMES.get(item.socket_type)
+        if type is None:
+            type = item.socket_type.title()
+            self.warn(f"item « {item.name} » de type {item.socket_type}, pas encore pris en charge par le texte")
+        p = ast.Param(item.name, type, 0, 0)
+        for option, fresh in ITEM_OPTIONS.items():
+            value = getattr(item, option, fresh)
+            if value != fresh:
+                p.options.append(ast.Arg(option, enum_literal(value), 0, 0))
+        return p
+
+    def signature(self, node):
+        """CombineBundle(name: value, …), SeparateBundle(b) -> (name: Type, …) and the evaluation of a closure:
+        `f(x: …)` when the items are those of the closure zone it is given, else EvaluateClosure(f, …) -> (…)."""
+        kind = node.bl_idname
+        spec = self.spec(node)
+        inputs_at, outputs_at = SIGNATURE_ITEMS[kind]
+        fixed = SIGNATURE_NODES[kind]["inputs"][0]
+        sockets = self.items(node.inputs)
+        incoming = self.incoming.get(node.name, {})
+        given = getattr(node, inputs_at) if inputs_at else []
+        declared = getattr(node, outputs_at) if outputs_at else []
+
+        positional = []
+        if fixed:
+            links = incoming.get(sockets[0].identifier)
+            if links:
+                positional.append(ast.Arg(None, self.use(*links[0]), 0, 0))
+        closure = self.closure_of(node) if kind == EVALUATE_CLOSURE else None
+        args = []
+        for sock, item in zip(sockets[fixed:], given):
+            args.extend(self.item_arg(node, sock, item, closure is not None))
+        if node.define_signature:
+            args.append(ast.Arg("define_signature", ast.Bool(True, 0, 0), 0, 0))
+        if closure is not None:
+            target = positional[0].value
+            if isinstance(target, ast.Ref) and self.callable_name(target.name):
+                return ast.Call(target.name, args, 0, 0)
+            return ast.Call(spec.name, positional + args, 0, 0)
+        call = ast.Call(spec.name, positional + args, 0, 0)
+        if outputs_at:
+            call.outputs = [self.item_param(i) for i in declared]
+            call.single_output = len(call.outputs) == 1 and call.outputs[0].name == call.outputs[0].type \
+                and not call.outputs[0].options
+        return call
+
+    def closure_of(self, node):
+        """The Closure zone an Evaluate Closure is given, when its items are that closure's own: the text
+        then leaves them out."""
+        links = self.incoming.get(node.name, {}).get(node.inputs[0].identifier)
+        if not links or node.define_signature or links[0][0].bl_idname != CLOSURE_OUTPUT:
+            return None
+        cout = links[0][0]
+
+        def items(coll):
+            return [(i.name, i.socket_type, i.structure_type) for i in coll]
+        if items(cout.input_items) != items(node.input_items) or items(cout.output_items) != items(node.output_items):
+            return None
+        return cout
+
+    def callable_name(self, name):
+        """A call on this name evaluates the closure it holds: no graph, group, node or function is called so."""
+        return (name not in sugar.FUNCS and self.schema.node(self.kind, name) is None
+                and all(key(g.name) != name for g in bpy.data.node_groups))
+
+    def item_arg(self, node, sock, item, inferred):
+        """`name: value`, or `name: Type = value` when the value does not tell the item's type.
+
+        `inferred`: the items are the closure's, so only values that differ from a new item's are written."""
+        links = self.incoming.get(node.name, {}).get(sock.identifier)
+        p = self.item_param(item)
+        if links:
+            value = self.use(*links[0])
+            given = SOCKET_TYPES.get(links[0][1].type)
+        else:
+            if inferred and same(snapshot(sock), fresh_item_value(node.bl_idname, "input_items", item.socket_type)):
+                return []
+            value = self.literal(node, sock, {})
+            given = literal_type_of(value)
+        if inferred:
+            return [ast.Arg(item.name, value, 0, 0)] if value is not None else []
+        arg = ast.Arg(item.name, value if value is not None else ast.Ref(NO_VALUE, 0, 0), 0, 0)
+        if value is None or given != p.type or p.options:
+            arg.type = p
+        return [arg]
 
     def call(self, node):
         group = node.bl_idname in GROUP_NODES
@@ -677,7 +828,12 @@ class GraphReader:
             return ast.Bool(bool(value), 0, 0)
         if t in ("VECTOR", "RGBA", "ROTATION") and isinstance(value, tuple):
             return ast.Tuple([number(v) for v in value], 0, 0)
+        if t == "MENU" and not value:
+            return None  # a menu that picks nothing yet: Blender takes no empty name back
         if t == "MENU":
+            # A menu item named like an input or a name of the text is written as a string
+            if value in self.taken:
+                return ast.String(value, 0, 0)
             return enum_literal(value)
         if t in ("STRING",) or SOCKET_TYPES.get(t) in ("Object", "Collection", "Material", "Image", "Texture"):
             return self.string(value, node, sock)
@@ -838,6 +994,21 @@ def literal_type(value, sock):
     return SOCKET_TYPES.get(sock.type)
 
 
+def literal_type_of(e):
+    """The text type the checker gives a literal the reader wrote, None for a name."""
+    if isinstance(e, ast.Number):
+        return "Int" if e.is_int else "Float"
+    if isinstance(e, ast.Bool):
+        return "Bool"
+    if isinstance(e, ast.String):
+        return "String"
+    if isinstance(e, ast.Tuple):
+        return "Color" if len(e.items) == 4 else "Vector"
+    if isinstance(e, ast.Call) and e.name == "JoinGeometry" and not e.args:
+        return "Geometry"
+    return None
+
+
 def has_items(node):
     """Nodes whose sockets are a user-edited list: Capture Attribute, Menu Switch, Bake…"""
     return any(p.type == "COLLECTION" and p.identifier.endswith("items") for p in node.bl_rna.properties)
@@ -910,6 +1081,8 @@ def refs(e):
     elif isinstance(e, ast.Member):
         yield from refs(e.target)
     elif isinstance(e, ast.Call):
+        # A call may name a closure: `f(x: …)`
+        yield e.name
         for a in e.args:
             yield from refs(a.value)
     elif isinstance(e, ast.Pipe):
@@ -927,6 +1100,9 @@ def refs(e):
         yield from refs(e.count)
         for a in e.states:
             yield from refs(a.value)
+        for s in e.body:
+            yield from statement_refs(s)
+    elif isinstance(e, ast.Closure):
         for s in e.body:
             yield from statement_refs(s)
 

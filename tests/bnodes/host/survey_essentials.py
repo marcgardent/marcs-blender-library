@@ -41,8 +41,14 @@ def cause(warning):
         return "panneaux de l'interface"
     if "réglages de l'arbre" in warning:
         return "réglages de l'arbre (outil, modifier)"
-    if "part sans valeur" in warning:
-        return "état de repeat sans valeur"
+    if "define_signature non exporté" in warning:
+        return "define_signature d'une closure"
+    if "deux entrées de même clé" in warning:
+        return "entrées de closure de même clé"
+    if re.search(r"item « .* » de type \w+, pas encore", warning):
+        return "type d'item de bundle ou closure"
+    if "cachée par" in warning:
+        return "entrée cachée dans une zone"
     return warning
 
 

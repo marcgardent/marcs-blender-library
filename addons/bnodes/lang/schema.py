@@ -92,6 +92,26 @@ ITEM_NODES = {
 # An item left without a link or a value: `MenuSwitch(mode, Lisse: a, Vide: _)`
 NO_VALUE = "_"
 
+COMBINE_BUNDLE = "NodeCombineBundle"
+SEPARATE_BUNDLE = "NodeSeparateBundle"
+EVALUATE_CLOSURE = "NodeEvaluateClosure"
+CLOSURE_INPUT = "NodeClosureInput"
+CLOSURE_OUTPUT = "NodeClosureOutput"
+
+# Nodes whose items the text declares with a type each, and where they stand:
+# side -> (fixed sockets before the items, the item list of ir.Node there or None).
+# `items` are the inputs of a closure, `out_items` its outputs, and so on.
+SIGNATURE_NODES = {
+    COMBINE_BUNDLE: {"inputs": (0, "items"), "outputs": (1, None)},
+    SEPARATE_BUNDLE: {"inputs": (1, None), "outputs": (0, "out_items")},
+    EVALUATE_CLOSURE: {"inputs": (1, "items"), "outputs": (0, "out_items")},
+    CLOSURE_INPUT: {"inputs": (0, None), "outputs": (0, "items")},
+    CLOSURE_OUTPUT: {"inputs": (0, "out_items"), "outputs": (1, None)},
+}
+
+# The settings of such an item the text writes, as options of its type: `x: Float(structure_type: SINGLE)`
+ITEM_OPTIONS = {"structure_type": "AUTO"}
+
 RESERVED = {"graph", "return", "true", "false", "and", "or", "xor", "not", "dot", "cross", "repeat"}
 
 

@@ -12,7 +12,8 @@ from .. import lang
 from ..lang import ir
 from ..lang.errors import BnError, Diagnostic
 from ..lang.layout import layout
-from ..lang.schema import ITEM_NODES, ITEM_TYPES, TYPES
+from ..lang.schema import (CLOSURE_OUTPUT, COMBINE_BUNDLE, EVALUATE_CLOSURE, ITEM_NODES, ITEM_TYPES, SEPARATE_BUNDLE,
+                           SIGNATURE_NODES, TYPES)
 from ..lang.typecheck import REPEAT_ITEMS
 from . import modules
 from .schema import TREE_TYPES, BlenderSchema, fresh_item, fresh_options, same_option
@@ -22,6 +23,14 @@ DATABLOCKS = {"OBJECT": "objects", "COLLECTION": "collections", "MATERIAL": "mat
 
 # Source line of each node, for the text and node editors to follow each other
 LINE = "bnodes_line"
+
+# Where a node declared by the text keeps its items: (collection, ir.Node list, side of item_options)
+SIGNATURE_ITEMS = {
+    COMBINE_BUNDLE: (("bundle_items", "items", "in"),),
+    SEPARATE_BUNDLE: (("bundle_items", "out_items", "out"),),
+    EVALUATE_CLOSURE: (("input_items", "items", "in"), ("output_items", "out_items", "out")),
+    CLOSURE_OUTPUT: (("input_items", "items", "in"), ("output_items", "out_items", "out")),
+}
 
 # Set rather than left to Blender, which translates new names when asked to
 FIXED_NAMES = {ir.GROUP_INPUT: "Group Input", ir.GROUP_OUTPUT: "Group Output"}
@@ -207,6 +216,8 @@ class Builder:
                     items.new(REPEAT_ITEMS[type], name)
             elif n.items is not None and n.bl_idname in ITEM_NODES:
                 self.items(nodes[n.id], n)
+            elif n.bl_idname in SIGNATURE_ITEMS:
+                self.signature(nodes[n.id], n)
 
         for n in g.nodes:
             node = nodes[n.id]
@@ -220,13 +231,22 @@ class Builder:
                 except (TypeError, ValueError) as e:
                     self.fail(n, f"{ident}: {e}")
 
+        refused = []
         for n in g.nodes:
             for ident, link in n.links:
                 src = self.socket(g, g.node(link.node), nodes[link.node], link.output, "outputs")
                 dst = self.socket(g, n, nodes[n.id], ident, "inputs")
                 made = tree.links.new(src, dst)
                 if not made.is_valid:
-                    self.fail(n, f"Blender refuse le lien {src.name} ({src.type}) → {dst.name} ({dst.type})")
+                    refused.append((n, made, src, dst))
+        if refused:
+            # A link into a zone made before the zone knows its body (a closure in a repeat) is
+            # only valid once Blender has updated the tree
+            tree.update_tag()
+            bpy.context.view_layer.update()
+        for n, made, src, dst in refused:
+            if not made.is_valid:
+                self.fail(n, f"Blender refuse le lien {src.name} ({src.type}) → {dst.name} ({dst.type})")
 
     def items(self, node, n):
         """The items of a Capture Attribute or a switch, in the order of the text."""
@@ -239,6 +259,22 @@ class Builder:
                 items.new(name)
             else:
                 items.new()
+
+    def signature(self, node, n):
+        """The typed items of a bundle node, a closure or its evaluation, in the order of the text."""
+        for collection, attr, side in SIGNATURE_ITEMS[n.bl_idname]:
+            items = getattr(node, collection)
+            items.clear()
+            for name, type in getattr(n, attr) or []:
+                item = items.new(ITEM_TYPES[type], name)
+                if item.name != name:
+                    self.fail(n, f"Blender renomme l'item « {name} » en « {item.name} » : "
+                                 "un nom d'item n'est pas un chemin (ni « / », ni « . », ni « - », ni « : »)")
+                for option, value in n.item_options.get((side, name), {}).items():
+                    try:
+                        setattr(item, option, value)
+                    except (TypeError, ValueError) as e:
+                        self.fail(n, f"« {name} » : {option}: {e}")
 
     def socket(self, g, n, node, ident, side):
         """A Blender socket from its text identifier.
@@ -259,6 +295,16 @@ class Builder:
             io = "INPUT" if side == "inputs" else "OUTPUT"
             names = [(i.name, None) for i in node.node_tree.interface.items_tree
                      if i.item_type == "SOCKET" and i.in_out == io]
+        elif n.bl_idname in SIGNATURE_NODES:
+            # The fixed sockets by identifier, then the items by their number: #0, #1…
+            fixed = SIGNATURE_NODES[n.bl_idname][side][0]
+            sockets = [s for s in sockets if s.type != "CUSTOM"]
+            if ident.startswith("#"):
+                return sockets[fixed + int(ident[1:])]
+            found = next((s for s in sockets[:fixed] if s.identifier == ident), None)
+            if found is None:
+                self.fail(n, f"socket « {ident} » introuvable dans Blender")
+            return found
         elif n.items is not None and n.bl_idname in ITEM_NODES:
             # The fixed sockets by identifier, then the items by position
             shape = ITEM_NODES[n.bl_idname]

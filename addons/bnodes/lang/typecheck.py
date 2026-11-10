@@ -9,8 +9,9 @@ from dataclasses import dataclass
 from . import ast, colors, ir, sugar
 from .errors import BnError, Diagnostic
 from .parser import parse
-from .schema import (DATABLOCKS, FIELD_TYPES, IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_DEFAULT, NO_VALUE, RANGED, STRICT,
-                     TREE_KINDS, TYPES, Socket, can_link, key)
+from .schema import (CLOSURE_INPUT, CLOSURE_OUTPUT, COMBINE_BUNDLE, DATABLOCKS, EVALUATE_CLOSURE, FIELD_TYPES, IMPLICIT,
+                     ITEM_NODES, ITEM_OPTIONS, ITEM_TYPES, NO_DEFAULT, NO_VALUE, RANGED, SEPARATE_BUNDLE,
+                     SIGNATURE_NODES, STRICT, TREE_KINDS, TYPES, Socket, can_link, key)
 
 GROUP_NODES = {
     "geometry": "GeometryNodeGroup",
@@ -210,8 +211,10 @@ class GraphChecker:
         self.separated = {}  # (node id, output identifier) -> SeparateXYZ node id, for p.x
         self.frames = []
         self.returned = None
-        self.zone = None  # inside a repeat body: (output node, its item sockets, input node, its outputs)
+        # inside a zone's body: (output node, its item sockets, input node, its outputs, "repeat" or "closure")
+        self.zone = None
         self.given = set()  # states the current repeat body returns
+        self.signatures = {}  # Closure Output id -> (input items, output items, item options) it defines
         self.frame_now = None
         self.unsure = False  # a module failed to load: an unknown call may be one of its graphs
 
@@ -406,6 +409,8 @@ class GraphChecker:
         created = len(self.nodes)
         if isinstance(stmt.value, ast.Repeat):
             value = self.repeat(stmt.value, stmt.name)
+        elif isinstance(stmt.value, ast.Closure):
+            value = self.closure(stmt.value, stmt.name)
         else:
             value = self.eval(stmt.value)
         if value is None:
@@ -424,7 +429,7 @@ class GraphChecker:
         if isinstance(stmt.value, ast.Record):
             # Outputs left out stay unlinked, as Blender allows
             given = {}
-            for f in stmt.value.fields:
+            for f in self.untyped(stmt.value.fields):
                 sock = next((s for s in outs if f.name in (s.name, key(s.name))), None)
                 if sock is None:
                     self.error(f, f"« {f.name} » n'est pas une sortie ; sorties : {', '.join(s.name for s in outs)}")
@@ -456,21 +461,27 @@ class GraphChecker:
         count = self.eval(e.count)
         starts, items = [], []
         for a in e.states:
-            v = self.eval(a.value)
-            t = value_type(v)
+            # `état: Bundle = _` gives the type, and may leave the start empty
+            empty = a.type is not None and is_no_value(a.value)
+            v = None if empty else self.eval(a.value)
+            t = a.type.type if a.type is not None else value_type(v)
             if key(a.name) in {key(n) for n, _t in items}:
                 self.error(a, f"état « {a.name} » déclaré deux fois")
                 continue
             if key(a.name) == "iteration":
                 self.error(a, "« iteration » est le numéro du tour : choisir un autre nom d'état")
                 continue
-            if v is None:
+            if a.type is not None and a.type.options:
+                self.error(a.type.options[0], "un état de repeat n'a pas d'option")
+                continue
+            if v is None and not empty:
                 continue
             if t not in REPEAT_ITEMS:
                 self.error(a, f"un état de repeat ne peut pas être de type {t}")
                 continue
             items.append((a.name, t))
-            starts.append((a, v))
+            if not empty:
+                starts.append((a, v))
         rin.items = rout.items = items
         states = [Socket(n, n, t) for n, t in items]
         rin_inputs = [Socket("Iterations", "Iterations", "Int")] + states
@@ -479,8 +490,9 @@ class GraphChecker:
         rout.n_inputs = rout.n_outputs = len(states)
         if count is not None:
             self.connect(rin, rin_inputs[0], count, e.count, "repeat")
-        for (a, v), sock in zip(starts, states):
-            self.connect(rin, sock, v, a, "repeat")
+        by_name = {n: sock for (n, _t), sock in zip(items, states)}
+        for a, v in starts:
+            self.connect(rin, by_name[a.name], v, a, "repeat")
 
         # The body sees the outer names, the states and `iteration`; its own names stay inside
         saved = self.env, self.returned, self.zone, self.given
@@ -489,7 +501,7 @@ class GraphChecker:
             self.env[key(sock.name)] = Out(rin.id, rin_outputs, sock, key(sock.name))
         self.env["iteration"] = Out(rin.id, rin_outputs, rin_outputs[0], "iteration")
         self.returned = None
-        self.zone = (rout, states, rin, rin_outputs)
+        self.zone = (rout, states, rin, rin_outputs, "repeat")
         self.given = set()
         frame = self.frame_now
         self.statements(e.body, None, frame)
@@ -506,29 +518,252 @@ class GraphChecker:
         return Out(rout.id, states, None, name) if states else None
 
     def zone_return(self, stmt):
-        rout, states, _rin, _outs = self.zone
+        rout, states, _rin, _outs, kind = self.zone
+        if kind == "repeat":
+            what, whats, given = "un état du repeat", "états", "état « {} » rendu deux fois"
+        else:
+            what, whats, given = "une sortie de la closure", "sorties", "sortie « {} » rendue deux fois"
         if isinstance(stmt.value, ast.Record):
-            for f in stmt.value.fields:
+            for f in self.untyped(stmt.value.fields):
                 sock = next((s for s in states if key(f.name) == key(s.name)), None)
                 if sock is None:
-                    self.error(f, f"« {f.name} » n'est pas un état du repeat ; états : "
-                                  f"{', '.join(s.name for s in states)}")
+                    self.error(f, f"« {f.name} » n'est pas {what} ; {whats} : "
+                                  f"{', '.join(s.name for s in states) or 'aucune'}")
                     continue
                 if sock.name in self.given:
-                    self.error(f, f"état « {f.name} » rendu deux fois")
+                    self.error(f, given.format(f.name))
                     continue
                 self.given.add(sock.name)
                 value = self.eval(f.value)
                 if value is not None:
-                    self.connect(rout, sock, value, f, "repeat")
+                    self.connect(rout, sock, value, f, kind)
             return
         if len(states) != 1:
-            self.error(stmt, f"ce repeat a plusieurs états : return ({', '.join(s.name + ': …' for s in states)})")
+            many = ("ce repeat a plusieurs états" if kind == "repeat" else
+                    "cette closure a plusieurs sorties" if states else "cette closure n'a pas de sortie")
+            self.error(stmt, f"{many} : return ({', '.join(s.name + ': …' for s in states)})")
             return
         self.given.add(states[0].name)
         value = self.eval(stmt.value)
         if value is not None:
-            self.connect(rout, states[0], value, stmt.value, "repeat")
+            self.connect(rout, states[0], value, stmt.value, kind)
+
+    def untyped(self, fields):
+        """The fields of a return: a type before `=` belongs to an item, not to an output."""
+        for f in fields:
+            if f.type is not None:
+                self.error(f, f"« {f.name} » : un type ne s'écrit pas dans un return")
+            else:
+                yield f
+
+    # Closure zones
+
+    def closure(self, e, name):
+        """A Closure zone: its input node gives the closure's inputs to its body, its output
+        node takes what the body returns and gives the closure. The body captures the outer names."""
+        cin = ir.Node(f"n{len(self.nodes)}", CLOSURE_INPUT, line=e.line, col=e.col)
+        cout = ir.Node(f"n{len(self.nodes) + 1}", CLOSURE_OUTPUT, line=e.line, col=e.col)
+        cin.pair = cout.id
+        self.nodes += [cin, cout]
+        options = {}
+        items = self.declared(e.params, "in", options, "closure")
+        outs = self.declared(e.outputs, "out", options, "closure")
+        for n in (cin, cout):
+            n.items, n.out_items, n.item_options = items, outs, options
+        inputs = item_sockets(items)
+        results = item_sockets(outs)
+        cin.n_outputs = len(inputs)
+        cout.n_inputs, cout.n_outputs = len(results), 1
+
+        # The body sees the outer names and the inputs; its own names stay inside
+        saved = self.env, self.returned, self.zone, self.given
+        self.env = dict(self.env)
+        for sock in inputs:
+            self.env[key(sock.name)] = Out(cin.id, inputs, sock, key(sock.name))
+        self.returned = None
+        self.zone = (cout, results, cin, inputs, "closure")
+        self.given = set()
+        frame = self.frame_now
+        self.statements(e.body, None, frame)
+        if not self.returned:
+            self.error(e, f"return manquant dans la closure de « {name} »")
+        cin.frame = cout.frame = frame
+        self.env, self.returned, self.zone, self.given = saved
+        self.frame_now = frame
+        self.signatures[cout.id] = (items, outs, options)
+        return Out(cout.id, [Socket("Closure", "Closure", "Closure")], None, name)
+
+    def declared(self, params, side, options, what):
+        """(name, type) of items declared as `name: Type(structure_type: …)`; their options go in `options`."""
+        items = []
+        for p in params:
+            if p.type not in ITEM_TYPES:
+                self.error(p, f"type « {p.type} » inconnu ; types : {', '.join(ITEM_TYPES)}")
+                continue
+            if p.default is not None or p.range is not None:
+                self.error(p, f"un item de {what} n'a ni valeur par défaut ni bornes")
+                continue
+            if key(p.name) in {key(n) for n, _t in items}:
+                self.error(p, f"item « {p.name} » déclaré deux fois")
+                continue
+            items.append((p.name, p.type))
+            found = self.item_options(p)
+            if found:
+                options[(side, p.name)] = found
+        return items
+
+    def item_options(self, p):
+        """{setting: value} of an item, from the options of its type."""
+        found = {}
+        for a in p.options:
+            if a.name not in ITEM_OPTIONS:
+                self.error(a, f"option « {a.name} » inconnue pour un item ; options : {', '.join(ITEM_OPTIONS)}")
+            elif not isinstance(a.value, ast.Ref):
+                self.error(a, f"{a.name} attend une valeur comme {ITEM_OPTIONS[a.name]}")
+            else:
+                found[a.name] = a.value.name
+        return found
+
+    # Bundles and closure calls
+
+    def signature_call(self, c, spec, piped, target=None):
+        """Combine Bundle, Separate Bundle and Evaluate Closure: nodes whose items the text gives a type each.
+
+        `target` is the closure of `f(x: …)`, a call on a name; else it is the first positional value."""
+        node = ir.Node("", spec.bl_idname, line=c.line, col=c.col)
+        positional = [(piped, c)] if piped is not None else []
+        named = []
+        for a in c.args:
+            if a.name is not None and a.type is None and a.name in spec.props:
+                v = self.eval(a.value)
+                if isinstance(v, (Lit, Sym)):
+                    self.prop(node, spec.props[a.name], v, a)
+                    continue
+            else:
+                v = None if is_no_value(a.value) else self.eval(a.value)
+            if a.name is None:
+                positional.append((v, a.value))
+            else:
+                named.append((a, v))
+        fixed = SIGNATURE_NODES[spec.bl_idname]["inputs"][0]
+        if target is not None:
+            if positional:
+                self.error(positional[0][1], f"une closure prend ses entrées par nom : {c.name}(x: …)")
+                return None
+            positional = [(target, c)]
+        if len(positional) > fixed:
+            if spec.bl_idname == SEPARATE_BUNDLE:
+                self.error(positional[fixed][1], "SeparateBundle prend le bundle seul : "
+                                                 "SeparateBundle(b) -> (nom: Type, …)")
+            else:
+                self.error(positional[fixed][1], f"{c.name} : les items se donnent par nom, {c.name}(…, nom: valeur)")
+            return None
+
+        options = {}
+        if spec.bl_idname == COMBINE_BUNDLE:
+            if c.outputs is not None:
+                self.error(c, "CombineBundle n'a qu'une sortie, le bundle : pas de « -> »")
+                return None
+            items, values = self.given_items(c, named, options)
+        elif spec.bl_idname == SEPARATE_BUNDLE:
+            if named:
+                self.error(named[0][0], "SeparateBundle déclare ses items après « -> » : "
+                                        "SeparateBundle(b) -> (nom: Type, …)")
+                return None
+            if c.outputs is None:
+                self.error(c, "SeparateBundle déclare ses items : SeparateBundle(b) -> (nom: Type, …)")
+                return None
+            items, values = [], []
+        elif c.outputs is not None:
+            items, values = self.given_items(c, named, options)
+        else:
+            # Evaluate Closure without `->`: the items of the closure it is given, defined in this graph
+            closure = positional[0][0] if positional else None
+            sig = self.signatures.get(closure.node) if isinstance(closure, Out) else None
+            if sig is None:
+                self.error(c, f"{c.name} : la signature de la closure n'est pas connue ici ; écrire ses items : "
+                              f"{c.name}(x: Float = …) -> (r: Float)")
+                return None
+            items, outs, sig_options = sig
+            options = dict(sig_options)
+            node.out_items = outs
+            values = []
+            for a, v in named:
+                if a.type is not None:
+                    self.error(a, f"« {a.name} » : avec un type, écrire aussi les sorties : {c.name}(…) -> (…)")
+                    return None
+                name = next((n for n, _t in items if key(n) == key(a.name)), None)
+                if name is None:
+                    self.error(a, f"la closure n'a pas d'entrée « {a.name} » ; entrées : "
+                                  f"{', '.join(n for n, _t in items) or 'aucune'}")
+                elif v is not None:
+                    values.append((name, v, a))
+        if items is None:
+            return None
+        if c.outputs is not None:
+            node.out_items = self.declared(c.outputs, "out", options, c.name)
+        if spec.bl_idname != SEPARATE_BUNDLE:
+            node.items = items
+        node.item_options = options
+
+        sides = SIGNATURE_NODES[spec.bl_idname]
+        fixed_inputs, fixed_outputs = self.schema.sockets(self.g.kind, spec, node.props)
+        inputs = fixed_inputs[:sides["inputs"][0]] + item_sockets(node.items or [])
+        outputs = fixed_outputs[:sides["outputs"][0]] + item_sockets(node.out_items or [])
+        node.n_inputs, node.n_outputs = len(inputs), len(outputs)
+        # Numbered once its arguments have made their own nodes
+        node.id = f"n{len(self.nodes)}"
+        self.nodes.append(node)
+        for (v, a), sock in zip(positional, inputs):
+            if v is not None:
+                self.connect(node, sock, v, a, c.name)
+        names = [n for n, _t in node.items or []]
+        for name, v, a in values:
+            self.connect(node, inputs[fixed + names.index(name)], v, a, c.name)
+        return Out(node.id, outputs, None, c.name)
+
+    def given_items(self, c, named, options):
+        """(items, values) from `name: value` and `name: Type = value` arguments; (None, None) on error."""
+        items, values = [], []
+        ok = True
+        for a, v in named:
+            if key(a.name) in {key(n) for n, _t in items}:
+                self.error(a, f"{c.name} : « {a.name} » donné deux fois")
+                ok = False
+                continue
+            if a.type is not None:
+                t = a.type.type
+                if t not in ITEM_TYPES:
+                    self.error(a.type, f"type « {t} » inconnu ; types : {', '.join(ITEM_TYPES)}")
+                    ok = False
+                    continue
+                found = self.item_options(a.type)
+                if found:
+                    options[("in", a.name)] = found
+                if v is None and not is_no_value(a.value):
+                    ok = False
+                    continue
+            elif is_no_value(a.value):
+                self.error(a, f"« {a.name} » n'a pas de valeur : écrire son type, {a.name}: Float = _")
+                ok = False
+                continue
+            elif isinstance(v, Sym):
+                self.error(a.value, f"nom inconnu « {v.name} »")
+                ok = False
+                continue
+            elif v is None:
+                ok = False
+                continue
+            else:
+                t = value_type(v)
+                if t not in ITEM_TYPES:
+                    self.error(a, f"{c.name} : pas d'item de type {t}")
+                    ok = False
+                    continue
+            items.append((a.name, t))
+            if v is not None:
+                values.append((a.name, v, a))
+        return (items, values) if ok else (None, None)
 
     # Expressions
 
@@ -708,6 +943,24 @@ class GraphChecker:
         return Out(node.id, outputs, None, op)
 
     def call(self, c, piped=None):
+        spec = None if c.name in self.graphs or self.is_function(c.name) else self.schema.node(self.g.kind, c.name)
+        if spec is not None and spec.bl_idname in (COMBINE_BUNDLE, SEPARATE_BUNDLE, EVALUATE_CLOSURE):
+            return self.signature_call(c, spec, piped)
+        if spec is None and c.name not in self.graphs and not self.is_function(c.name) \
+                and self.existing_group(c) is None and isinstance(self.env.get(c.name), Out) \
+                and value_type(self.env[c.name]) == "Closure":
+            # A call on a name that holds a closure, when nothing else has that name: Evaluate Closure
+            evaluate = self.schema.node(self.g.kind, "EvaluateClosure")
+            if evaluate is not None:
+                return self.signature_call(c, evaluate, piped, target=self.env[c.name])
+        if c.outputs is not None:
+            self.error(c, f"« -> » déclare les items de SeparateBundle ou EvaluateClosure, pas de {c.name}")
+            return None
+        for a in c.args:
+            if a.type is not None:
+                self.error(a, f"« {a.name}: {a.type.type} = … » donne le type d'un item : de CombineBundle, "
+                              "d'EvaluateClosure ou d'un état de repeat")
+                return None
         if self.is_function(c.name):
             operands = [(piped, c)] if piped is not None else []
             for a in c.args:
@@ -943,6 +1196,15 @@ WRITTEN_ELSEWHERE = {
 # Text type -> the socket type of a Repeat zone item
 REPEAT_ITEMS = {t: v for t, v in ITEM_TYPES.items() if t != "Shader"}
 DATA_TYPES = {v: t for t, v in ITEM_TYPES.items()}
+
+
+def item_sockets(items):
+    """Sockets of declared items, numbered by position: `#0`, `#1`… The builder finds them so."""
+    return [Socket(name, f"#{i}", t) for i, (name, t) in enumerate(items)]
+
+
+def is_no_value(e):
+    return isinstance(e, ast.Ref) and e.name == NO_VALUE
 
 
 def plus_terms(e):

@@ -31,6 +31,9 @@ class Node:
     frame: str | None = None  # id of the frame it sits in
     items: list | None = None  # (name, type) of a zone's items, on both nodes of the zone
     pair: str | None = None    # on a zone's input node: the id of its output node
+    out_items: list | None = None  # (name, type) of the output items: a closure's, a Separate Bundle's
+    # ("in" or "out", item name) -> {setting: value}, only what differs from a new item's
+    item_options: dict = field(default_factory=dict)
 
 
 @dataclass

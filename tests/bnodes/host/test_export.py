@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "addons"))
 
 from bnodes.host import build_source, export_tree  # noqa: E402
 from bnodes.host.schema import INTERFACE_FIELDS, fresh_options, option_names, same_option, snapshot  # noqa: E402
-from bnodes.lang import parse, sugar  # noqa: E402
+from bnodes.lang import BnError, parse, sugar  # noqa: E402
 from bnodes.lang.format import format_source  # noqa: E402
 from bnodes.lang.printer import to_source  # noqa: E402
 
@@ -311,6 +311,74 @@ def test_item_nodes_compute():
     assert mesh.attributes["cubes"].data[0].value == 8
 
 
+def items_of(node, collection):
+    return [(i.name, i.socket_type, i.structure_type) for i in getattr(node, collection)]
+
+
+def test_bundles_and_closures_come_back_identical():
+    src = fixture("bundles.bn")
+    ressort, appliquer, cumul = build_source(src, "bundles.bn")
+    f = ressort.nodes["f"]
+    assert f.bl_idname == "NodeClosureOutput"
+    pair = next(n for n in ressort.nodes if n.bl_idname == "NodeClosureInput")
+    assert pair.paired_output == f
+    assert items_of(f, "input_items") == [("x", "FLOAT", "AUTO"), ("Point Count", "INT", "SINGLE")]
+    assert items_of(f, "output_items") == [("r", "FLOAT", "AUTO")]
+    b = ressort.nodes["b"]
+    assert [(i.name, i.socket_type) for i in b.bundle_items] == [
+        ("hauteur", "FLOAT"), ("Pin Positions", "ROTATION"), ("f", "CLOSURE"), ("nid", "BUNDLE")]
+    h = appliquer.nodes["h"]
+    assert h.define_signature and items_of(h, "input_items")[1] == ("Point Count", "INT", "SINGLE")
+    assert sum(n.bl_idname == "NodeSeparateBundle" for n in appliquer.nodes) == 2
+    # The repeat state starts empty; the closure of the graph is evaluated inside the zone
+    rout = next(n for n in cumul.nodes if n.bl_idname == "GeometryNodeRepeatOutput")
+    assert [(i.name, i.socket_type) for i in rout.repeat_items] == [("total", "FLOAT"), ("dernier", "BUNDLE")]
+    rin = next(n for n in cumul.nodes if n.bl_idname == "GeometryNodeRepeatInput")
+    assert not rin.inputs["dernier"].is_linked
+    assert all(link.is_valid for t in (ressort, appliquer, cumul) for link in t.links)
+    text = "\n".join(export_tree(t)[0] for t in (ressort, appliquer, cumul))
+    assert text == src, text
+    assert all(export_tree(t)[1] == [] for t in (ressort, appliquer, cumul))
+
+
+def test_two_separates_of_one_bundle_stay_two():
+    src = ("geometry graph deux(b: Bundle) -> (a: Float, c: Float) {\n"
+           "  return (a: SeparateBundle(b) -> (a: Float), c: SeparateBundle(b) -> (c: Float))\n}\n")
+    (tree,) = build_source(src, "deux.bn")
+    assert sum(n.bl_idname == "NodeSeparateBundle" for n in tree.nodes) == 2
+    assert export_tree(tree) == (src, [])
+
+
+def test_bundle_item_names_are_not_paths():
+    src = 'geometry graph chemin(t: Float) -> Bundle {\n  return CombineBundle("a/b": t)\n}\n'
+    try:
+        build_source(src, "chemin.bn")
+    except BnError as e:
+        assert "Blender renomme l'item « a/b » en « a_b »" in str(e), str(e)
+    else:
+        raise AssertionError("no error")
+
+
+CLOSURE_CALLER = """geometry graph essai_closure(geometry: Geometry) -> Geometry {
+  r = ressort(0.5)
+  return appliquer(MeshGrid(1.0, 1.0, 2, 2), r.f, r.b) |> StoreNamedAttribute(name: "c", value: cumul(3))
+}
+"""
+
+
+def test_bundles_and_closures_compute():
+    tree = build_source(fixture("bundles.bn") + "\n" + CLOSURE_CALLER, "essai.bn")[-1]
+    obj = bpy.data.objects.new("essai", bpy.data.meshes.new("essai"))
+    bpy.context.scene.collection.objects.link(obj)
+    obj.modifiers.new("essai", "NODES").node_group = tree
+    mesh = obj.evaluated_get(bpy.context.evaluated_depsgraph_get()).data
+    # The closure made in ressort, evaluated in appliquer: 0.0 * 0.5 + 3 (unbundled twice), plus the height 1.0
+    assert len(mesh.vertices) == 4 and all(abs(v.co.z - 4.0) < 1e-6 for v in mesh.vertices), \
+        [tuple(v.co) for v in mesh.vertices]
+    # Three turns of (total + 1) * 2
+    assert abs(mesh.attributes["c"].data[0].value - 14.0) < 1e-6
+
+
 def close(a, b):
     """Equal, floats to a relative 1e-5: bounds far out (±3.4e38) differ in their last digits."""
     if isinstance(a, (tuple, list)) and isinstance(b, (tuple, list)):
@@ -375,7 +443,7 @@ def test_bundled_assets_export_and_come_back_stable():
                                     for d in written], name
         stats["stable"] += 1
     print("   bundled trees:", dict(stats))
-    assert stats["exported"] == len(names) and stats["stable"] >= 75
+    assert stats["exported"] == len(names) and stats["stable"] >= 100
 
 
 def node_kinds(tree):

@@ -46,6 +46,8 @@ class Arg:
     value: object
     line: int
     col: int
+    # `hauteur: Float = h`: an item given its type, a Param holding the type and its options
+    type: object = None
 
 
 @dataclass
@@ -54,6 +56,9 @@ class Call:
     args: list
     line: int
     col: int
+    # `SeparateBundle(b) -> (hauteur: Float)`: the output items it declares, Params
+    outputs: list | None = None
+    single_output: bool = False  # `-> Float` rather than `-> (name: Float)`
 
 
 @dataclass
@@ -140,6 +145,22 @@ class Repeat:
     """
     count: object
     states: list  # of Arg, all named
+    body: list
+    line: int
+    col: int
+    end: int = 0  # line of the closing brace
+
+
+@dataclass
+class Closure:
+    """`closure(x: Float, …) -> Float { … return … }`: a Closure zone.
+
+    Written only as the value of an assignment. In the body the inputs are names,
+    and the names outside are seen too: their values are captured.
+    """
+    params: list   # of Param
+    outputs: list  # of Param
+    single_output: bool
     body: list
     line: int
     col: int
