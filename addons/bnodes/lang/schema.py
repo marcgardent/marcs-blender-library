@@ -73,20 +73,43 @@ class ItemNode:
 
     The call makes the items: one per named value (`CaptureAttribute(g, hauteur: h)`,
     `MenuSwitch(mode, Lisse: a, Rugueux: b)`), or one per value after the fixed
-    inputs (`IndexSwitch(i, a, b, c)`).
+    inputs (`IndexSwitch(i, a, b, c)`). An item's other settings are its options:
+    `MenuSwitch(mode, Lisse(description: "…"): a)`.
     """
     collection: str  # the node's item collection, e.g. capture_items
     inputs: int      # fixed inputs before the items
     outputs: int     # fixed outputs before the items
     named: bool      # items given by name, else by position
     typed: bool      # each item has its own type, else the node's data_type is theirs
-    flags: bool      # one Bool output per item (Menu Switch), else one of its type when typed
+    # What each item adds to the outputs: "value" one of its type, "flag" a Bool (Menu Switch), or nothing
+    out: str | None = None
+    types: tuple = ()  # the text types an item may have, when not all of them
+    type_prop: str = "socket_type"  # the item's property that holds its type: not an option
+    # When the type is not given to new(): text type -> the value of type_prop
+    kinds: dict | None = field(default=None, hash=False)
+    # Options that only mean something on a field item: on the others Blender sets them itself
+    field_only: tuple = ()
 
+
+BAKE_TYPES = ("Float", "Int", "Bool", "Vector", "Color", "Rotation", "Matrix", "String", "Geometry", "Bundle")
+LIST_TYPES = ("Float", "Int", "Bool", "Vector", "Color", "Rotation", "Matrix", "String", "Menu")
 
 ITEM_NODES = {
-    "GeometryNodeCaptureAttribute": ItemNode("capture_items", 2, 2, named=True, typed=True, flags=False),
-    "GeometryNodeIndexSwitch": ItemNode("index_switch_items", 1, 1, named=False, typed=False, flags=False),
-    "GeometryNodeMenuSwitch": ItemNode("enum_items", 1, 1, named=True, typed=False, flags=True),
+    "GeometryNodeCaptureAttribute": ItemNode("capture_items", 2, 2, named=True, typed=True, out="value",
+                                             types=FIELD_TYPES, type_prop="data_type"),
+    "GeometryNodeIndexSwitch": ItemNode("index_switch_items", 1, 1, named=False, typed=False),
+    "GeometryNodeMenuSwitch": ItemNode("enum_items", 1, 1, named=True, typed=False, out="flag"),
+    "FunctionNodeFormatString": ItemNode("format_items", 1, 1, named=True, typed=True,
+                                         types=("Float", "Int", "String")),
+    "GeometryNodeBake": ItemNode("bake_items", 0, 0, named=True, typed=True, out="value", types=BAKE_TYPES,
+                                 field_only=("attribute_domain", "is_attribute")),
+    "GeometryNodeFieldToList": ItemNode("list_items", 1, 0, named=True, typed=True, out="value", types=LIST_TYPES),
+    "GeometryNodeFieldToGrid": ItemNode("grid_items", 1, 0, named=True, typed=True, out="value",
+                                        types=("Float", "Int", "Bool", "Vector"), type_prop="data_type"),
+    "GeometryNodeRasterizePoints": ItemNode("rasterize_items", 6, 0, named=True, typed=True, out="value",
+                                            types=("Float", "Vector"), type_prop="type",
+                                            kinds={"Float": "SCALAR", "Vector": "VECTOR"}),
+    "GeometryNodeCombineList": ItemNode("combine_list_items", 0, 1, named=False, typed=False),
 }
 
 # An item left without a link or a value: `MenuSwitch(mode, Lisse: a, Vide: _)`

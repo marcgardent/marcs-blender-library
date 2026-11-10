@@ -191,6 +191,8 @@ class Parser:
             self.fail("repeat attend d'abord le nombre de tours : repeat(10, état: départ, …)", t)
         if len(args) < 2:
             self.fail("repeat attend au moins un état : repeat(10, état: départ)", t)
+        if any(a.options for a in args):
+            self.fail("un état de repeat ne prend pas d'options", t)
         self.expect("{", what="« { » après repeat(…)")
         body = []
         while not self.at("}"):
@@ -314,6 +316,13 @@ class Parser:
                 self.advance()
                 self.advance()
                 args.append(ast.Arg(t.text, self.expr(), t.line, t.col))
+            elif not named_only and self.at_item_options():
+                # `Lisse(description: "…"): a`, an item and its options
+                self.advance()
+                self.advance()
+                options = self.args(named_only=True)
+                self.expect(":")
+                args.append(ast.Arg(t.text, self.expr(), t.line, t.col, options))
             elif named_only:
                 self.fail("champ nommé attendu (nom: valeur)")
             else:
@@ -324,6 +333,23 @@ class Parser:
                 self.expect(")")
                 break
         return args
+
+    def at_item_options(self):
+        """`name(` … `):` ahead: an item with options, not a call given as a value."""
+        if self.tok.kind not in ("IDENT", "STRING") or self.peek().kind != "(":
+            return False
+        depth, k = 0, 1
+        while True:
+            kind = self.peek(k).kind
+            if kind == "EOF":
+                return False
+            if kind == "(":
+                depth += 1
+            elif kind == ")":
+                depth -= 1
+                if depth == 0:
+                    return self.peek(k + 1).kind == ":"
+            k += 1
 
 
 def describe(tok):

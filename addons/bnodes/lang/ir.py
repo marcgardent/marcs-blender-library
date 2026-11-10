@@ -31,6 +31,7 @@ class Node:
     frame: str | None = None  # id of the frame it sits in
     items: list | None = None  # (name, type) of a zone's items, on both nodes of the zone
     pair: str | None = None    # on a zone's input node: the id of its output node
+    item_options: dict = field(default_factory=dict)  # item name -> {item property: value}, when written
 
 
 @dataclass
