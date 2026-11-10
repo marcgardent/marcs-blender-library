@@ -59,7 +59,7 @@ def node_dump(node):
         props["label"] = node.label
     items = [i.name for i in getattr(node, "capture_items", getattr(node, "repeat_items", getattr(node, "enum_items", ())))]
     sockets = [s for s in node.inputs if s.type != "CUSTOM"]
-    return {
+    dump = {
         "type": node.bl_idname,
         "props": props,
         "items": items,
@@ -67,6 +67,26 @@ def node_dump(node):
         "frame": node.parent.label if node.parent else None,
         "values": [plain(snapshot(s)) if not s.is_linked and hasattr(s, "default_value") else None for s in sockets],
     }
+    # Every other item collection, each item with its settings: only where there is one, so that
+    # the trees kept before it (whose items are the names above) are dumped as they were
+    lists = {p.identifier: [item_dump(i) for i in getattr(node, p.identifier)] for p in node.bl_rna.properties
+             if p.type == "COLLECTION" and p.identifier.endswith("items") and p.identifier not in DUMPED_ITEMS
+             and len(getattr(node, p.identifier))}
+    if lists:
+        dump["item_lists"] = lists
+    return dump
+
+
+# The item collections dumped by name alone under "items", as in 1.0, and those of the Index Switch,
+# numbered items whose type is the node's data_type: what 1.0 kept of them, the trees keep
+DUMPED_ITEMS = {"capture_items", "repeat_items", "enum_items", "index_switch_items"}
+
+
+def item_dump(item):
+    """An item's name, type and settings, as plain data."""
+    return {p.identifier: plain(getattr(item, p.identifier)) for p in item.bl_rna.properties
+            if not p.is_readonly and p.type in ("BOOLEAN", "ENUM", "INT", "FLOAT", "STRING")
+            and not getattr(p, "is_array", False) and not (p.type == "ENUM" and p.is_enum_flag)}
 
 
 def tree_dump(tree):

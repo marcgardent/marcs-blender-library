@@ -12,11 +12,10 @@ from .. import lang
 from ..lang import ir
 from ..lang.errors import BnError, Diagnostic
 from ..lang.layout import layout
-from ..lang.schema import (CLOSURE_OUTPUT, COMBINE_BUNDLE, EVALUATE_CLOSURE, ITEM_NODES, ITEM_TYPES, SEPARATE_BUNDLE,
-                           SIGNATURE_NODES, TYPES)
+from ..lang.schema import ITEM_NODES, SIGNATURE_NODES, TYPES, option_key, signature_items
 from ..lang.typecheck import REPEAT_ITEMS
 from . import modules
-from .schema import TREE_TYPES, BlenderSchema, fresh_item, fresh_options, same_option
+from .schema import TREE_TYPES, BlenderSchema, fresh_item, fresh_options, item_option_names, new_item, same_option
 
 DATABLOCKS = {"OBJECT": "objects", "COLLECTION": "collections", "MATERIAL": "materials",
               "IMAGE": "images", "TEXTURE": "textures"}
@@ -24,16 +23,11 @@ DATABLOCKS = {"OBJECT": "objects", "COLLECTION": "collections", "MATERIAL": "mat
 # Source line of each node, for the text and node editors to follow each other
 LINE = "bnodes_line"
 
-# Where a node declared by the text keeps its items: (collection, ir.Node list, side of item_options)
-SIGNATURE_ITEMS = {
-    COMBINE_BUNDLE: (("bundle_items", "items", "in"),),
-    SEPARATE_BUNDLE: (("bundle_items", "out_items", "out"),),
-    EVALUATE_CLOSURE: (("input_items", "items", "in"), ("output_items", "out_items", "out")),
-    CLOSURE_OUTPUT: (("input_items", "items", "in"), ("output_items", "out_items", "out")),
-}
-
 # Set rather than left to Blender, which translates new names when asked to
 FIXED_NAMES = {ir.GROUP_INPUT: "Group Input", ir.GROUP_OUTPUT: "Group Output"}
+
+# Zone output -> its item collection, the input node's following it
+ZONE_ITEMS = {ir.REPEAT_OUTPUT: "repeat_items", ir.SIMULATION_OUTPUT: "state_items"}
 
 
 def build_source(source, filename="<text>"):
@@ -209,15 +203,18 @@ class Builder:
             if n.pair:
                 nodes[n.id].pair_with_output(nodes[n.pair])
         for n in g.nodes:
-            if n.items is not None and n.bl_idname == ir.REPEAT_OUTPUT:
-                items = nodes[n.id].repeat_items
-                items.clear()
-                for name, type in n.items:
-                    items.new(REPEAT_ITEMS[type], name)
+            if n.items is not None and n.bl_idname in ZONE_ITEMS:
+                fill_items(getattr(nodes[n.id], ZONE_ITEMS[n.bl_idname]), n.items)
+            elif n.items is not None and n.bl_idname == ir.FOREACH_OUTPUT:
+                fill_items(nodes[n.id].main_items, n.items[:n.main])
+                fill_items(nodes[n.id].generation_items, n.items[n.main:])
+            elif n.items is not None and n.bl_idname == ir.FOREACH_INPUT:
+                fill_items(nodes[n.pair].input_items, n.items)
             elif n.items is not None and n.bl_idname in ITEM_NODES:
                 self.items(nodes[n.id], n)
-            elif n.bl_idname in SIGNATURE_ITEMS:
-                self.signature(nodes[n.id], n)
+            elif signature_items(n.bl_idname):
+                for attr, shape in signature_items(n.bl_idname):
+                    self.item_list(nodes[n.id], n, shape, getattr(n, attr) or [], attr)
 
         for n in g.nodes:
             node = nodes[n.id]
@@ -249,32 +246,31 @@ class Builder:
                 self.fail(n, f"Blender refuse le lien {src.name} ({src.type}) → {dst.name} ({dst.type})")
 
     def items(self, node, n):
-        """The items of a Capture Attribute or a switch, in the order of the text."""
-        items = getattr(node, ITEM_NODES[n.bl_idname].collection)
-        items.clear()
-        for name, type in n.items:
-            if n.bl_idname == "GeometryNodeCaptureAttribute":
-                items.new(ITEM_TYPES[type], name)
-            elif n.bl_idname == "GeometryNodeMenuSwitch":
-                items.new(name)
-            else:
-                items.new()
+        """The items of a node of ITEM_NODES, in the order of the text, with their options."""
+        self.item_list(node, n, ITEM_NODES[n.bl_idname], n.items, "items")
 
-    def signature(self, node, n):
-        """The typed items of a bundle node, a closure or its evaluation, in the order of the text."""
-        for collection, attr, side in SIGNATURE_ITEMS[n.bl_idname]:
-            items = getattr(node, collection)
-            items.clear()
-            for name, type in getattr(n, attr) or []:
-                item = items.new(ITEM_TYPES[type], name)
-                if item.name != name:
-                    self.fail(n, f"Blender renomme l'item « {name} » en « {item.name} » : "
-                                 "un nom d'item n'est pas un chemin (ni « / », ni « . », ni « - », ni « : »)")
-                for option, value in n.item_options.get((side, name), {}).items():
-                    try:
-                        setattr(item, option, value)
-                    except (TypeError, ValueError) as e:
-                        self.fail(n, f"« {name} » : {option}: {e}")
+    def item_list(self, node, n, shape, items, attr):
+        """One item collection of a node, as the text lists it, with each item's options."""
+        getattr(node, shape.collection).clear()
+        for name, type in items:
+            new_item(node, shape, name, type)
+        # Options once every item is there: a new item may change those before it.
+        # Fetched again, as adding items may move the earlier ones in memory
+        for (name, _type), item in zip(items, getattr(node, shape.collection)):
+            if shape.named and item.name != name:
+                self.fail(n, f"Blender renomme l'item « {name} » en « {item.name} » : "
+                             "un nom d'item n'est pas un chemin (ni « / », ni « . », ni « - », ni « : »)")
+            wanted = n.item_options.get(option_key(attr, name), {})
+            known = item_option_names(item, shape)
+            unknown = [o for o in wanted if o not in known]
+            if unknown:
+                self.fail(n, f"item « {name} » : option {unknown[0]} inconnue ; "
+                             f"options : {', '.join(known) or 'aucune'}")
+            for option, value in wanted.items():
+                try:
+                    setattr(item, option, value)
+                except (TypeError, ValueError) as e:
+                    self.fail(n, f"option {option} de l'item « {name} » : {e}")
 
     def socket(self, g, n, node, ident, side):
         """A Blender socket from its text identifier.
@@ -315,10 +311,9 @@ class Builder:
                 return found
             return sockets[fixed + [name for name, _t in n.items].index(ident)]
         elif n.items is not None:
-            # Zone items are numbered by Blender too; the input node has the count first
-            names = n.items
-            if n.bl_idname == ir.REPEAT_INPUT:
-                names = [("Iterations" if side == "inputs" else "Iteration", "Int")] + names
+            # Zone items are numbered by Blender too, after the zone node's fixed sockets
+            fixed = ir.ZONE_SOCKETS[n.bl_idname][side == "outputs"]
+            names = [(name, None) for name in fixed] + n.items
             sockets = [s for s in sockets if s.type != "CUSTOM"]
         if names is not None:
             return sockets[[name for name, _t in names].index(ident)]
@@ -334,6 +329,13 @@ class Builder:
                 self.fail(n, f"{sock.type.title()} « {value} » introuvable dans le fichier")
             return found
         return coerce(sock, value)
+
+
+def fill_items(items, wanted):
+    """A zone's item collection, as the text lists it."""
+    items.clear()
+    for name, type in wanted:
+        items.new(REPEAT_ITEMS[type], name)
 
 
 def coerce(sock, value):

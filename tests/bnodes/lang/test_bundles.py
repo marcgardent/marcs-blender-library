@@ -37,7 +37,7 @@ def test_the_fixture_checks(fixture_text, schema):
     assert len(nodes(appliquer, "NodeSeparateBundle")) == 2
     (h,) = nodes(appliquer, "NodeEvaluateClosure")
     assert h.props == {"define_signature": True}
-    assert h.item_options == {("in", "Point Count"): {"structure_type": "SINGLE"}}
+    assert h.item_options == {"Point Count": {"structure_type": "SINGLE"}}
     (rout,) = nodes(cumul, ir.REPEAT_OUTPUT)
     assert rout.items == [("total", "Float"), ("dernier", "Bundle")]
 
@@ -49,7 +49,7 @@ def test_a_closure_is_a_zone_that_captures_outer_names(schema):
     assert cin.pair == cout.id and cout.name == "f"
     assert cin.items == cout.items == [("x", "Float"), ("Point Count", "Int")]
     assert cout.out_items == [("r", "Float")]
-    assert cout.item_options == {("in", "Point Count"): {"structure_type": "SINGLE"}}
+    assert cout.item_options == {"Point Count": {"structure_type": "SINGLE"}}
     multiply = next(n for n in g.nodes if n.props.get("operation") == "MULTIPLY")
     assert ("Value", ir.Link(cin.id, "#0")) in multiply.links
     assert ("Value_001", ir.Link(ir.GROUP_INPUT, "t")) in multiply.links
@@ -65,7 +65,7 @@ def test_an_evaluation_takes_the_items_of_the_closure_it_is_given(schema):
 
 
 def test_an_evaluation_declares_its_items_when_the_closure_comes_from_elsewhere(schema):
-    src = graph("  e = EvaluateClosure(c, x: t, g: Geometry = _, r: Rotation = (0.0, 0.0, 1.0)) -> (r: Float, s: Vector)\n"
+    src = graph("  e = EvaluateClosure(c, x: t, g: Geometry, r: Rotation = (0.0, 0.0, 1.0)) -> (r: Float, s: Vector)\n"
                 "  return e.s.z")
     (g,) = compile_all(src, schema)
     (e,) = nodes(g, "NodeEvaluateClosure")
@@ -82,7 +82,7 @@ def test_a_closure_name_called_is_an_evaluation(schema):
 
 
 def test_bundles_take_the_types_of_their_values(schema):
-    src = graph("  p = CombineBundle(hauteur: t, forme: geometry, \"Pin Positions\": Rotation = _, nid: CombineBundle())\n"
+    src = graph("  p = CombineBundle(hauteur: t, forme: geometry, \"Pin Positions\": Rotation, nid: CombineBundle())\n"
                 "  s = SeparateBundle(p) -> (hauteur: Float, nid: Bundle(structure_type: SINGLE))\n"
                 "  return s.hauteur")
     (g,) = compile_all(src, schema)
@@ -94,11 +94,26 @@ def test_bundles_take_the_types_of_their_values(schema):
     assert g.node(ir.GROUP_OUTPUT).links == [("Float", ir.Link(s.id, "#0"))]
 
 
-def test_a_repeat_state_may_start_empty_when_typed(schema):
-    (g,) = compile_all(graph("  r = repeat(3, w: Bundle = _, k: Float = 1) {\n    return (w: b)\n  }\n  return r.k"), schema)
+def test_a_repeat_state_may_start_empty_or_typed(schema):
+    (g,) = compile_all(graph("  r = repeat(3, w: Bundle, k: Float = 1, v: Bundle = _) {\n    return (w: b)\n  }\n"
+                             "  return r.k"), schema)
     (rin,) = nodes(g, ir.REPEAT_INPUT)
-    assert rin.items == [("w", "Bundle"), ("k", "Float")]
+    assert rin.items == [("w", "Bundle"), ("k", "Float"), ("v", "Bundle")]
     assert rin.values == {"Iterations": 3, "k": 1} and rin.links == []
+
+
+def test_a_typed_item_says_its_type_and_its_options_follow_its_name(schema):
+    (g,) = compile_all(graph("  k = CaptureAttribute(geometry, h: Float = 1, p: Vector = t)\n  return k.h"), schema)
+    (k,) = nodes(g, "GeometryNodeCaptureAttribute")
+    assert k.items == [("h", "Float"), ("p", "Vector")] and k.values == {"h": 1}
+    src = graph("  p = CombineBundle(\"Pin\"(structure_type: SINGLE): Vector = t, x: Float(structure_type: FIELD) = 1)\n"
+                "  return 1.0")
+    (g,) = compile_all(src, schema)
+    (p,) = nodes(g, "NodeCombineBundle")
+    assert p.items == [("Pin", "Vector"), ("x", "Float")]
+    # Options written after the type read as options after the name: the printer writes those
+    assert p.item_options == {"Pin": {"structure_type": "SINGLE"}, "x": {"structure_type": "FIELD"}}
+    assert 'x(structure_type: FIELD): Float = 1' in to_source(parse(src))
 
 
 def test_closure_stays_a_name():
@@ -126,17 +141,15 @@ def test_picking_a_declared_output_takes_parentheses():
     ("  return SeparateBundle(b).x", "SeparateBundle déclare ses items : SeparateBundle(b) -> (nom: Type, …)"),
     ("  return SeparateBundle(b, x: Float)",
      "SeparateBundle déclare ses items après « -> » : SeparateBundle(b) -> (nom: Type, …)"),
-    ("  return CombineBundle(g: _)", "« g » n'a pas de valeur : écrire son type, g: Float = _"),
+    ("  return CombineBundle(g: _)", "« g » n'a pas de valeur : écrire son type, g: Float"),
     ("  return CombineBundle(t)", "CombineBundle : les items se donnent par nom, CombineBundle(…, nom: valeur)"),
     ("  return SetPosition(geometry, offset: Vector = Position())",
-     "« offset: Vector = … » donne le type d'un item : de CombineBundle, d'EvaluateClosure ou d'un état de repeat"),
+     "« offset: Vector = … » donne le type d'un item : d'un nœud à items, d'une zone ou d'EvaluateClosure"),
     ("  return Position() -> Vector", "« -> » déclare les items de SeparateBundle ou EvaluateClosure, pas de Position"),
     ("  f = closure(x: Float) -> (r: Float) {\n    return (s: x)\n  }\n  return f(x: t)",
      "« s » n'est pas une sortie de la closure ; sorties : r"),
     ("  f = closure(x: Float = 1.0) -> Float {\n    return x\n  }\n  return f()",
      "un item de closure n'a ni valeur par défaut ni bornes"),
-    ("  f = closure(x: Float(subtype: FACTOR)) -> Float {\n    return x\n  }\n  return f()",
-     "option « subtype » inconnue pour un item ; options : structure_type"),
     ("  f = closure() -> Float {\n    return 1.0\n  }\n  return f(y: 1.0)",
      "la closure n'a pas d'entrée « y » ; entrées : aucune"),
     ("  f = closure(x: Float) -> Float {\n    d = x\n  }\n  return f(x: t)", "return manquant dans la closure de « f »"),

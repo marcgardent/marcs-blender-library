@@ -29,8 +29,10 @@ def cause(warning):
         return "frame coupé"
     if "sans effet" in warning:
         return "nœuds sans effet"
-    if "description des items" in warning:
-        return "description d'items de Menu Switch"
+    if "porte le nom d'une entrée ou d'un réglage" in warning:
+        return "item au nom d'une entrée du nœud"
+    if "de l'item" in warning and "non exporté" in warning:
+        return "option d'un item donné par position"
     if "(dans deux panneaux ?)" in warning:
         return "nom répété dans l'interface"
     if "désactivé (mute)" in warning:
@@ -43,12 +45,20 @@ def cause(warning):
         return "réglages de l'arbre (outil, modifier)"
     if "define_signature non exporté" in warning:
         return "define_signature d'une closure"
-    if "deux entrées de même clé" in warning:
-        return "entrées de closure de même clé"
     if re.search(r"item « .* » de type \w+, pas encore", warning):
         return "type d'item de bundle ou closure"
-    if "cachée par" in warning:
-        return "entrée cachée dans une zone"
+    if "part sans valeur" in warning:
+        return "état de zone sans valeur"
+    if "qui reçoit un" in warning and "relu comme" in warning:
+        return "item relu d'un autre type"
+    if re.search(r"domaine \w+ de l", warning):
+        return "domaine d'un item de zone"
+    if "valeur de menu de" in warning:
+        return "item de zone : valeur de menu"
+    if "cachée par l'état" in warning or "un nom de la zone" in warning or "deux items du même nom" in warning:
+        return "nom d'item de zone"
+    if "ne suit aucune géométrie" in warning:
+        return "attribut généré sans géométrie"
     return warning
 
 

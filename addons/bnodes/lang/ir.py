@@ -7,6 +7,28 @@ GROUP_OUTPUT = "group_output"
 
 REPEAT_INPUT = "GeometryNodeRepeatInput"
 REPEAT_OUTPUT = "GeometryNodeRepeatOutput"
+SIMULATION_INPUT = "GeometryNodeSimulationInput"
+SIMULATION_OUTPUT = "GeometryNodeSimulationOutput"
+FOREACH_INPUT = "GeometryNodeForeachGeometryElementInput"
+FOREACH_OUTPUT = "GeometryNodeForeachGeometryElementOutput"
+
+CLOSURE_INPUT = "NodeClosureInput"
+CLOSURE_OUTPUT = "NodeClosureOutput"
+
+ZONE_INPUTS = (REPEAT_INPUT, SIMULATION_INPUT, FOREACH_INPUT, CLOSURE_INPUT)
+ZONE_OUTPUTS = (REPEAT_OUTPUT, SIMULATION_OUTPUT, FOREACH_OUTPUT, CLOSURE_OUTPUT)
+
+# A zone node's fixed sockets, before its items: (inputs, outputs), by their text identifier.
+# The For Each output's own Geometry has one no item can take: the default item is a "Geometry" too.
+FOREACH_GEOMETRY = "__geometry__"
+ZONE_SOCKETS = {
+    REPEAT_INPUT: (("Iterations",), ("Iteration",)),
+    REPEAT_OUTPUT: ((), ()),
+    SIMULATION_INPUT: ((), ("Delta Time",)),
+    SIMULATION_OUTPUT: (("Skip",), ()),
+    FOREACH_INPUT: (("Geometry", "Selection"), ("Index", "Element")),
+    FOREACH_OUTPUT: ((), (FOREACH_GEOMETRY,)),
+}
 
 
 @dataclass(frozen=True)
@@ -29,10 +51,13 @@ class Node:
     line: int = 0
     col: int = 0
     frame: str | None = None  # id of the frame it sits in
-    items: list | None = None  # (name, type) of a zone's items, on both nodes of the zone
+    # (name, type) of a zone's items, on both nodes of the zone; a For Each input has its
+    # input items, its output the main items then the generation ones
+    items: list | None = None
     pair: str | None = None    # on a zone's input node: the id of its output node
+    main: int = 0              # on a For Each output: how many of its items are main items
     out_items: list | None = None  # (name, type) of the output items: a closure's, a Separate Bundle's
-    # ("in" or "out", item name) -> {setting: value}, only what differs from a new item's
+    # item name -> {item property: value}, when written; ("out", name) for one of out_items
     item_options: dict = field(default_factory=dict)
 
 

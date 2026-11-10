@@ -1,0 +1,21 @@
+geometry graph étiquette(n: Int, nom: String) -> String {
+  return FormatString("{nom} n°{n} : {x}", n: n, nom: nom, x: 0.5)
+}
+
+geometry graph cuisson(geometry: Geometry, h: Float) -> (Geometry: Geometry, h: Float) {
+  b = Bake(Geometry: geometry, h(attribute_domain: FACE, is_attribute: true): h)
+  return (Geometry: b.geometry, h: b.h)
+}
+
+geometry graph listes(n: Int) -> Float {
+  l = FieldToList(n, Valeur: Index(), Nom: "*")
+  return ListGetItem(l.valeur, 1)
+}
+
+geometry graph modes(mode: Menu = Lisse, geometry: Geometry) -> Geometry {
+  m = MenuSwitch(
+    mode,
+    Lisse(description: "Garde la géométrie telle quelle"): geometry,
+    Rugueux: SubdivideMesh(geometry, 2))
+  return m.output
+}

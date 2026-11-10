@@ -23,9 +23,8 @@ def format_source(source, filename="<text>"):
                 printed.append((s.line, pad + printer.frame_head(s), True))
                 walk(s.body, pad + printer.INDENT)
                 printed.append((s.end, pad + "}", False))
-            elif isinstance(s, ast.Assign) and isinstance(s.value, (ast.Repeat, ast.Closure)):
-                head = printer.repeat_head if isinstance(s.value, ast.Repeat) else printer.closure_head
-                printed.extend((o, t, k == 0) for k, (o, t) in enumerate(head(s, pad)))
+            elif isinstance(s, ast.Assign) and isinstance(s.value, ast.ZONES):
+                printed.extend((o, t, k == 0) for k, (o, t) in enumerate(printer.zone_head(s, pad)))
                 walk(s.value.body, pad + printer.INDENT)
                 printed.append((s.value.end, pad + "}", False))
             else:

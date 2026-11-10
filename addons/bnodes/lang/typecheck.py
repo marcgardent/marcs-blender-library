@@ -4,14 +4,14 @@ Every error is collected with its position, so one pass reports them all.
 """
 
 import difflib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from . import ast, colors, ir, sugar
 from .errors import BnError, Diagnostic
 from .parser import parse
 from .schema import (CLOSURE_INPUT, CLOSURE_OUTPUT, COMBINE_BUNDLE, DATABLOCKS, EVALUATE_CLOSURE, FIELD_TYPES, IMPLICIT,
-                     ITEM_NODES, ITEM_OPTIONS, ITEM_TYPES, NO_DEFAULT, NO_VALUE, RANGED, SEPARATE_BUNDLE,
-                     SIGNATURE_NODES, STRICT, TREE_KINDS, TYPES, Socket, can_link, key)
+                     ITEM_NODES, ITEM_TYPES, NO_DEFAULT, NO_VALUE, RANGED, SEPARATE_BUNDLE, SIGNATURE_NODES, STRICT,
+                     TREE_KINDS, TYPES, Socket, can_link, key)
 
 GROUP_NODES = {
     "geometry": "GeometryNodeGroup",
@@ -37,6 +37,30 @@ class Out:
 class Lit:
     value: object
     type: str
+
+
+@dataclass
+class Empty:
+    """A zone item with no value, written by its type alone: `cache: Bundle`."""
+    type: str
+
+
+@dataclass
+class Typed:
+    """An item's value given its type: `hauteur: Float = 1`."""
+    value: object
+    type: str
+
+
+@dataclass
+class Zone:
+    """The zone whose body is being checked."""
+    word: str        # repeat, simulate, foreach or closure
+    out: object      # its output node
+    states: list     # of Socket: what its return may give (repeat, simulate)
+    skip: object     # the Skip socket of a simulation
+    given: set = field(default_factory=set)  # what the return gave
+    outputs: list = field(default_factory=list)  # a foreach's output sockets, once returned
 
 
 @dataclass
@@ -211,9 +235,7 @@ class GraphChecker:
         self.separated = {}  # (node id, output identifier) -> SeparateXYZ node id, for p.x
         self.frames = []
         self.returned = None
-        # inside a zone's body: (output node, its item sockets, input node, its outputs, "repeat" or "closure")
-        self.zone = None
-        self.given = set()  # states the current repeat body returns
+        self.zone = None  # inside a zone's body: the Zone
         self.signatures = {}  # Closure Output id -> (input items, output items, item options) it defines
         self.frame_now = None
         self.unsure = False  # a module failed to load: an unknown call may be one of its graphs
@@ -304,17 +326,39 @@ class GraphChecker:
                     if a.name in found:
                         self.error(a, f"option « {a.name} » donnée deux fois")
                         continue
-                    v = a.value
-                    if isinstance(v, ast.Ref):
-                        found[a.name] = v.name
-                    elif isinstance(v, (ast.Number, ast.String, ast.Bool, ast.Neg)) and \
-                            isinstance(self.eval(v), Lit):
-                        found[a.name] = self.eval(v).value
-                    else:
-                        self.error(a, f"option « {a.name} » : un nombre, true/false, un texte ou une valeur comme FACTOR")
+                    value = self.option_value(a)
+                    if value is not None:
+                        found[a.name] = value
                 if found:
                     out[(side, p.name)] = found
         return out
+
+    def option_value(self, a):
+        """The value of `option: value`, a literal or an enum name; None after an error."""
+        v = a.value
+        if isinstance(v, ast.Ref):
+            return v.name
+        if isinstance(v, (ast.Number, ast.String, ast.Bool, ast.Neg)) and isinstance(self.eval(v), Lit):
+            return self.eval(v).value
+        self.error(a, f"option « {a.name} » : un nombre, true/false, un texte ou une valeur comme FACTOR")
+        return None
+
+    def item_options(self, c, a):
+        """{option: value} from `nom(option: valeur): …`, by the item's Blender property names.
+
+        The names are checked by the builder, against the item; here only the values are."""
+        found = {}
+        for o in a.options:
+            if o.name in ("name", "socket_type", "data_type", "type"):
+                self.error(o, f"{c.name} : le nom et le type d'un item s'écrivent « nom: valeur »")
+                continue
+            if o.name in found:
+                self.error(o, f"option « {o.name} » donnée deux fois")
+                continue
+            value = self.option_value(o)
+            if value is not None:
+                found[o.name] = value
+        return found
 
     def default_value(self, p, d):
         t = p.type
@@ -382,7 +426,7 @@ class GraphChecker:
             elif self.zone is not None:
                 self.zone_return(stmt)
                 self.returned = stmt
-                self.zone[0].frame = frame
+                self.zone.out.frame = frame
             else:
                 self.return_stmt(stmt, gout)
                 self.returned = stmt
@@ -408,7 +452,11 @@ class GraphChecker:
             return
         created = len(self.nodes)
         if isinstance(stmt.value, ast.Repeat):
-            value = self.repeat(stmt.value, stmt.name)
+            value = self.state_zone(stmt.value, stmt.name, "repeat")
+        elif isinstance(stmt.value, ast.Simulate):
+            value = self.state_zone(stmt.value, stmt.name, "simulate")
+        elif isinstance(stmt.value, ast.Foreach):
+            value = self.foreach(stmt.value, stmt.name)
         elif isinstance(stmt.value, ast.Closure):
             value = self.closure(stmt.value, stmt.name)
         else:
@@ -449,104 +497,259 @@ class GraphChecker:
         if value is not None:
             self.connect(gout, outs[0], value, stmt.value, "return")
 
-    # Repeat zones
+    # Zones
 
-    def repeat(self, e, name):
-        """A Repeat zone: its input node takes the count and the starting states, its body
-        computes the next states from the current ones, its output node gives the last."""
-        rin = ir.Node(f"n{len(self.nodes)}", ir.REPEAT_INPUT, line=e.line, col=e.col)
-        rout = ir.Node(f"n{len(self.nodes) + 1}", ir.REPEAT_OUTPUT, line=e.line, col=e.col)
-        rin.pair = rout.id
-        self.nodes += [rin, rout]
-        count = self.eval(e.count)
+    def state_zone(self, e, name, word):
+        """A Repeat or a Simulation zone: its input node takes the starting states (and a
+        Repeat its count), its body computes the next states from the current ones, its
+        output node gives the last."""
+        repeat = word == "repeat"
+        zin = ir.Node(f"n{len(self.nodes)}", ir.REPEAT_INPUT if repeat else ir.SIMULATION_INPUT,
+                      line=e.line, col=e.col)
+        zout = ir.Node(f"n{len(self.nodes) + 1}", ir.REPEAT_OUTPUT if repeat else ir.SIMULATION_OUTPUT,
+                       line=e.line, col=e.col)
+        zin.pair = zout.id
+        self.nodes += [zin, zout]
+        count = self.eval(e.count) if repeat else None
+        allowed = REPEAT_ITEMS if repeat else SIMULATION_ITEMS
         starts, items = [], []
         for a in e.states:
-            # `état: Bundle = _` gives the type, and may leave the start empty
-            empty = a.type is not None and is_no_value(a.value)
-            v = None if empty else self.eval(a.value)
-            t = a.type.type if a.type is not None else value_type(v)
+            v = self.zone_value(a)
             if key(a.name) in {key(n) for n, _t in items}:
                 self.error(a, f"état « {a.name} » déclaré deux fois")
                 continue
-            if key(a.name) == "iteration":
-                self.error(a, "« iteration » est le numéro du tour : choisir un autre nom d'état")
+            if key(a.name) in STATE_NAMES[word]:
+                self.error(a, STATE_NAMES[word][key(a.name)])
                 continue
-            if a.type is not None and a.type.options:
-                self.error(a.type.options[0], "un état de repeat n'a pas d'option")
+            if v is None:
                 continue
-            if v is None and not empty:
+            if isinstance(v, Sym):
+                self.error(a, f"nom inconnu « {v.name} »")
                 continue
-            if t not in REPEAT_ITEMS:
-                self.error(a, f"un état de repeat ne peut pas être de type {t}")
+            t = value_type(v)
+            if t not in allowed:
+                self.error(a, f"un état de {word} ne peut pas être de type {t}")
                 continue
             items.append((a.name, t))
-            if not empty:
-                starts.append((a, v))
-        rin.items = rout.items = items
+            starts.append((a, v))
+        zin.items = zout.items = items
         states = [Socket(n, n, t) for n, t in items]
-        rin_inputs = [Socket("Iterations", "Iterations", "Int")] + states
-        rin_outputs = [Socket("Iteration", "Iteration", "Int")] + states
-        rin.n_inputs, rin.n_outputs = len(rin_inputs), len(rin_outputs)
-        rout.n_inputs = rout.n_outputs = len(states)
+        if repeat:
+            zin_inputs = [Socket("Iterations", "Iterations", "Int")] + states
+            zin_outputs = [Socket("Iteration", "Iteration", "Int")] + states
+            skip = None
+        else:
+            zin_inputs = states
+            zin_outputs = [Socket("Delta Time", "Delta Time", "Float")] + states
+            skip = Socket("Skip", "Skip", "Bool")
+        zin.n_inputs, zin.n_outputs = len(zin_inputs), len(zin_outputs)
+        zout.n_inputs, zout.n_outputs = len(states) + (skip is not None), len(states)
         if count is not None:
-            self.connect(rin, rin_inputs[0], count, e.count, "repeat")
-        by_name = {n: sock for (n, _t), sock in zip(items, states)}
-        for a, v in starts:
-            self.connect(rin, by_name[a.name], v, a, "repeat")
+            self.connect(zin, zin_inputs[0], count, e.count, word)
+        for (a, v), sock in zip(starts, states):
+            if not isinstance(v, Empty):
+                self.connect(zin, sock, v, a, word)
 
-        # The body sees the outer names, the states and `iteration`; its own names stay inside
-        saved = self.env, self.returned, self.zone, self.given
-        self.env = dict(self.env)
+        # The body sees the outer names, the states and the input's own output; its names stay inside
+        zone = Zone(word, zout, states, skip)
+        names = {key(s.name): s for s in states}
+        names["iteration" if repeat else "delta_time"] = zin_outputs[0]
+        self.body(e, name, zone, zin, zin_outputs, names)
+        # A state the body does not return goes on unchanged
         for sock in states:
-            self.env[key(sock.name)] = Out(rin.id, rin_outputs, sock, key(sock.name))
-        self.env["iteration"] = Out(rin.id, rin_outputs, rin_outputs[0], "iteration")
+            if sock.name not in zone.given:
+                zout.links.append((sock.identifier, ir.Link(zin.id, sock.identifier)))
+        # With no state left, uses of the name would only repeat the error
+        return Out(zout.id, states, None, name) if states else None
+
+    def foreach(self, e, name):
+        """A For Each Geometry Element zone: its input node takes the geometry, the selection
+        and the input items, its body runs once per element, and the items its return gives
+        make the output node's main and generation items."""
+        zin = ir.Node(f"n{len(self.nodes)}", ir.FOREACH_INPUT, line=e.line, col=e.col)
+        zout = ir.Node(f"n{len(self.nodes) + 1}", ir.FOREACH_OUTPUT, line=e.line, col=e.col)
+        zin.pair = zout.id
+        zout.items = []
+        self.nodes += [zin, zout]
+        geometry = self.zone_value(e.geometry)
+        selection, given, values, items = None, set(), [], []
+        for a in e.args:
+            k = key(a.name)
+            if k in given:
+                self.error(a, f"« {a.name} » donné deux fois")
+                continue
+            given.add(k)
+            if k == "domain":
+                if isinstance(a.value, ast.Ref) and a.value.name in FOREACH_DOMAINS:
+                    zout.props["domain"] = a.value.name
+                else:
+                    self.error(a, f"domain attend une valeur parmi {', '.join(FOREACH_DOMAINS)}")
+                continue
+            if k == "selection":
+                selection = (self.eval(a.value), a)
+                continue
+            if k in ("index", "element"):
+                self.error(a, f"« {k} » est {'le numéro' if k == 'index' else 'la géométrie'} de l'élément : "
+                              "choisir un autre nom d'item")
+                continue
+            v = self.zone_value(a)
+            if v is None:
+                continue
+            if isinstance(v, Sym):
+                self.error(a, f"nom inconnu « {v.name} »")
+                continue
+            t = value_type(v)
+            if t not in FOREACH_INPUT_ITEMS:
+                self.error(a, f"un item d'entrée de foreach ne peut pas être de type {t}")
+                continue
+            items.append((a.name, t))
+            values.append((a, v))
+        zin.items = items
+        sockets = [Socket(n, n, t) for n, t in items]
+        zin_inputs = [Socket("Geometry", "Geometry", "Geometry"), Socket("Selection", "Selection", "Bool")] + sockets
+        zin_outputs = [Socket("Index", "Index", "Int"), Socket("Element", "Element", "Geometry")] + sockets
+        zin.n_inputs, zin.n_outputs = len(zin_inputs), len(zin_outputs)
+        if isinstance(geometry, Sym):
+            self.error(e.geometry, f"nom inconnu « {geometry.name} »")
+        elif isinstance(geometry, Empty) and geometry.type != "Geometry":
+            self.error(e.geometry, f"foreach.geometry attend Geometry, reçoit {geometry.type}")
+        elif geometry is not None and not isinstance(geometry, Empty):
+            self.connect(zin, zin_inputs[0], geometry, e.geometry, "foreach")
+        if selection is not None and selection[0] is not None:
+            self.connect(zin, zin_inputs[1], *selection, "foreach")
+        for (a, v), sock in zip(values, sockets):
+            if not isinstance(v, Empty):
+                self.connect(zin, sock, v, a, "foreach")
+
+        zone = Zone("foreach", zout, [], None)
+        zone.outputs = [Socket("Geometry", ir.FOREACH_GEOMETRY, "Geometry")]
+        names = {key(s.name): s for s in sockets}
+        names.update(index=zin_outputs[0], element=zin_outputs[1])
+        self.body(e, name, zone, zin, zin_outputs, names)
+        zout.n_outputs = len(zone.outputs)
+        return Out(zout.id, zone.outputs, None, name)
+
+    def body(self, e, name, zone, zin, zin_outputs, names):
+        """Check a zone's body, which sees the outer names and `names`, outputs of the zone's input."""
+        saved = self.env, self.returned, self.zone
+        self.env = dict(self.env)
+        for k, sock in names.items():
+            self.env[k] = Out(zin.id, zin_outputs, sock, k)
         self.returned = None
-        self.zone = (rout, states, rin, rin_outputs, "repeat")
-        self.given = set()
+        self.zone = zone
         frame = self.frame_now
         self.statements(e.body, None, frame)
         if not self.returned:
-            self.error(e, f"return manquant dans le repeat de « {name} »")
-        # A state the body does not return goes on unchanged
-        for sock in states:
-            if sock.name not in self.given:
-                rout.links.append((sock.identifier, ir.Link(rin.id, sock.identifier)))
-        rin.frame = rout.frame = frame
-        self.env, self.returned, self.zone, self.given = saved
+            self.error(e, f"return manquant dans {'la' if zone.word == 'closure' else 'le'} {zone.word} de « {name} »")
+        zin.frame = zone.out.frame = frame
+        self.env, self.returned, self.zone = saved
         self.frame_now = frame
-        # With no state left, uses of the name would only repeat the error
-        return Out(rout.id, states, None, name) if states else None
+
+    def zone_value(self, a):
+        """The value of an item, an Arg (or an expression): a type alone is an item with no value,
+        `cache: Bundle`; `nom: Type = valeur` gives the item that type, `nom: Type = _` none."""
+        if isinstance(a, ast.Arg) and a.type is not None:
+            t = a.type.type
+            if t not in TYPES:
+                self.error(a.type, f"type « {t} » inconnu ; types : {', '.join(TYPES)}")
+                return None
+            if is_no_value(a.value):
+                return Empty(t)
+            v = self.eval(a.value)
+            return Typed(v, t) if v is not None else None
+        v = self.eval(a.value if isinstance(a, ast.Arg) else a)
+        if isinstance(v, Sym) and v.name in TYPES:
+            return Empty(v.name)
+        return v
 
     def zone_return(self, stmt):
-        rout, states, _rin, _outs, kind = self.zone
-        if kind == "repeat":
-            what, whats, given = "un état du repeat", "états", "état « {} » rendu deux fois"
+        if self.zone.word == "foreach":
+            self.foreach_return(stmt)
+            return
+        zone, word = self.zone, self.zone.word
+        states = zone.states
+        if word == "closure":
+            what, whats, twice = "une sortie de la closure", "sorties", "sortie « {} » rendue deux fois"
         else:
-            what, whats, given = "une sortie de la closure", "sorties", "sortie « {} » rendue deux fois"
+            what, whats, twice = f"un état du {word}", "états", "état « {} » rendu deux fois"
         if isinstance(stmt.value, ast.Record):
-            for f in self.untyped(stmt.value.fields):
+            for f in stmt.value.fields:
+                if zone.skip is not None and key(f.name) == "skip":
+                    if "skip" in zone.given:
+                        self.error(f, "skip rendu deux fois")
+                        continue
+                    zone.given.add("skip")
+                    value = self.eval(f.value)
+                    if value is not None:
+                        self.connect(zone.out, zone.skip, value, f, word)
+                    continue
                 sock = next((s for s in states if key(f.name) == key(s.name)), None)
                 if sock is None:
                     self.error(f, f"« {f.name} » n'est pas {what} ; {whats} : "
                                   f"{', '.join(s.name for s in states) or 'aucune'}")
                     continue
-                if sock.name in self.given:
-                    self.error(f, given.format(f.name))
+                if sock.name in zone.given:
+                    self.error(f, twice.format(f.name))
                     continue
-                self.given.add(sock.name)
-                value = self.eval(f.value)
-                if value is not None:
-                    self.connect(rout, sock, value, f, kind)
+                zone.given.add(sock.name)
+                self.state(sock, self.zone_value(f), f)
             return
         if len(states) != 1:
-            many = ("ce repeat a plusieurs états" if kind == "repeat" else
+            many = (f"ce {word} a plusieurs états" if word != "closure" else
                     "cette closure a plusieurs sorties" if states else "cette closure n'a pas de sortie")
             self.error(stmt, f"{many} : return ({', '.join(s.name + ': …' for s in states)})")
             return
-        self.given.add(states[0].name)
-        value = self.eval(stmt.value)
-        if value is not None:
-            self.connect(rout, states[0], value, stmt.value, kind)
+        zone.given.add(states[0].name)
+        self.state(states[0], self.zone_value(stmt.value), stmt.value)
+
+    def state(self, sock, value, at):
+        """The next value of a state: linked, set, or left empty by its type alone."""
+        if isinstance(value, Empty):
+            if value.type != sock.type:
+                self.error(at, f"{self.zone.word}.{sock.key} attend {sock.type}, reçoit {value.type}")
+        elif value is not None:
+            self.connect(self.zone.out, sock, value, at, self.zone.word)
+
+    def foreach_return(self, stmt):
+        """The items of a For Each output: main items, then each Geometry with its attributes."""
+        zone = self.zone
+        if not isinstance(stmt.value, ast.Record):
+            self.error(stmt, "un foreach rend ses items par nom : return (valeur: v, mesh: g, …)")
+            return
+        main, generation, seen = [], [], set()
+        for f in stmt.value.fields:
+            if key(f.name) in seen:
+                self.error(f, f"item « {f.name} » rendu deux fois")
+                continue
+            seen.add(key(f.name))
+            v = self.zone_value(f)
+            if v is None:
+                continue
+            if isinstance(v, Sym):
+                self.error(f, f"nom inconnu « {v.name} »")
+                continue
+            t = value_type(v)
+            if t == "Geometry" or generation:
+                if t not in FOREACH_ITEMS and t != "Geometry":
+                    self.error(f, f"un attribut généré par foreach ne peut pas être de type {t}")
+                    continue
+                generation.append((f, v, t))
+            elif t not in FOREACH_ITEMS:
+                self.error(f, f"un item de foreach ne peut pas être de type {t}")
+                continue
+            else:
+                main.append((f, v, t))
+        zone.out.items = [(f.name, t) for f, _v, t in main + generation]
+        zone.out.main = len(main)
+        zone.out.n_inputs = len(zone.out.items)
+        sockets = [Socket(n, n, t) for n, t in zone.out.items]
+        if any(s.key == "geometry" for s in sockets):
+            # Then only the zone's name alone gives it
+            zone.outputs = [Socket(ir.FOREACH_GEOMETRY, ir.FOREACH_GEOMETRY, "Geometry")]
+        zone.outputs += sockets
+        for (f, v, _t), sock in zip(main + generation, sockets):
+            if not isinstance(v, Empty):
+                self.connect(zone.out, sock, v, f, "foreach")
 
     def untyped(self, fields):
         """The fields of a return: a type before `=` belongs to an item, not to an output."""
@@ -576,20 +779,8 @@ class GraphChecker:
         cout.n_inputs, cout.n_outputs = len(results), 1
 
         # The body sees the outer names and the inputs; its own names stay inside
-        saved = self.env, self.returned, self.zone, self.given
-        self.env = dict(self.env)
-        for sock in inputs:
-            self.env[key(sock.name)] = Out(cin.id, inputs, sock, key(sock.name))
-        self.returned = None
-        self.zone = (cout, results, cin, inputs, "closure")
-        self.given = set()
-        frame = self.frame_now
-        self.statements(e.body, None, frame)
-        if not self.returned:
-            self.error(e, f"return manquant dans la closure de « {name} »")
-        cin.frame = cout.frame = frame
-        self.env, self.returned, self.zone, self.given = saved
-        self.frame_now = frame
+        zone = Zone("closure", cout, results, None)
+        self.body(e, name, zone, cin, inputs, {key(s.name): s for s in inputs})
         self.signatures[cout.id] = (items, outs, options)
         return Out(cout.id, [Socket("Closure", "Closure", "Closure")], None, name)
 
@@ -607,22 +798,10 @@ class GraphChecker:
                 self.error(p, f"item « {p.name} » déclaré deux fois")
                 continue
             items.append((p.name, p.type))
-            found = self.item_options(p)
+            found = self.item_options(p, p)
             if found:
-                options[(side, p.name)] = found
+                options[p.name if side == "in" else ("out", p.name)] = found
         return items
-
-    def item_options(self, p):
-        """{setting: value} of an item, from the options of its type."""
-        found = {}
-        for a in p.options:
-            if a.name not in ITEM_OPTIONS:
-                self.error(a, f"option « {a.name} » inconnue pour un item ; options : {', '.join(ITEM_OPTIONS)}")
-            elif not isinstance(a.value, ast.Ref):
-                self.error(a, f"{a.name} attend une valeur comme {ITEM_OPTIONS[a.name]}")
-            else:
-                found[a.name] = a.value.name
-        return found
 
     # Bundles and closure calls
 
@@ -639,12 +818,10 @@ class GraphChecker:
                 if isinstance(v, (Lit, Sym)):
                     self.prop(node, spec.props[a.name], v, a)
                     continue
-            else:
-                v = None if is_no_value(a.value) else self.eval(a.value)
             if a.name is None:
-                positional.append((v, a.value))
+                positional.append((None if is_no_value(a.value) else self.eval(a.value), a.value))
             else:
-                named.append((a, v))
+                named.append((a, self.zone_value(a)))
         fixed = SIGNATURE_NODES[spec.bl_idname]["inputs"][0]
         if target is not None:
             if positional:
@@ -689,14 +866,17 @@ class GraphChecker:
             node.out_items = outs
             values = []
             for a, v in named:
-                if a.type is not None:
+                if isinstance(v, (Empty, Typed)):
                     self.error(a, f"« {a.name} » : avec un type, écrire aussi les sorties : {c.name}(…) -> (…)")
+                    return None
+                if a.options:
+                    self.error(a, f"« {a.name} » : avec des options, écrire aussi les sorties : {c.name}(…) -> (…)")
                     return None
                 name = next((n for n, _t in items if key(n) == key(a.name)), None)
                 if name is None:
                     self.error(a, f"la closure n'a pas d'entrée « {a.name} » ; entrées : "
                                   f"{', '.join(n for n, _t in items) or 'aucune'}")
-                elif v is not None:
+                elif v is not None and not (isinstance(v, Sym) and v.name == NO_VALUE):
                     values.append((name, v, a))
         if items is None:
             return None
@@ -723,7 +903,8 @@ class GraphChecker:
         return Out(node.id, outputs, None, c.name)
 
     def given_items(self, c, named, options):
-        """(items, values) from `name: value` and `name: Type = value` arguments; (None, None) on error."""
+        """(items, values) from `name: value`, `name: Type = value` and `name: Type` arguments;
+        (None, None) on error."""
         items, values = [], []
         ok = True
         for a, v in named:
@@ -731,37 +912,26 @@ class GraphChecker:
                 self.error(a, f"{c.name} : « {a.name} » donné deux fois")
                 ok = False
                 continue
-            if a.type is not None:
-                t = a.type.type
-                if t not in ITEM_TYPES:
-                    self.error(a.type, f"type « {t} » inconnu ; types : {', '.join(ITEM_TYPES)}")
-                    ok = False
-                    continue
-                found = self.item_options(a.type)
-                if found:
-                    options[("in", a.name)] = found
-                if v is None and not is_no_value(a.value):
-                    ok = False
-                    continue
-            elif is_no_value(a.value):
-                self.error(a, f"« {a.name} » n'a pas de valeur : écrire son type, {a.name}: Float = _")
+            if isinstance(v, Sym):
+                if v.name == NO_VALUE:
+                    self.error(a, f"« {a.name} » n'a pas de valeur : écrire son type, {a.name}: Float")
+                else:
+                    self.error(a.value, f"nom inconnu « {v.name} »")
                 ok = False
                 continue
-            elif isinstance(v, Sym):
-                self.error(a.value, f"nom inconnu « {v.name} »")
+            if v is None:
                 ok = False
                 continue
-            elif v is None:
+            t = value_type(v)
+            if t not in ITEM_TYPES:
+                self.error(a, f"{c.name} : pas d'item de type {t}")
                 ok = False
                 continue
-            else:
-                t = value_type(v)
-                if t not in ITEM_TYPES:
-                    self.error(a, f"{c.name} : pas d'item de type {t}")
-                    ok = False
-                    continue
             items.append((a.name, t))
-            if v is not None:
+            found = self.item_options(c, a)
+            if found:
+                options[a.name] = found
+            if not isinstance(v, Empty):
                 values.append((a.name, v, a))
         return (items, values) if ok else (None, None)
 
@@ -956,10 +1126,11 @@ class GraphChecker:
         if c.outputs is not None:
             self.error(c, f"« -> » déclare les items de SeparateBundle ou EvaluateClosure, pas de {c.name}")
             return None
+        items = self.takes_items(c.name)
         for a in c.args:
-            if a.type is not None:
-                self.error(a, f"« {a.name}: {a.type.type} = … » donne le type d'un item : de CombineBundle, "
-                              "d'EvaluateClosure ou d'un état de repeat")
+            if a.type is not None and not items:
+                self.error(a, f"« {a.name}: {a.type.type} = … » donne le type d'un item : d'un nœud à items, "
+                              "d'une zone ou d'EvaluateClosure")
                 return None
         if self.is_function(c.name):
             operands = [(piped, c)] if piped is not None else []
@@ -974,7 +1145,10 @@ class GraphChecker:
         named = []
         failed = False
         for a in c.args:
-            v = self.eval(a.value)
+            if a.options and not items:
+                self.error(a, f"« {a.name}(…) » : seuls les items d'un nœud à items prennent des options")
+            # An item may be given its type, or be its type alone
+            v = self.zone_value(a) if items and a.name is not None else self.eval(a.value)
             failed |= v is None
             if a.name is None:
                 positional.append((v, a.value))
@@ -1054,6 +1228,10 @@ class GraphChecker:
 
         return Out(node.id, outputs, None, c.name)
 
+    def takes_items(self, name):
+        spec = None if name in self.graphs else self.schema.node(self.g.kind, name)
+        return spec is not None and spec.bl_idname in ITEM_NODES
+
     def item_sockets(self, c, spec, node, positional, named):
         """(inputs, outputs) of a node whose items the call makes, which it records in node.items."""
         shape = ITEM_NODES[spec.bl_idname]
@@ -1068,11 +1246,16 @@ class GraphChecker:
         else:
             given = [(str(k), v, a) for k, (v, a) in enumerate(positional[shape.inputs:])]
             del positional[shape.inputs:]
-        items, values = [], []
+        for name, _v, a in named:
+            if a.options:
+                self.error(a, f"{c.name} : « {name} » est une entrée du nœud, pas un item ; elle ne prend pas d'options")
+        items, values, options = [], [], {}
         for name, v, a in given:
             if key(name) in {key(n) for n, _t in items}:
                 self.error(a, f"{c.name} : « {name} » donné deux fois")
                 continue
+            if getattr(a, "options", None):
+                options[name] = self.item_options(c, a)
             if isinstance(v, Sym) and v.name == NO_VALUE and not shape.typed:
                 # An empty item: no link, its default value (an empty geometry…)
                 items.append((name, None))
@@ -1080,15 +1263,18 @@ class GraphChecker:
             if isinstance(v, Sym):
                 self.error(a, f"nom inconnu « {v.name} »")
                 continue
-            if v is not None:
-                items.append((name, value_type(v)))
+            if v is None:
+                continue
+            t = value_type(v)
+            allowed = shape.types or tuple(ITEM_TYPES)
+            if shape.typed and t not in allowed:
+                self.error(a, f"{c.name} : pas d'item {t} ; types : {', '.join(allowed)}")
+                return None, None
+            items.append((name, t))
+            if not isinstance(v, Empty):
+                # Its type alone is an item with no link, holding the default value of its type
                 values.append((name, v, a))
-        if shape.typed:
-            for (name, t), (_n, _v, a) in zip(items, values):
-                if t not in FIELD_TYPES:
-                    self.error(a, f"{c.name} ne capture pas un {t} ; types : {', '.join(FIELD_TYPES)}")
-                    return None, None
-        else:
+        if not shape.typed:
             # The items share the node's data_type: written, or the type of the first one
             chosen = node.props.get("data_type")
             typed = [t for _n, t in items if t is not None]
@@ -1099,16 +1285,13 @@ class GraphChecker:
             node.props["data_type"] = ITEM_TYPES[t]
             items = [(name, t) for name, _t in items]
         node.items = items
+        node.item_options = {n: o for n, o in options.items() if o}
         inputs, outputs = self.schema.sockets(self.g.kind, spec, node.props)
         sockets = [Socket(name, name, t) for name, t in items]
-        if shape.named:
-            named += values
-        else:
-            # Each value to its own item: an empty one in between is skipped by name
-            named += [(name, v, a) for name, v, a in values]
-        flags = [Socket(name, name, "Bool") for name, _t in items] if shape.flags else []
-        return (inputs[:shape.inputs] + sockets,
-                outputs[:shape.outputs] + (sockets if shape.typed else flags))
+        # Each value to its own item, by name: an empty one in between is skipped
+        named += values
+        added = {"value": sockets, "flag": [Socket(name, name, "Bool") for name, _t in items]}.get(shape.out, [])
+        return inputs[:shape.inputs] + sockets, outputs[:shape.outputs] + added
 
     def existing_group(self, c):
         """A node group of the file with that key, when the text does not define one."""
@@ -1152,6 +1335,11 @@ class GraphChecker:
 
     def connect(self, node, sock, v, at, label):
         """Link or set one input of `node` from a value."""
+        if isinstance(v, Typed):
+            v = v.value
+        if isinstance(v, Empty):
+            self.error(at, f"{label} : un type seul ({v.type}) ne va qu'à un item")
+            return
         where = f"{label}.{sock.key}" if label != "return" else f"la sortie « {sock.name} »"
         if isinstance(v, Out):
             src = v.socket
@@ -1193,8 +1381,20 @@ WRITTEN_ELSEWHERE = {
     "default_input": "après = : p: Vector = Position()", "dimensions": "par la taille du défaut : (0.5, 0.5)",
 }
 
-# Text type -> the socket type of a Repeat zone item
+# Text type -> the socket type of a zone item, for each kind of item Blender takes
 REPEAT_ITEMS = {t: v for t, v in ITEM_TYPES.items() if t != "Shader"}
+SIMULATION_ITEMS = {t: ITEM_TYPES[t] for t in FIELD_TYPES + ("String", "Geometry", "Bundle")}
+FOREACH_INPUT_ITEMS = {t: ITEM_TYPES[t] for t in FIELD_TYPES + ("Menu",)}
+FOREACH_ITEMS = {t: ITEM_TYPES[t] for t in FIELD_TYPES}  # main items, and generated attributes
+FOREACH_DOMAINS = ("POINT", "EDGE", "FACE", "CORNER", "CURVE", "INSTANCE", "LAYER")
+
+# Names a zone's body gives itself, which no state may take
+STATE_NAMES = {
+    "repeat": {"iteration": "« iteration » est le numéro du tour : choisir un autre nom d'état"},
+    "simulate": {"delta_time": "« delta_time » est le temps écoulé depuis le pas précédent : "
+                               "choisir un autre nom d'état",
+                 "skip": "« skip » se rend par return (…, skip: …) : choisir un autre nom d'état"},
+}
 DATA_TYPES = {v: t for t, v in ITEM_TYPES.items()}
 
 
@@ -1217,7 +1417,7 @@ def plus_terms(e):
 def value_type(v):
     if isinstance(v, Out):
         return v.socket.type if v.socket else None
-    if isinstance(v, Lit):
+    if isinstance(v, (Lit, Empty, Typed)):
         return v.type
     return None
 

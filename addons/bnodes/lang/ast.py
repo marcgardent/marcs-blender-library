@@ -46,7 +46,9 @@ class Arg:
     value: object
     line: int
     col: int
-    # `hauteur: Float = h`: an item given its type, a Param holding the type and its options
+    # `Lisse(description: "…"): a`: an item's other settings, by their Blender name
+    options: list = field(default_factory=list)  # of Arg, all named
+    # `hauteur: Float = h`: an item given its type, a Param (its options are merged into `options`)
     type: object = None
 
 
@@ -165,6 +167,42 @@ class Closure:
     line: int
     col: int
     end: int = 0  # line of the closing brace
+
+
+@dataclass
+class Simulate:
+    """`simulate(state: start, …) { … return (state: next, …, skip: c) }`: a Simulation zone.
+
+    Written only as the value of an assignment. In the body the states are names,
+    and `delta_time` is the time since the last step.
+    """
+    states: list  # of Arg, all named
+    body: list
+    line: int
+    col: int
+    end: int = 0  # line of the closing brace
+
+
+@dataclass
+class Foreach:
+    """`foreach(geometry, domain: FACE, item: field, …) { … return (main: v, …, mesh: g, attribute: a, …) }`:
+    a For Each Geometry Element zone.
+
+    Written only as the value of an assignment. The named arguments are the domain, the
+    selection and the input items; in the body `index`, `element` and the input items are
+    names. The returned fields before the first Geometry are main items, the rest
+    generation items: each Geometry and the attributes after it.
+    """
+    geometry: object
+    args: list  # of Arg, all named
+    body: list
+    line: int
+    col: int
+    end: int = 0  # line of the closing brace
+
+
+# Zones are blocks written as the value of an assignment
+ZONES = (Repeat, Simulate, Foreach, Closure)
 
 
 @dataclass

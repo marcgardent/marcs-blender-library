@@ -15,7 +15,7 @@ geometry graph appliquer(geometry: Geometry, f: Closure, b: Bundle) -> Geometry 
   h = EvaluateClosure(
     f,
     x: Position().z,
-    "Point Count": Int(structure_type: SINGLE) = SeparateBundle(s.nid) -> (n: Int),
+    "Point Count"(structure_type: SINGLE): SeparateBundle(s.nid) -> (n: Int),
     define_signature: true) -> (r: Float)
   return SetPosition(geometry, offset: CombineXYZ(z: h + s.hauteur))
 }
@@ -24,7 +24,7 @@ geometry graph cumul(n: Int) -> Float {
   double = closure(v: Float) -> Float {
     return v * 2.0
   }
-  w = repeat(n, total: 0.0, dernier: Bundle = _) {
+  w = repeat(n, total: 0.0, dernier: Bundle) {
     return (total: double(v: total + 1.0), dernier: CombineBundle(total: total))
   }
   return w.total

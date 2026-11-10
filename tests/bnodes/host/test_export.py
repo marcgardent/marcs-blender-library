@@ -16,7 +16,9 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "addons"))
 
 from bnodes.host import build_source, export_tree  # noqa: E402
-from bnodes.host.schema import INTERFACE_FIELDS, fresh_options, option_names, same_option, snapshot  # noqa: E402
+from bnodes.host.schema import (INTERFACE_FIELDS, fresh_options, item_option_names, option_names,  # noqa: E402
+                                same_option, snapshot)
+from bnodes.lang.schema import ITEM_NODES  # noqa: E402
 from bnodes.lang import BnError, parse, sugar  # noqa: E402
 from bnodes.lang.format import format_source  # noqa: E402
 from bnodes.lang.printer import to_source  # noqa: E402
@@ -252,6 +254,104 @@ def test_rebuilding_a_repeat_keeps_one_zone():
     assert abs(rin.inputs["pas"].default_value - 0.25) < 1e-6
 
 
+def test_simulation_and_foreach_zones_come_back_identical():
+    src = fixture("zones.bn")
+    trees = build_source(src, "zones.bn")
+    for tree in trees:
+        pairs = [n for n in tree.nodes if hasattr(n, "pair_with_output")]
+        assert pairs and all(n.paired_output is not None for n in pairs), tree.name
+        assert all(link.is_valid for link in tree.links), tree.name
+    text = "\n".join(export_tree(t)[0] for t in trees)
+    assert text == src, text
+    assert all(export_tree(t)[1] == [] for t in trees)
+    chute, semis, _compte = trees
+    sim = next(n for n in chute.nodes if n.bl_idname == "GeometryNodeSimulationOutput")
+    assert [(i.name, i.socket_type) for i in sim.state_items] == [
+        ("points", "GEOMETRY"), ("vitesse", "FLOAT"), ("cache", "BUNDLE")]
+    out = next(n for n in semis.nodes if n.bl_idname == "GeometryNodeForeachGeometryElementOutput")
+    assert out.domain == "FACE"
+    assert [(i.name, i.socket_type) for i in out.input_items] == [("centre", "VECTOR")]
+    assert [i.name for i in out.main_items] == ["double"]
+    assert [(i.name, i.socket_type) for i in out.generation_items] == [("points", "GEOMETRY"), ("rang", "INT")]
+
+
+def test_unlinked_and_mistyped_zone_items_are_written_or_reported():
+    (tree,) = build_source(fixture("wave.bn"), "wave.bn")
+    tree.nodes.clear()
+    zin = tree.nodes.new("GeometryNodeSimulationInput")
+    zout = tree.nodes.new("GeometryNodeSimulationOutput")
+    zin.pair_with_output(zout)
+    zout.state_items.new("ROTATION", "r")
+    zout.state_items[1].attribute_domain = "FACE"
+    gout = tree.nodes.new("NodeGroupOutput")
+    tree.links.new(zout.outputs[0], gout.inputs[0])
+    text, warnings = export_tree(tree)
+    # The geometry starts empty and is written by its type; the rotation's value, which would read as a
+    # vector, says its type
+    assert "simulate(Geometry: Geometry, r: Rotation = (0.0, 0.0, 0.0))" in text, text
+    assert not any("reçoit un" in w for w in warnings), warnings
+    assert any("domaine FACE de l'état « r »" in w for w in warnings), warnings
+    (tree,) = build_source(text, "wave.bn")
+    zout = next(n for n in tree.nodes if n.bl_idname == "GeometryNodeSimulationOutput")
+    assert [(i.name, i.socket_type) for i in zout.state_items] == [("Geometry", "GEOMETRY"), ("r", "ROTATION")]
+
+
+ZONES_CALLER = """geometry graph essai_semis(geometry: Geometry) -> Geometry {
+  e = semis(MeshGrid(2.0, 2.0, 3, 3))
+  return e.points |> PointsToVertices() |> StoreNamedAttribute(name: "rang", value: e.rang)
+}
+
+geometry graph essai_double(geometry: Geometry) -> Geometry {
+  e = semis(MeshGrid(2.0, 2.0, 3, 3))
+  return e.geometry |> StoreNamedAttribute(domain: FACE, name: "d", value: e.double)
+}
+
+geometry graph essai_chute(geometry: Geometry) -> Geometry {
+  c = chute(MeshGrid(1.0, 1.0, 2, 2), gravité: -10.0)
+  return c.geometry |> StoreNamedAttribute(name: "v", value: c.vitesse)
+    |> StoreNamedAttribute(name: "n", value: compte(1.0))
+}
+"""
+
+
+def evaluated(tree):
+    obj = bpy.data.objects.new(tree.name, bpy.data.meshes.new(tree.name))
+    bpy.context.scene.collection.objects.link(obj)
+    obj.modifiers.new(tree.name, "NODES").node_group = tree
+    return obj
+
+
+def test_simulation_and_foreach_zones_compute():
+    trees = {t.name: t for t in build_source(fixture("zones.bn") + "\n" + ZONES_CALLER, "essai.bn")}
+    scene = bpy.context.scene
+    scene.frame_set(scene.frame_start)
+    semis_obj, double_obj = evaluated(trees["essai_semis"]), evaluated(trees["essai_double"])
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    # 4 faces, the first 3 selected: one point at the centre of each, with the face's index
+    mesh = semis_obj.evaluated_get(depsgraph).data
+    assert len(mesh.vertices) == 3
+    assert [d.value for d in mesh.attributes["rang"].data] == [0, 1, 2]
+    assert all(abs(v.co.z) < 1e-6 and abs(v.co.x) == abs(v.co.y) == 0.5 for v in mesh.vertices)
+    mesh = double_obj.evaluated_get(depsgraph).data
+    assert [round(d.value, 3) for d in mesh.attributes["d"].data] == [0.0, 2.0, 4.0, 0.0]
+
+    obj = evaluated(trees["essai_chute"])
+    seen = []
+    for frame in range(scene.frame_start, scene.frame_start + 4):
+        scene.frame_set(frame)
+        mesh = obj.evaluated_get(bpy.context.evaluated_depsgraph_get()).data
+        seen.append((mesh.attributes["n"].data[0].value, mesh.attributes["v"].data[0].value, mesh.vertices[0].co.z))
+    counts, speeds, heights = zip(*seen)
+    # One step a frame, the first at the start frame with no time gone by: the speed
+    # grows by g × dt, and the points fall by the new speed × dt
+    assert counts == (1.0, 2.0, 3.0, 4.0), seen
+    assert speeds[0] == heights[0] == 0.0, seen
+    dt = 1 / scene.render.fps
+    for k in range(1, 4):
+        assert abs(speeds[k] - speeds[k - 1] + 10.0 * dt) < 1e-5, seen
+        assert abs(heights[k] - heights[k - 1] - speeds[k] * dt) < 1e-5, seen
+
+
 def test_item_nodes_come_back_identical():
     src = fixture("items.bn")
     trees = build_source(src, "items.bn")
@@ -366,6 +466,33 @@ CLOSURE_CALLER = """geometry graph essai_closure(geometry: Geometry) -> Geometry
 """
 
 
+def test_more_item_nodes_come_back_identical():
+    src = fixture("items_more.bn")
+    trees = build_source(src, "items_more.bn")
+    text = "\n".join(export_tree(t)[0] for t in trees)
+    assert text == src, text
+    assert all(export_tree(t)[1] == [] for t in trees)
+    by_name = {t.name: t for t in trees}
+    bake = by_name["cuisson"].nodes["b"]
+    assert [(i.name, i.socket_type) for i in bake.bake_items] == [("Geometry", "GEOMETRY"), ("h", "FLOAT")]
+    assert (bake.bake_items[1].attribute_domain, bake.bake_items[1].is_attribute) == ("FACE", True)
+    menu = by_name["modes"].nodes["m"]
+    assert [(i.name, i.description) for i in menu.enum_items] == [
+        ("Lisse", "Garde la géométrie telle quelle"), ("Rugueux", "")]
+    # An option taken out of the text goes back to a new item's
+    (modes,) = build_source(src.split("\n\n")[-1].replace('(description: "Garde la géométrie telle quelle")', ""),
+                            "items_more.bn")
+    assert modes.nodes["m"].enum_items[0].description == ""
+
+
+GRIDS = """geometry graph grilles(points: Geometry, t: Float) -> (densité: Float, champ: Float, n: Int) {
+  r = RasterizePoints(points, densité: 1.0, vitesse: Normal().normal)
+  f = FieldToGrid(r.densité, a: t * 2.0, b: Index())
+  return (densité: r.densité, champ: f.a, n: ListLength(CombineList(1.0, t, 3.0)))
+}
+"""
+
+
 def test_bundles_and_closures_compute():
     tree = build_source(fixture("bundles.bn") + "\n" + CLOSURE_CALLER, "essai.bn")[-1]
     obj = bpy.data.objects.new("essai", bpy.data.meshes.new("essai"))
@@ -377,6 +504,57 @@ def test_bundles_and_closures_compute():
         [tuple(v.co) for v in mesh.vertices]
     # Three turns of (total + 1) * 2
     assert abs(mesh.attributes["c"].data[0].value - 14.0) < 1e-6
+
+
+def test_grid_and_list_items_come_back_identical():
+    if not all(hasattr(bpy.types, k) for k in ("GeometryNodeRasterizePoints", "GeometryNodeFieldToGrid",
+                                               "GeometryNodeCombineList")):
+        return  # not in this Blender
+    (tree,) = build_source(GRIDS, "grilles.bn")
+    assert export_tree(tree) == (GRIDS, [])
+    r = next(n for n in tree.nodes if n.bl_idname == "GeometryNodeRasterizePoints")
+    assert [(i.name, i.type) for i in r.rasterize_items] == [("densité", "SCALAR"), ("vitesse", "VECTOR")]
+    f = next(n for n in tree.nodes if n.bl_idname == "GeometryNodeFieldToGrid")
+    assert [(i.name, i.data_type) for i in f.grid_items] == [("a", "FLOAT"), ("b", "INT")]
+    c = next(n for n in tree.nodes if n.bl_idname == "GeometryNodeCombineList")
+    assert len(c.combine_list_items) == 3 and c.data_type == "FLOAT"
+
+
+def test_item_settings_blender_would_change_fail():
+    for src, message in (
+            ('  return FormatString("{a b}", "a b": 1.0)', "Blender renomme l'item « a b » en « a_b »"),
+            ("  return Bake(h(couleur: 1): t).h", "item « h » : option couleur inconnue"),
+            ('  return Bake(h(attribute_domain: CIEL): t).h', "option attribute_domain de l'item « h »")):
+        out = "String" if "Format" in src else "Float"
+        try:
+            build_source(f"geometry graph essai_options(t: Float) -> {out} {{\n{src}\n}}\n", "essai.bn")
+        except BnError as e:
+            assert e.diagnostics[0].message.startswith(message), e.diagnostics[0].message
+        else:
+            raise AssertionError(src)
+
+
+ITEMS_MORE_CALLER = """geometry graph essai_items_plus(geometry: Geometry) -> Geometry {
+  texte = FormatString("{n}-{x}", n: 12, x: "ab")
+  return geometry |> StoreNamedAttribute(name: "taille", value: StringLength(texte))
+    |> StoreNamedAttribute(name: "un", value: listes(3))
+    |> StoreNamedAttribute(name: "cuit", value: cuisson(geometry, 0.25).h)
+}
+"""
+
+
+def test_more_item_nodes_compute():
+    tree = build_source(fixture("items_more.bn") + "\n" + ITEMS_MORE_CALLER, "essai.bn")[-1]
+    obj = bpy.data.objects.new("essai_plus", bpy.data.meshes.new("essai_plus"))
+    bpy.context.scene.collection.objects.link(obj)
+    mod = obj.modifiers.new("essai", "NODES")
+    mod.node_group = tree
+    obj.data.from_pydata([(0, 0, 0), (1, 0, 0), (0, 1, 0)], [], [(0, 1, 2)])
+    mesh = obj.evaluated_get(bpy.context.evaluated_depsgraph_get()).data
+    # "12-ab", item 1 of a list of indices, and a Bake with nothing baked lets its values through
+    assert mesh.attributes["taille"].data[0].value == 5
+    assert abs(mesh.attributes["un"].data[0].value - 1.0) < 1e-6
+    assert abs(mesh.attributes["cuit"].data[0].value - 0.25) < 1e-6
 
 
 def close(a, b):
@@ -421,6 +599,7 @@ def test_bundled_assets_export_and_come_back_stable():
     for name in names:
         tree = bpy.data.node_groups[name]
         before = node_kinds(tree)
+        held = item_settings(tree)
         settings = interface(tree)
         written = options(tree)
         text, warnings = export_tree(tree)
@@ -438,6 +617,7 @@ def test_bundled_assets_export_and_come_back_stable():
         again, _ = export_tree(rebuilt)
         assert again == text, name
         assert node_kinds(rebuilt) == before, name
+        assert item_settings(rebuilt) == held, name
         assert all(close(a, b) for a, b in zip(interface(rebuilt), settings)), name
         assert options(rebuilt) == [d.replace('"', "'").replace("\n", " ") if isinstance(d, str) else d
                                     for d in written], name
@@ -446,8 +626,31 @@ def test_bundled_assets_export_and_come_back_stable():
     assert stats["exported"] == len(names) and stats["stable"] >= 100
 
 
+def item_settings(tree):
+    """Each item node that reaches the output, with its items and their settings."""
+    out = Counter()
+    for n in reached(tree):
+        shape = ITEM_NODES.get(n.bl_idname)
+        if shape is not None:
+            items = tuple((getattr(i, "name", None), tuple((o, plain_text(getattr(i, o))) for o in item_option_names(i, shape)
+                                         if o not in shape.field_only))
+                          for i in getattr(n, shape.collection))
+            out[(n.bl_idname, items)] += 1
+    return out
+
+
+def plain_text(v):
+    return v.replace('"', "'").replace("\n", " ") if isinstance(v, str) else v
+
+
 def node_kinds(tree):
     """Node types that reach the output, reroutes, frames and dead nodes aside."""
+    return Counter(n.bl_idname for n in reached(tree)
+                   if n.bl_idname not in ("NodeReroute", "NodeGroupInput", "NodeGroupOutput"))
+
+
+def reached(tree):
+    """The nodes that reach the active output."""
     out = next((n for n in tree.nodes if n.bl_idname == "NodeGroupOutput" and n.is_active_output), None)
     seen, stack = set(), [out] if out else []
     while stack:
@@ -459,9 +662,7 @@ def node_kinds(tree):
             for link in s.links:
                 if not link.is_muted:
                     stack.append(link.from_node)
-    nodes = [tree.nodes[n] for n in seen]
-    return Counter(n.bl_idname for n in nodes
-                   if n.bl_idname not in ("NodeReroute", "NodeGroupInput", "NodeGroupOutput"))
+    return [tree.nodes[n] for n in seen]
 
 
 def main():
