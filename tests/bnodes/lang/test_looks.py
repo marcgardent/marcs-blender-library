@@ -71,3 +71,33 @@ def test_an_empty_look_is_an_error():
         parse("geometry graph g(geometry: Geometry) -> Geometry {\n  a = Position() @\n  return geometry\n}\n")
     with pytest.raises(BnError, match="donné deux fois"):
         parse("geometry graph g(geometry: Geometry) -> Geometry {\n  a = Position() @ mute mute\n  return geometry\n}\n")
+
+
+ZONES = """geometry graph z(geometry: Geometry, t: Float, b: Bundle) -> (Geometry: Geometry, Total: Float) {
+  s = SeparateBundle(b) -> (a: Float) @ hide
+  c = simulate(total: 0.0) {
+    return total + t @ "Pas" mute
+  }
+  e = foreach(geometry, centre: Position()) {
+    p = CombineXYZ(z: t) @ #teal
+    return (v: p) @ hide
+  }
+  return (Geometry: e, Total: c + s)
+}
+"""
+
+
+def test_a_zone_shows_its_look_on_the_return_of_its_body(schema):
+    assert to_source(parse(ZONES)) == ZONES
+    g = compile_one(ZONES, schema)
+    sim = next(n for n in g.nodes if n.bl_idname == "GeometryNodeSimulationOutput")
+    each = next(n for n in g.nodes if n.bl_idname == "GeometryNodeForeachGeometryElementOutput")
+    assert sim.look == {"label": "Pas", "mute": True} and each.look == {"hide": True}
+    # After `-> (…)`, the look is the node's, not an item's
+    assert next(n for n in g.nodes if n.bl_idname == "NodeSeparateBundle").look == {"hide": True}
+    assert next(n for n in g.nodes if n.name == "p").look["use_custom_color"]
+
+
+def test_a_zone_takes_no_look_after_its_brace():
+    with pytest.raises(BnError, match="instruction attendue"):
+        parse(ZONES.replace('    return total + t @ "Pas" mute\n  }\n', "    return total + t\n  } @ mute\n"))

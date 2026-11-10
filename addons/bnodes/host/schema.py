@@ -7,7 +7,7 @@ are read on demand with the properties set, and memoized.
 
 import bpy
 
-from ..lang.schema import TYPES, GroupSpec, NodeSpec, Prop, Socket, key
+from ..lang.schema import ITEM_NODES, ITEM_TYPES, TYPES, GroupSpec, NodeSpec, Prop, Socket, key
 
 TREE_TYPES = {
     "geometry": "GeometryNodeTree",
@@ -37,7 +37,7 @@ SOCKET_TYPES = {
 PROP_KINDS = {"ENUM", "BOOLEAN", "INT", "FLOAT", "STRING"}
 
 # Where the item list of a node stands in its panel: the editor's, not the tree's
-UI_PROPS = {"active_index"}
+UI_PROPS = {"active_index", "active_input_index", "active_output_index"}
 
 # Per Blender version: {kind: {text name: NodeSpec}}, and the socket memo
 _specs = {}
@@ -230,6 +230,68 @@ def fresh_options(socket_type, in_out):
         finally:
             bpy.data.node_groups.remove(tree)
     return _fresh_options[(socket_type, in_out)]
+
+
+def new_item(node, shape, name, type):
+    """Add one item to a node of ITEM_NODES, as `new()` of its collection wants it."""
+    items = getattr(node, shape.collection)
+    if not shape.named:
+        return items.new()
+    if not shape.typed:
+        return items.new(name)
+    if shape.kinds is not None:
+        item = items.new(name)
+        setattr(item, shape.type_prop, shape.kinds[type])
+        return item
+    return items.new(ITEM_TYPES[type], name)
+
+
+def item_option_names(item, shape):
+    """The settings of an item that the text writes as its options, in Blender's order."""
+    return [p.identifier for p in item.bl_rna.properties
+            if not p.is_readonly and p.identifier not in ("name", shape.type_prop)
+            and p.type in ("BOOLEAN", "ENUM", "STRING", "INT", "FLOAT")
+            and not getattr(p, "is_array", False) and not (p.type == "ENUM" and p.is_enum_flag)]
+
+
+_fresh_item_options = {}
+
+
+def fresh_item_options(bl_idname, items, shape=None):
+    """[{option: value}] of the (name, type) items made in that order on a new node, as the
+    builder makes them: what the text leaves out. Blender sets some from the items before
+    (a Bake's Geometry item becomes an attribute holder once a field follows it)."""
+    shape = shape or ITEM_NODES[bl_idname]
+    key = (bl_idname, shape.collection, tuple(items))
+    if key not in _fresh_item_options:
+        tree = bpy.data.node_groups.new(".bnodes_fresh", "GeometryNodeTree")
+        try:
+            node = tree.nodes.new(bl_idname)
+            getattr(node, shape.collection).clear()
+            for name, type in items:
+                new_item(node, shape, name, type)
+            _fresh_item_options[key] = [{o: getattr(i, o) for o in item_option_names(i, shape)}
+                                        for i in getattr(node, shape.collection)]
+        finally:
+            bpy.data.node_groups.remove(tree)
+    return _fresh_item_options[key]
+_fresh_values = {}
+
+
+def fresh_item_value(bl_idname, collection, socket_type):
+    """The value the input socket of a new item holds: a closure's output, an evaluation's input."""
+    k = (bl_idname, collection, socket_type)
+    if k not in _fresh_values:
+        tree = bpy.data.node_groups.new(".bnodes_fresh", "GeometryNodeTree")
+        try:
+            node = tree.nodes.new(bl_idname)
+            items = getattr(node, collection)
+            items.clear()
+            items.new(socket_type, "x")
+            _fresh_values[k] = snapshot([s for s in node.inputs if s.type != "CUSTOM"][-1])
+        finally:
+            bpy.data.node_groups.remove(tree)
+    return _fresh_values[k]
 
 
 def same_option(name, a, b):

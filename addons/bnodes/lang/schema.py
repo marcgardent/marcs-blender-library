@@ -73,24 +73,87 @@ class ItemNode:
 
     The call makes the items: one per named value (`CaptureAttribute(g, hauteur: h)`,
     `MenuSwitch(mode, Lisse: a, Rugueux: b)`), or one per value after the fixed
-    inputs (`IndexSwitch(i, a, b, c)`).
+    inputs (`IndexSwitch(i, a, b, c)`). An item's other settings are its options:
+    `MenuSwitch(mode, Lisse(description: "…"): a)`.
     """
     collection: str  # the node's item collection, e.g. capture_items
     inputs: int      # fixed inputs before the items
     outputs: int     # fixed outputs before the items
     named: bool      # items given by name, else by position
     typed: bool      # each item has its own type, else the node's data_type is theirs
-    flags: bool      # one Bool output per item (Menu Switch), else one of its type when typed
+    # What each item adds to the outputs: "value" one of its type, "flag" a Bool (Menu Switch), or nothing
+    out: str | None = None
+    types: tuple = ()  # the text types an item may have, when not all of them
+    type_prop: str = "socket_type"  # the item's property that holds its type: not an option
+    # When the type is not given to new(): text type -> the value of type_prop
+    kinds: dict | None = field(default=None, hash=False)
+    # Options that only mean something on a field item: on the others Blender sets them itself
+    field_only: tuple = ()
 
+
+BAKE_TYPES = ("Float", "Int", "Bool", "Vector", "Color", "Rotation", "Matrix", "String", "Geometry", "Bundle")
+LIST_TYPES = ("Float", "Int", "Bool", "Vector", "Color", "Rotation", "Matrix", "String", "Menu")
 
 ITEM_NODES = {
-    "GeometryNodeCaptureAttribute": ItemNode("capture_items", 2, 2, named=True, typed=True, flags=False),
-    "GeometryNodeIndexSwitch": ItemNode("index_switch_items", 1, 1, named=False, typed=False, flags=False),
-    "GeometryNodeMenuSwitch": ItemNode("enum_items", 1, 1, named=True, typed=False, flags=True),
+    "GeometryNodeCaptureAttribute": ItemNode("capture_items", 2, 2, named=True, typed=True, out="value",
+                                             types=FIELD_TYPES, type_prop="data_type"),
+    "GeometryNodeIndexSwitch": ItemNode("index_switch_items", 1, 1, named=False, typed=False),
+    "GeometryNodeMenuSwitch": ItemNode("enum_items", 1, 1, named=True, typed=False, out="flag"),
+    "FunctionNodeFormatString": ItemNode("format_items", 1, 1, named=True, typed=True,
+                                         types=("Float", "Int", "String")),
+    "GeometryNodeBake": ItemNode("bake_items", 0, 0, named=True, typed=True, out="value", types=BAKE_TYPES,
+                                 field_only=("attribute_domain", "is_attribute")),
+    "GeometryNodeFieldToList": ItemNode("list_items", 1, 0, named=True, typed=True, out="value", types=LIST_TYPES),
+    "GeometryNodeFieldToGrid": ItemNode("grid_items", 1, 0, named=True, typed=True, out="value",
+                                        types=("Float", "Int", "Bool", "Vector"), type_prop="data_type"),
+    "GeometryNodeRasterizePoints": ItemNode("rasterize_items", 6, 0, named=True, typed=True, out="value",
+                                            types=("Float", "Vector"), type_prop="type",
+                                            kinds={"Float": "SCALAR", "Vector": "VECTOR"}),
+    "GeometryNodeCombineList": ItemNode("combine_list_items", 0, 1, named=False, typed=False),
+    # What it shows, by name: `Viewer(mesh: g, hauteur: h)`, a statement nothing reads
+    "GeometryNodeViewer": ItemNode("viewer_items", 0, 0, named=True, typed=True),
 }
 
 # An item left without a link or a value: `MenuSwitch(mode, Lisse: a, Vide: _)`
 NO_VALUE = "_"
+
+COMBINE_BUNDLE = "NodeCombineBundle"
+SEPARATE_BUNDLE = "NodeSeparateBundle"
+EVALUATE_CLOSURE = "NodeEvaluateClosure"
+CLOSURE_INPUT = "NodeClosureInput"
+CLOSURE_OUTPUT = "NodeClosureOutput"
+
+# Nodes whose items the text declares with a type each, and where they stand:
+# side -> (fixed sockets before the items, the item list of ir.Node there or None).
+# `items` are the inputs of a closure, `out_items` its outputs, and so on.
+SIGNATURE_NODES = {
+    COMBINE_BUNDLE: {"inputs": (0, "items"), "outputs": (1, None)},
+    SEPARATE_BUNDLE: {"inputs": (1, None), "outputs": (0, "out_items")},
+    EVALUATE_CLOSURE: {"inputs": (1, "items"), "outputs": (0, "out_items")},
+    CLOSURE_INPUT: {"inputs": (0, None), "outputs": (0, "items")},
+    CLOSURE_OUTPUT: {"inputs": (0, "out_items"), "outputs": (1, None)},
+}
+
+# Their item collections, shaped as ITEM_NODES for the host's item helpers:
+# (bl_idname, the ir.Node list, "items" or "out_items") -> ItemNode. A Closure Input has none: its output holds them.
+SIGNATURE_ITEMS = {
+    (COMBINE_BUNDLE, "items"): ItemNode("bundle_items", 0, 1, named=True, typed=True),
+    (SEPARATE_BUNDLE, "out_items"): ItemNode("bundle_items", 1, 0, named=True, typed=True, out="value"),
+    (EVALUATE_CLOSURE, "items"): ItemNode("input_items", 1, 0, named=True, typed=True),
+    (EVALUATE_CLOSURE, "out_items"): ItemNode("output_items", 1, 0, named=True, typed=True, out="value"),
+    (CLOSURE_OUTPUT, "items"): ItemNode("input_items", 0, 1, named=True, typed=True),
+    (CLOSURE_OUTPUT, "out_items"): ItemNode("output_items", 0, 1, named=True, typed=True),
+}
+
+
+def signature_items(bl_idname):
+    """[(ir.Node list, ItemNode)] of a node the text declares, inputs first."""
+    return [(attr, shape) for (idname, attr), shape in SIGNATURE_ITEMS.items() if idname == bl_idname]
+
+
+def option_key(attr, name):
+    """The key of an item's options in ir.Node.item_options: its name, ("out", name) for an output item."""
+    return name if attr == "items" else ("out", name)
 
 RESERVED = {"graph", "return", "true", "false", "and", "or", "xor", "not", "dot", "cross", "repeat"}
 

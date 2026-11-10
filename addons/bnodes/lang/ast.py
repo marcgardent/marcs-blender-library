@@ -46,6 +46,10 @@ class Arg:
     value: object
     line: int
     col: int
+    # `Lisse(description: "…"): a`: an item's other settings, by their Blender name
+    options: list = field(default_factory=list)  # of Arg, all named
+    # `hauteur: Float = h`: an item given its type, a Param (its options are merged into `options`)
+    type: object = None
 
 
 @dataclass
@@ -54,6 +58,9 @@ class Call:
     args: list
     line: int
     col: int
+    # `SeparateBundle(b) -> (hauteur: Float)`: the output items it declares, Params
+    outputs: list | None = None
+    single_output: bool = False  # `-> Float` rather than `-> (name: Float)`
 
 
 @dataclass
@@ -129,7 +136,7 @@ class Return:
     value: object
     line: int
     col: int
-    look: Look | None = None  # of the group output, or of a repeat's output
+    look: Look | None = None  # of the group output, or of the output node of the zone it ends
 
 
 @dataclass
@@ -158,6 +165,58 @@ class Repeat:
     line: int
     col: int
     end: int = 0  # line of the closing brace
+
+
+@dataclass
+class Closure:
+    """`closure(x: Float, …) -> Float { … return … }`: a Closure zone.
+
+    Written only as the value of an assignment. In the body the inputs are names,
+    and the names outside are seen too: their values are captured.
+    """
+    params: list   # of Param
+    outputs: list  # of Param
+    single_output: bool
+    body: list
+    line: int
+    col: int
+    end: int = 0  # line of the closing brace
+
+
+@dataclass
+class Simulate:
+    """`simulate(state: start, …) { … return (state: next, …, skip: c) }`: a Simulation zone.
+
+    Written only as the value of an assignment. In the body the states are names,
+    and `delta_time` is the time since the last step.
+    """
+    states: list  # of Arg, all named
+    body: list
+    line: int
+    col: int
+    end: int = 0  # line of the closing brace
+
+
+@dataclass
+class Foreach:
+    """`foreach(geometry, domain: FACE, item: field, …) { … return (main: v, …, mesh: g, attribute: a, …) }`:
+    a For Each Geometry Element zone.
+
+    Written only as the value of an assignment. The named arguments are the domain, the
+    selection and the input items; in the body `index`, `element` and the input items are
+    names. The returned fields before the first Geometry are main items, the rest
+    generation items: each Geometry and the attributes after it.
+    """
+    geometry: object
+    args: list  # of Arg, all named
+    body: list
+    line: int
+    col: int
+    end: int = 0  # line of the closing brace
+
+
+# Zones are blocks written as the value of an assignment
+ZONES = (Repeat, Simulate, Foreach, Closure)
 
 
 @dataclass

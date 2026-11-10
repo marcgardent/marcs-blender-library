@@ -10,6 +10,9 @@ from .errors import BnError, Diagnostic
 from .lexer import tokenize
 from .sugar import COMPARE, WORDS
 
+# Zones whose keyword is one only before `(…) {`
+ZONE_WORDS = ("simulate", "foreach")
+
 
 # The words of a node's look after `@`, in the order they are printed
 LOOK_FLAGS = ("hide", "mute")
@@ -172,8 +175,15 @@ class Parser:
             self.advance()
             self.advance()
             if self.at("KEYWORD", "repeat"):
-                return ast.Assign(t.text, self.repeat(), t.line, t.col)
-            return ast.Assign(t.text, self.expr(), t.line, t.col, self.look())
+                value = self.repeat()
+            elif self.at_closure():
+                value = self.closure()
+            elif self.at_zone():
+                value = self.zone()
+            else:
+                # A zone's output shows its look on the return of its body
+                return ast.Assign(t.text, self.expr(), t.line, t.col, self.look())
+            return ast.Assign(t.text, value, t.line, t.col)
         self.fail(f"instruction attendue (nom = …, return, ou un frame \"titre\" {{ … }}), trouvé {describe(t)}")
 
     def look(self):
@@ -219,14 +229,101 @@ class Parser:
             self.fail("repeat attend d'abord le nombre de tours : repeat(10, état: départ, …)", t)
         if len(args) < 2:
             self.fail("repeat attend au moins un état : repeat(10, état: départ)", t)
+        if any(a.options for a in args):
+            self.fail("un état de repeat ne prend pas d'options", t)
         self.expect("{", what="« { » après repeat(…)")
+        body, end = self.block()
+        return ast.Repeat(args[0].value, args[1:], body, t.line, t.col, end.line)
+
+    def at_zone(self):
+        """`simulate(…) {` or `foreach(…) {`: contextual keywords, so that a name or a group
+        may still be called simulate; only a block right after the parenthesis makes a zone."""
+        if not (self.at("IDENT") and self.tok.text in ZONE_WORDS and self.peek().kind == "("):
+            return False
+        depth, j = 0, self.i + 1
+        while self.tokens[j].kind != "EOF":
+            depth += (self.tokens[j].kind == "(") - (self.tokens[j].kind == ")")
+            if depth == 0:
+                return self.tokens[j + 1].kind == "{"
+            j += 1
+        return False
+
+    def zone(self):
+        t = self.advance()
+        self.advance()
+        args = self.args()
+        if t.text == "simulate":
+            if any(a.name is None for a in args):
+                self.fail("simulate attend des états nommés : simulate(état: départ, …)", t)
+        elif not args or args[0].name is not None or any(a.name is None for a in args[1:]):
+            self.fail("foreach attend d'abord la géométrie, puis des valeurs nommées : "
+                      "foreach(geometry, domain: FACE, valeur: champ, …)", t)
+        self.expect("{")
+        body, end = self.block()
+        if t.text == "simulate":
+            return ast.Simulate(args, body, t.line, t.col, end.line)
+        return ast.Foreach(args[0].value, args[1:], body, t.line, t.col, end.line)
+
+    def block(self):
+        """Statements up to `}`, which is consumed: (body, the closing token)."""
+        body = []
+        while not self.at("}"):
+            if self.at("EOF"):
+                self.fail("« } » attendu avant la fin du fichier")
+            body.append(self.statement())
+        return body, self.advance()
+
+    def at_closure(self):
+        # `closure` is a keyword only as `closure(…) -> … {`, so that a name, a socket
+        # or a graph may still be called closure
+        if not (self.at("IDENT", "closure") and self.peek().kind == "("):
+            return False
+        i = self.matching(self.i + 1)
+        if i is None or self.tokens[i + 1].kind != "->":
+            return False
+        i += 2
+        if self.tokens[i].kind == "(":
+            i = self.matching(i)
+            if i is None:
+                return False
+        return self.tokens[i + 1].kind == "{"
+
+    def matching(self, i):
+        """Index of the `)` closing the `(` at token i, or None."""
+        depth = 0
+        for j in range(i, len(self.tokens)):
+            kind = self.tokens[j].kind
+            if kind == "(":
+                depth += 1
+            elif kind == ")":
+                depth -= 1
+                if depth == 0:
+                    return j
+            elif kind == "EOF":
+                return None
+        return None
+
+    def closure(self):
+        t = self.advance()
+        self.expect("(")
+        params = self.typed_list(")")
+        self.expect("->")
+        outputs, single = self.outputs()
+        self.expect("{", what="« { » après closure(…) -> …")
         body = []
         while not self.at("}"):
             if self.at("EOF"):
                 self.fail("« } » attendu avant la fin du fichier")
             body.append(self.statement())
         end = self.advance()
-        return ast.Repeat(args[0].value, args[1:], body, t.line, t.col, end.line)
+        return ast.Closure(params, outputs, single, body, t.line, t.col, end.line)
+
+    def outputs(self):
+        """After `->`: `(name: Type, …)`, or one Type named as itself."""
+        if self.accept("("):
+            return self.typed_list(")"), False
+        t = self.expect("IDENT", what="type de retour")
+        return [ast.Param(t.text, t.text, t.line, t.col)], True
 
     def expr(self):
         left = self.disjunction()
@@ -295,6 +392,11 @@ class Parser:
 
     def postfix(self):
         node = self.primary()
+        if isinstance(node, ast.Call) and self.at("->"):
+            # The outputs a node declares end it: `(… -> (a: Float)).a` takes parentheses
+            self.advance()
+            node.outputs, node.single_output = self.outputs()
+            return node
         while self.at("."):
             dot = self.advance()
             if self.at("IDENT") or self.at("STRING"):
@@ -341,7 +443,14 @@ class Parser:
             if t.kind in ("IDENT", "STRING") and self.peek().kind == ":":
                 self.advance()
                 self.advance()
-                args.append(ast.Arg(t.text, self.expr(), t.line, t.col))
+                args.append(self.item(t, []))
+            elif not named_only and self.at_item_options():
+                # `Lisse(description: "…"): a`, an item and its options
+                self.advance()
+                self.advance()
+                options = self.args(named_only=True)
+                self.expect(":")
+                args.append(self.item(t, options))
             elif named_only:
                 self.fail("champ nommé attendu (nom: valeur)")
             else:
@@ -352,6 +461,45 @@ class Parser:
                 self.expect(")")
                 break
         return args
+
+    def at_item_options(self):
+        """`name(` … `):` ahead: an item with options, not a call given as a value."""
+        if self.tok.kind not in ("IDENT", "STRING") or self.peek().kind != "(":
+            return False
+        depth, k = 0, 1
+        while True:
+            kind = self.peek(k).kind
+            if kind == "EOF":
+                return False
+            if kind == "(":
+                depth += 1
+            elif kind == ")":
+                depth -= 1
+                if depth == 0:
+                    return self.peek(k + 1).kind == ":"
+            k += 1
+
+
+    def item(self, t, options):
+        """`name: value`, or `name: Type = value`, an item given its type, once `name:` and its options are read."""
+        value = self.expr()
+        arg = ast.Arg(t.text, value, t.line, t.col, options)
+        if self.at("="):
+            eq = self.advance()
+            arg.type = self.item_type(t.text, value, eq)
+            # `nom: Type(option: …) = valeur` reads as `nom(option: …): Type = valeur`
+            arg.options = arg.options + arg.type.options
+            arg.type.options = []
+            arg.value = self.expr()
+        return arg
+
+    def item_type(self, name, e, at):
+        """The type written before `=`: `Float`, or `Float(structure_type: SINGLE)`."""
+        if isinstance(e, ast.Ref):
+            return ast.Param(name, e.name, e.line, e.col)
+        if isinstance(e, ast.Call) and e.outputs is None and all(a.name and a.type is None for a in e.args):
+            return ast.Param(name, e.name, e.line, e.col, options=e.args)
+        self.fail("un type est attendu avant « = » : nom: Type = valeur", at)
 
 
 def describe(tok):

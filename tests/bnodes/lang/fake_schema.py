@@ -64,6 +64,10 @@ NODES = {
     "CaptureAttribute": (NodeSpec("CaptureAttribute", "GeometryNodeCaptureAttribute", {
         "domain": Prop("domain", "ENUM", ("POINT", "EDGE", "FACE", "CORNER", "CURVE", "INSTANCE", "LAYER")),
     }), [S("Geometry", "Geometry"), S("Selection", "Bool")], [S("Geometry", "Geometry"), S("Selection", "Bool")]),
+    "FormatString": (NodeSpec("FormatString", "FunctionNodeFormatString"),
+                     [S("Format", "String")], [S("String", "String")]),
+    "Bake": (NodeSpec("Bake", "GeometryNodeBake"), [], []),
+    "FieldToList": (NodeSpec("FieldToList", "GeometryNodeFieldToList"), [S("Count", "Int")], []),
     "IndexSwitch": (NodeSpec("IndexSwitch", "GeometryNodeIndexSwitch", {
         "data_type": Prop("data_type", "ENUM", tuple(DATA_TYPES)),
     }), None, None),
@@ -81,6 +85,16 @@ NODES = {
     "MenuSwitch": (NodeSpec("MenuSwitch", "GeometryNodeMenuSwitch", {
         "data_type": Prop("data_type", "ENUM", tuple(DATA_TYPES)),
     }), None, None),
+    # Like Blender: a new one has no item, only its fixed socket
+    "CombineBundle": (NodeSpec("CombineBundle", "NodeCombineBundle", {
+        "define_signature": Prop("define_signature", "BOOLEAN"),
+    }), [], [S("Bundle", "Bundle")]),
+    "SeparateBundle": (NodeSpec("SeparateBundle", "NodeSeparateBundle", {
+        "define_signature": Prop("define_signature", "BOOLEAN"),
+    }), [S("Bundle", "Bundle")], []),
+    "EvaluateClosure": (NodeSpec("EvaluateClosure", "NodeEvaluateClosure", {
+        "define_signature": Prop("define_signature", "BOOLEAN"),
+    }), [S("Closure", "Closure")], []),
 }
 
 

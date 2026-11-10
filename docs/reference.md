@@ -42,6 +42,9 @@ geometry graph relief(geometry: Geometry, hauteur: Float = 0.4) -> Geometry {
   `repeat`, `dot`, `cross`. Un socket qui porte un de ces noms prend un `_` à la fin
   (`not_`).
 - `use` et `from` ne sont des mots-clés qu'en tête de fichier ; ailleurs, ce sont des noms.
+  De même `simulate` et `foreach` ne le sont que dans `nom = simulate(…) {` et
+  `nom = foreach(…) {`, et `closure` n'ouvre une [zone Closure](#bundles-et-closures) que
+  sous la forme `nom = closure(…) -> … {`.
 - `_` seul veut dire « pas de valeur », pour un [item vide](#nœuds-à-items).
 - Un nom qui n'est ni une entrée ni un nom défini est une **valeur** : d'une propriété
   (`domain: FACE`, `operation: POWER`) ou d'un menu (`Lisse`).
@@ -115,6 +118,9 @@ Le corps d'un graph est une suite d'instructions :
 | `"Note" #couleur {}` | Un frame vide : une note. |
 | `"Titre" .. { … }` | La suite du dernier frame de ce titre ouvert dans le même bloc (`.. { … }` pour un frame sans titre) : le même frame, pas un second. |
 | `nom = repeat(…) { … }` | Une [zone Repeat](#zone-repeat). |
+| `nom = simulate(…) { … }` | Une [zone Simulation](#zone-simulation). |
+| `nom = foreach(…) { … }` | Une [zone For Each](#zone-for-each). |
+| `nom = closure(…) -> … { … }` | Une [zone Closure](#bundles-et-closures). |
 
 `return` est la dernière instruction. Un nom que rien ne lit fait quand même son nœud :
 c'est ainsi que s'écrivent un Warning, un gizmo ou un nœud mis de côté, qui
@@ -162,9 +168,11 @@ Un nœud présenté autrement qu'un nœud neuf est toujours une instruction nomm
 écrit dans une expression n'a pas de place pour sa présentation. Un arbre sans
 présentation particulière s'écrit sans aucun `@`.
 
-Après `return`, la présentation est celle du Group Output (ou, dans une zone Repeat,
-celle de sa sortie). Une instruction qui ne fait pas de nœud à elle (`a = b`) n'en prend
-pas.
+Après `return`, la présentation est celle du Group Output ou, dans le bloc d'une zone
+(`repeat`, `simulate`, `foreach`, `closure`), celle du nœud de sortie de la zone ; une
+zone ne prend pas de `@` après son accolade. Une instruction qui ne fait pas de nœud à
+elle (`a = b`) n'en prend pas. Le `@` vient après tout le reste de l'instruction, y
+compris un `-> (…)` : `s = SeparateBundle(b) -> (a: Float) @ hide`.
 
 ## Expressions
 
@@ -240,16 +248,50 @@ la fois : `a < b < c` est une erreur. Un Compare ou un Math qu'aucune formule ne
 
 ### Nœuds à items
 
-Capture Attribute, Index Switch et Menu Switch reçoivent leurs items de l'appel :
+Les nœuds dont les sockets sont une liste d'items reçoivent leurs items de l'appel,
+après leurs entrées fixes :
 
 | Écrit | Items |
 |---|---|
 | `c = CaptureAttribute(geometry, hauteur: h, "Rest Position": p, domain: FACE)` | un item par valeur nommée, du type de sa valeur ; `c.hauteur` la relit |
 | `IndexSwitch(i, a, b, c)` | un item par valeur après l'index |
 | `m = MenuSwitch(mode, Lisse: a, Rugueux: b)` | un item par nom ; `m.output` est la valeur choisie, `m.lisse` vrai quand Lisse l'est |
+| `FormatString("{nom} n°{n}", nom: s, n: i)` | un item par valeur nommée (`Float`, `Int` ou `String`), lu par `{nom}` dans le format |
+| `b = Bake(Geometry: g, h: hauteur)` | un item par valeur nommée, entrée et sortie : `b.geometry`, `b.h` |
+| `l = FieldToList(n, valeur: Index())` | après le nombre d'éléments, un champ par nom ; `l.valeur` est sa liste |
+| `f = FieldToGrid(topologie, a: champ)` | après la topologie, un champ par nom (`Float`, `Int`, `Bool`, `Vector`) ; `f.a` est sa grille |
+| `r = RasterizePoints(points, densité: d, vitesse: v)` | après les entrées fixes, un item par nom, `Float` ou `Vector` ; `r.densité` |
+| `CombineList(a, b, c)` | un item par valeur ; la liste de ces valeurs |
+| `vue = Viewer(geometry: g, hauteur: h)` | un item par valeur nommée, montrée dans l'éditeur ; une instruction que rien ne lit |
 
-Les items d'un switch ont le type de la première valeur, ou celui de `data_type:` écrit.
-`_` laisse un item vide, sans lien ni valeur : `IndexSwitch(i, geometry, _, cube)`.
+Les items d'un switch et de Combine List ont le type de la première valeur, ou celui de
+`data_type:` écrit ; ceux des autres nœuds, chacun le type de sa valeur.
+`_` laisse un item vide, sans lien ni valeur, quand les items partagent un type :
+`IndexSwitch(i, geometry, _, cube)`.
+
+**Options d'un item.** Les autres réglages d'un item nommé s'écrivent entre parenthèses
+après son nom, sous leur nom Blender, comme les [options d'une entrée](#entrées-et-sorties) :
+
+```
+MenuSwitch(mode, Lisse(description: "Garde la géométrie telle quelle"): a, Rugueux: b)
+Bake(Geometry: g, h(attribute_domain: FACE, is_attribute: true): hauteur)
+```
+
+Une option absente garde le réglage d'un item neuf ; le nom et le type ne s'écrivent
+pas en option. Le constructeur refuse une option que l'item n'a pas, et un nom que
+Blender changerait (Format String n'accepte que des identifiants : `{a b}` deviendrait
+`a_b`). Sur un item Bake qui n'est pas un champ (une géométrie…), Blender règle
+lui-même `is_attribute` et `attribute_domain` : le texte ne les écrit pas.
+
+**Type d'un item.** Un item prend le type de sa valeur. Quand elle ne le dit pas (un `Int`
+pour un item `Float`, un tuple pour une `Rotation`, un texte pour un `Object`), le type
+s'écrit avant `=` : `hauteur: Float = i`, `angle: Rotation = (0.0, 0.0, 1.57)`. Un item
+sans lien ni valeur s'écrit par son **type seul** : `cache: Bundle`, `g: Geometry` ; quand
+un nom du texte porte déjà ce nom de type (une entrée `Geometry`), `g: Geometry = _`. Les
+options restent après le nom : `CombineBundle(n(structure_type: SINGLE): Float = i)`. La règle vaut pour
+les nœuds à items dont chaque item a son type (Capture Attribute, Bake, Format String…),
+les états et items des zones, CombineBundle et EvaluateClosure ; Tree → Text n'écrit le
+type que quand il le faut.
 
 ### Zone Repeat
 
@@ -265,6 +307,135 @@ chaque état est un nom, et `iteration` le numéro du tour (0, 1, 2…). `return
 états du tour suivant ; un état non rendu passe tel quel. Après le bloc, `r.état` est sa
 dernière valeur (`r` seul quand il n'y a qu'un état). Les noms du bloc y restent ; les
 zones s'imbriquent.
+
+Un état prend le type de sa valeur de départ, ou celui écrit avant `=` ; sans valeur de
+départ, il s'écrit par son type seul (voir le [type d'un item](#nœuds-à-items)) :
+`repeat(n, mesh: Geometry)` part d'une géométrie vide, `cache: Bundle` d'un bundle vide,
+`angle: Rotation = (0.0, 0.0, 1.57)` d'une rotation. De même dans `return`, et pour les
+items de `simulate` et `foreach`.
+
+### Zone Simulation
+
+```
+s = simulate(état: départ, …) {
+  …
+  return (état: suivant, …, skip: condition)
+}
+```
+
+Comme `repeat`, sans nombre de tours : le bloc fait un pas par image. Dans le bloc,
+chaque état est un nom, et `delta_time` le temps écoulé depuis le pas précédent, en
+secondes. `return` donne les états du pas suivant ; un état non rendu passe tel quel ;
+`skip: condition` (facultatif) saute le pas tant que la condition est vraie. Après le
+bloc, `s.état` est la valeur du pas courant (`s` seul quand il n'y a qu'un état). Les
+états peuvent être `Float`, `Int`, `Bool`, `Vector`, `Color`, `Rotation`, `Matrix`,
+`String`, `Geometry` et `Bundle` ; ils ne s'appellent ni `delta_time` ni `skip`.
+
+```
+geometry graph chute(geometry: Geometry, gravité: Float = -9.8) -> Geometry {
+  s = simulate(points: geometry, vitesse: 0.0) {
+    v = vitesse + gravité * delta_time
+    return (points: SetPosition(points, offset: CombineXYZ(z: v * delta_time)), vitesse: v)
+  }
+  return s.points
+}
+```
+
+### Zone For Each
+
+```
+e = foreach(géométrie, domain: FACE, selection: masque, item: champ, …) {
+  …
+  return (principal: v, …, mesh: g, attribut: a, …)
+}
+```
+
+Le bloc s'exécute une fois par élément du domaine (`POINT` par défaut ; `EDGE`, `FACE`,
+`CORNER`, `CURVE`, `INSTANCE`, `LAYER`), pour les éléments de la sélection (tous par
+défaut). Chaque autre valeur nommée est un **item d'entrée** : un champ, évalué sur le
+domaine, dont le bloc lit la valeur de l'élément sous son nom. Le bloc lit aussi `index`,
+le numéro de l'élément, et `element`, sa géométrie seule (sauf pour `CORNER`).
+
+`return` donne les items de sortie, tous par nom, et leur ordre a un sens :
+
+- les valeurs avant la première `Geometry` sont les **items principaux** : un champ sur
+  la géométrie d'entrée, une valeur par élément ;
+- chaque `Geometry` est un **item généré** : les géométries de tous les éléments, jointes ;
+  les valeurs qui la suivent sont ses attributs.
+
+Après le bloc, `e` seul est la géométrie d'entrée, sur laquelle se lisent les items
+principaux ; `e.nom` est un item (`e.geometry` est la géométrie d'entrée tant qu'aucun
+item ne s'appelle `geometry`).
+
+```
+geometry graph semis(mesh: Geometry) -> (Geometry: Geometry, Double: Float, Points: Geometry) {
+  e = foreach(mesh, domain: FACE, centre: Position()) {
+    return (double: index * 2.0, points: Points(position: centre), rang: index)
+  }
+  return (Geometry: e, Double: e.double, Points: e.points)
+}
+```
+
+Ici `double` est un item principal, `points` une géométrie générée (un point par face)
+et `rang` son attribut. Les items d'entrée sont `Float`, `Int`, `Bool`, `Vector`,
+`Color`, `Rotation`, `Matrix` ou `Menu` ; les items principaux et les attributs, les
+mêmes sauf `Menu`.
+
+### Bundles et closures
+
+Un **bundle** porte plusieurs valeurs nommées dans un seul socket ; une **closure** est un
+calcul qu'on passe comme une valeur, et qu'on évalue ailleurs, même dans un autre graph.
+
+```
+geometry graph ressort(force: Float) -> (f: Closure, b: Bundle) {
+  f = closure(x: Float, "Point Count": Int(structure_type: SINGLE)) -> (r: Float) {
+    return x * force + point_count
+  }
+  b = CombineBundle(hauteur: force * 2.0, f: f, nid: CombineBundle(n: 3))
+  return (f: f, b: b)
+}
+
+geometry graph appliquer(geometry: Geometry, f: Closure, b: Bundle) -> Geometry {
+  s = SeparateBundle(b) -> (hauteur: Float, nid: Bundle)
+  h = EvaluateClosure(f, x: Position().z, "Point Count": 2) -> (r: Float)
+  return SetPosition(geometry, offset: CombineXYZ(z: h + s.hauteur))
+}
+```
+
+| Écrit | Nœuds |
+|---|---|
+| `b = CombineBundle(hauteur: h, forme: g)` | Combine Bundle : un item par valeur nommée, du type de sa valeur |
+| `s = SeparateBundle(b) -> (hauteur: Float, forme: Geometry)` | Separate Bundle : ses items déclarés après `->` ; `s.hauteur` en lit un |
+| `f = closure(x: Float, …) -> (r: Float, …) { … }` | une zone Closure : ses entrées entre parenthèses, ses sorties après `->` |
+| `f(x: 1.0)` | Evaluate Closure, avec les items de la closure `f` définie dans ce graph |
+| `EvaluateClosure(f, x: 1.0, g: Geometry) -> (r: Float)` | Evaluate Closure, ses items écrits |
+
+- **Les items déclarés** (les entrées et sorties d'une closure, `-> (…)`) s'écrivent comme
+  les entrées d'un graph : `nom: Type`, et `nom: Type(structure_type: SINGLE)` pour leur
+  structure (`SINGLE`, `FIELD`, `GRID`, `LIST`, `DYNAMIC` ; `AUTO` par défaut). Ceux qui
+  reçoivent une valeur (CombineBundle, EvaluateClosure) suivent la règle du
+  [type d'un item](#nœuds-à-items) : `"Pin"(structure_type: SINGLE): p`.
+- **Les noms d'items** sont libres, entre guillemets s'ils ne sont pas des
+  identifiants : `"Pin Positions": p`, relu `s.pin_positions`. Ce ne sont pas des
+  chemins : Blender remplace `/`, `.`, `-` et `:`, et le texte le refuse. Un bundle dans
+  un bundle est un item de type `Bundle`, qu'on sépare à son tour ; `GetBundleItem` et
+  `StoreBundleItem` prennent, eux, un chemin (`"nid/n"`).
+- **Les sorties déclarées** `-> (…)` finissent l'appel : pour en choisir une sans passer
+  par un nom, des parenthèses, `(SeparateBundle(b) -> (a: Float, c: Float)).c`. `-> Float`
+  seul déclare un item nommé `Float`, comme pour un graph.
+- **Une zone Closure** : dans son bloc, ses entrées sont des noms, et les noms du dehors
+  restent visibles : la closure les **capture**. `return` donne ses sorties
+  (`return valeur` quand elle n'en a qu'une) ; une sortie non rendue reste non reliée.
+  Les noms du bloc y restent.
+- **Évaluer une closure.** Un appel sur un nom qui tient une closure l'évalue, quand
+  aucun graph, nœud, fonction ou node group du fichier ne porte ce nom. Sans `->`,
+  les items sont ceux de la closure définie dans ce graph, et les entrées omises gardent
+  la valeur d'un item neuf. Une closure reçue en entrée, ou tirée d'un bundle, ne dit pas
+  ses items : on les écrit, avec `->` pour les sorties.
+- `define_signature: true` règle l'option du même nom de CombineBundle, SeparateBundle et
+  EvaluateClosure.
+- Deux SeparateBundle sur un même bundle restent deux nœuds : le texte n'en fusionne
+  aucun.
 
 ## Modules
 
@@ -315,13 +486,17 @@ Tree → Text écrit tout l'arbre, sauf ce qui suit, qu'il signale chaque fois p
 avertissement :
 
 - la présentation des Group Input (libellé, couleur, replié), que le texte n'a pas en
-  nœuds, et celle du nœud d'entrée d'une zone Repeat (celle de sa sortie s'écrit sur le
+  nœuds, et celle du nœud d'entrée d'une zone (celle de sa sortie s'écrit sur le
   `return` de son bloc) ;
 - les panneaux de l'interface, et deux entrées du même nom dans deux panneaux ;
 - les réglages d'outil de l'arbre (`is_tool`…), et le bouton de gestion du modifier ;
-- la description des items d'un Menu Switch ;
-- les zones Simulation et For Each, les bundles et closures, Format String, Bake, Field
-  to List ;
+- un item qui porte le nom d'une entrée fixe ou d'un réglage de son nœud (un item
+  « Selection » de Capture Attribute) ;
+- un item d'un type que le texte ne connaît pas (Font…) ;
+- le domaine d'un état de simulation ou d'un attribut généré par For Each, quand il
+  n'est pas `POINT` ; la valeur d'un item de menu non relié ;
+- le réglage `define_signature` d'une zone Closure ;
+- Closure to List ;
 - les Group Output inactifs (ce qui les alimente est écrit).
 
 Reconstruit à sa place, un groupe garde ses panneaux, et ses modifiers et appels gardent

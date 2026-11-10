@@ -29,8 +29,10 @@ def cause(warning):
         return "frame coupé"
     if "sortie(s) de groupe inactive(s)" in warning:
         return "sorties de groupe inactives"
-    if "description des items" in warning:
-        return "description d'items de Menu Switch"
+    if "porte le nom d'une entrée ou d'un réglage" in warning:
+        return "item au nom d'une entrée du nœud"
+    if "de l'item" in warning and "non exporté" in warning:
+        return "option d'un item donné par position"
     if "(dans deux panneaux ?)" in warning:
         return "nom répété dans l'interface"
     if "guillemets et retours à la ligne" in warning:
@@ -39,14 +41,30 @@ def cause(warning):
         return "nœud désactivé"
     if "présentation des Group Input" in warning:
         return "présentation des Group Input"
+    if "présentation des entrées de zone" in warning:
+        return "présentation des entrées de zone"
     if "présentation non exportée" in warning:
         return "présentation (libellés, couleurs, nœuds repliés)"
     if "panneaux de l'interface" in warning:
         return "panneaux de l'interface"
     if "réglages de l'arbre" in warning:
         return "réglages de l'arbre (outil, modifier)"
+    if "define_signature non exporté" in warning:
+        return "define_signature d'une closure"
+    if re.search(r"item « .* » de type \w+, pas encore", warning):
+        return "type d'item de bundle ou closure"
     if "part sans valeur" in warning:
-        return "état de repeat sans valeur"
+        return "état de zone sans valeur"
+    if "qui reçoit un" in warning and "relu comme" in warning:
+        return "item relu d'un autre type"
+    if re.search(r"domaine \w+ de l", warning):
+        return "domaine d'un item de zone"
+    if "valeur de menu de" in warning:
+        return "item de zone : valeur de menu"
+    if "cachée par l'état" in warning or "un nom de la zone" in warning or "deux items du même nom" in warning:
+        return "nom d'item de zone"
+    if "ne suit aucune géométrie" in warning:
+        return "attribut généré sans géométrie"
     return warning
 
 
