@@ -210,10 +210,14 @@ arbres construits avec **Add as Modifier** et **Tree → Text**, cases **Sync Se
 - Erreur dans le texte : rien n'est modifié, le curseur va sur la première erreur.
 - Text Editor et Node Editor côte à côte : cliquer un nœud place le curseur sur sa
   ligne, et déplacer le curseur sélectionne les nœuds de la ligne.
-- Pas encore pris en charge : zones Simulation et For Each, bundles et closures,
-  Format String, Bake et Field to List, panneaux de l'interface, shaders et compositing.
-  La présentation des nœuds (libellé, couleur, repli) reste hors du texte. Tree → Text
-  signale chacun de ces manques.
+- Tout Geometry Nodes s'écrit : zones (`repeat`, `simulate`, `foreach`, `closure`),
+  bundles, nœuds à items, gizmos, panneaux de l'interface (`"Titre" { … }` dans l'en-tête),
+  réglages d'outil, présentation des nœuds (`… @ "Libellé" #couleur hide mute`). Sur les
+  122 arbres Geometry Nodes livrés avec Blender 5.2, 121 se reconstruisent à l'identique
+  depuis leur texte. Chaque écriture est dans [docs/reference.md](docs/reference.md).
+- Pas encore pris en charge : le libellé et la couleur des nœuds Group Input, un item
+  nommé comme une entrée fixe de son nœud, la construction des shaders et du compositing.
+  Tree → Text signale chacun de ces manques.
 
 ## Installation locale (clone git)
 
@@ -375,7 +379,9 @@ journal. Pour un autre Blender :
 BLENDER=/chemin/vers/blender tests/run.sh
 ```
 
-Il demande `uv` et un `blender` dans le PATH. Pour l'instant la CI tourne en local
+Le corpus de compatibilité est figé sur Blender 5.2 LTS : avec un `blender` plus récent
+dans le PATH (5.3 ajoute des entrées à Curve to Mesh et Realize Instances), passer la 5.2
+par `BLENDER`. Il demande `uv` et un `blender` dans le PATH. Pour l'instant la CI tourne en local
 seulement : la publication sur GitHub Pages ne lance pas les tests.
 
 ## Rebuilder les extensions

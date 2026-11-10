@@ -12,13 +12,13 @@ sous-groupes internes (nom en `.xxx` ou sans catalogue).
 
 | Fichier | Groupes | Assets | Relus sans avertissement |
 |---|---|---|---|
-| `geometry_nodes_essentials.blend` | 33 | 27 | 12 |
-| `procedural_hair_node_assets.blend` | 32 | 22 | 4 |
-| `geometry_nodes_dynamics_assets.blend` (simulation) | 55 | 6 | 12 |
-| `principal_components.blend` | 2 | 2 | 0 |
-| `compositing_nodes_essentials.blend` | 24 | 17 | 10 |
+| `geometry_nodes_essentials.blend` | 33 | 27 | 19 |
+| `procedural_hair_node_assets.blend` | 32 | 22 | 27 |
+| `geometry_nodes_dynamics_assets.blend` (simulation) | 55 | 6 | 51 |
+| `principal_components.blend` | 2 | 2 | 2 |
+| `compositing_nodes_essentials.blend` | 24 | 17 | 24 |
 | `shading_nodes_essentials.blend` | 4 | 4 | 4 |
-| **Total** | **150** | **78** | **42** |
+| **Total** | **150** | **78** | **127** |
 
 Par usage :
 
@@ -63,33 +63,28 @@ comble ce manque.
 
 ## Ce que le texte ne sait pas encore relire
 
-108 groupes sur 150 donnent un avertissement à la relecture. Depuis la LTS 1, la
-relecture dit tout ce qu'elle perd, y compris la présentation (libellés, couleurs,
-nœuds repliés), les panneaux et les réglages de l'arbre. Avant, ces pertes passaient
-sans avertissement : à causes égales, 80 groupes semblaient complets. Nombre de groupes
-touchés, par cause :
+Presque plus rien. Sur les 122 arbres Geometry Nodes livrés, **121 se reconstruisent à
+l'identique** depuis leur texte : mêmes nœuds (y compris ceux sans effet sur la sortie),
+mêmes réglages, mêmes items, même interface avec ses panneaux, même présentation. Ils
+étaient 57 avant les nœuds à items, 77 à la version 0.5. Le seul qui manque, Curve to
+Tube, a un Capture Attribute dont un item s'appelle « Selection », comme une entrée fixe
+du nœud.
+
+23 groupes sur 150 donnent encore un avertissement à la relecture (108 à la version
+0.5). Nombre de groupes touchés, par cause :
 
 | Cause | Groupes |
 |---|---|
-| Présentation : libellés, couleurs, nœuds repliés | 81 |
-| Panneaux de l'interface | 36 |
-| Réglages de l'arbre (outil, bouton de gestion du modifier) | 32 |
-| Frame coupé en deux par ses liens | 29 |
-| Nœuds sans effet sur la sortie (non exportés) | 23 |
-| Deux entrées ou sorties du même nom, dans deux panneaux | 18 |
-| Combine / Separate Bundle | 17 |
-| Closures (zone et Evaluate Closure) | 15 |
-| Description des items d'un Menu Switch | 13 |
-| Format String, Field to List, zone Simulation, gizmos | 1 à 5 |
+| Libellé ou couleur d'un nœud Group Input (le texte n'a pas de nœud Group Input) | 14 |
+| Frame coupé par un autre frame du même titre | 5 |
+| Guillemets ou retours à la ligne dans un texte, remplacés | 4 |
+| Item au nom d'une entrée fixe de son nœud | 1 |
 
-Sept groupes n'ont que des avertissements de forme (frame coupé, nœuds morts), dont Box
-Selection et Sphere Selection. Les zones **Repeat**, **Capture Attribute**, **Menu
-Switch** et **Index Switch** se relisent : sur les 122 arbres Geometry Nodes, 77 se
-reconstruisent à l'identique depuis leur texte (57 avant ces trois nœuds). Le sous-type, la
-description et les autres réglages de chaque entrée s'écrivent en options
-(`t: Float(subtype: FACTOR)`), la description du groupe en tête de son corps. Les noms
-répétés viennent des panneaux, que le texte n'écrit pas encore ; la présentation reste
-hors du texte. Les bundles et closures ne servent qu'à la simulation.
+Tout le reste s'écrit : zones Repeat, Simulation, For Each et Closure, bundles, nœuds à
+items (Capture Attribute, Menu et Index Switch, Format String, Bake, Field to List,
+Viewer…), gizmos, panneaux et noms répétés de l'interface, réglages d'outil de l'arbre,
+nœuds désactivés ou sans effet, libellés, couleurs et nœuds repliés. La
+[référence du langage](reference.md) décrit chaque écriture.
 
 À noter : les arbres de shaders et de compositing se relisent aussi (`shader graph`,
 `compositor graph`), alors que la construction n'est garantie que pour Geometry Nodes.

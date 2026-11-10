@@ -185,10 +185,10 @@ geometry graph rochers(sol: Geometry, densité: Float, graine: Int) -> Geometry 
 
 ## Ce que le texte ne sait pas encore écrire
 
-Les zones Simulation et For Each, les bundles et closures, Format String, Bake et Field
-to List, les panneaux de l'interface, les réglages d'outil de l'arbre, les arbres de
-shaders et de compositing. La présentation des nœuds (libellé, couleur, repli) reste
-hors du texte. « Tree → Text » signale chacun de ces manques par un avertissement.
+Il reste peu de chose : le libellé et la couleur des nœuds Group Input, un item qui
+porte le nom d'une entrée fixe de son nœud, et les arbres de shaders et de compositing,
+qui se relisent sans se construire. « Tree → Text » signale chaque manque par un
+avertissement ; la liste complète est dans la [référence](reference.md#ce-que-le-texte-nécrit-pas).
 
 Les images de cette page sont prises par
 `blender --factory-startup --python tests/bnodes/gui/shoot_examples.py -- docs/images`.
