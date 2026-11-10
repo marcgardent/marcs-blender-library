@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from . import ast, colors, ir, sugar
 from .errors import BnError, Diagnostic
 from .parser import parse
-from .schema import (DATABLOCKS, FIELD_TYPES, IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_DEFAULT, NO_VALUE, RANGED, STRICT,
-                     TREE_KINDS, TYPES, Socket, can_link, key)
+from .schema import (DATABLOCKS, FIELD_TYPES, IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_DEFAULT, NO_VALUE, RANGED,
+                     STRICT, TREE_KINDS, TYPES, Socket, can_link, key)
 
 GROUP_NODES = {
     "geometry": "GeometryNodeGroup",
@@ -317,17 +317,39 @@ class GraphChecker:
                     if a.name in found:
                         self.error(a, f"option « {a.name} » donnée deux fois")
                         continue
-                    v = a.value
-                    if isinstance(v, ast.Ref):
-                        found[a.name] = v.name
-                    elif isinstance(v, (ast.Number, ast.String, ast.Bool, ast.Neg)) and \
-                            isinstance(self.eval(v), Lit):
-                        found[a.name] = self.eval(v).value
-                    else:
-                        self.error(a, f"option « {a.name} » : un nombre, true/false, un texte ou une valeur comme FACTOR")
+                    value = self.option_value(a)
+                    if value is not None:
+                        found[a.name] = value
                 if found:
                     out[(side, p.name)] = found
         return out
+
+    def option_value(self, a):
+        """The value of `option: value`, a literal or an enum name; None after an error."""
+        v = a.value
+        if isinstance(v, ast.Ref):
+            return v.name
+        if isinstance(v, (ast.Number, ast.String, ast.Bool, ast.Neg)) and isinstance(self.eval(v), Lit):
+            return self.eval(v).value
+        self.error(a, f"option « {a.name} » : un nombre, true/false, un texte ou une valeur comme FACTOR")
+        return None
+
+    def item_options(self, c, a):
+        """{option: value} from `nom(option: valeur): …`, by the item's Blender property names.
+
+        The names are checked by the builder, against the item; here only the values are."""
+        found = {}
+        for o in a.options:
+            if o.name in ("name", "socket_type", "data_type", "type"):
+                self.error(o, f"{c.name} : le nom et le type d'un item s'écrivent « nom: valeur »")
+                continue
+            if o.name in found:
+                self.error(o, f"option « {o.name} » donnée deux fois")
+                continue
+            value = self.option_value(o)
+            if value is not None:
+                found[o.name] = value
+        return found
 
     def default_value(self, p, d):
         t = p.type
@@ -893,6 +915,8 @@ class GraphChecker:
         named = []
         failed = False
         for a in c.args:
+            if a.options and not self.takes_items(c.name):
+                self.error(a, f"« {a.name}(…) » : seuls les items d'un nœud à items prennent des options")
             v = self.eval(a.value)
             failed |= v is None
             if a.name is None:
@@ -973,6 +997,10 @@ class GraphChecker:
 
         return Out(node.id, outputs, None, c.name)
 
+    def takes_items(self, name):
+        spec = None if name in self.graphs else self.schema.node(self.g.kind, name)
+        return spec is not None and spec.bl_idname in ITEM_NODES
+
     def item_sockets(self, c, spec, node, positional, named):
         """(inputs, outputs) of a node whose items the call makes, which it records in node.items."""
         shape = ITEM_NODES[spec.bl_idname]
@@ -987,11 +1015,16 @@ class GraphChecker:
         else:
             given = [(str(k), v, a) for k, (v, a) in enumerate(positional[shape.inputs:])]
             del positional[shape.inputs:]
-        items, values = [], []
+        for name, _v, a in named:
+            if a.options:
+                self.error(a, f"{c.name} : « {name} » est une entrée du nœud, pas un item ; elle ne prend pas d'options")
+        items, values, options = [], [], {}
         for name, v, a in given:
             if key(name) in {key(n) for n, _t in items}:
                 self.error(a, f"{c.name} : « {name} » donné deux fois")
                 continue
+            if getattr(a, "options", None):
+                options[name] = self.item_options(c, a)
             if isinstance(v, Sym) and v.name == NO_VALUE and not shape.typed:
                 # An empty item: no link, its default value (an empty geometry…)
                 items.append((name, None))
@@ -1003,9 +1036,10 @@ class GraphChecker:
                 items.append((name, value_type(v)))
                 values.append((name, v, a))
         if shape.typed:
+            allowed = shape.types or tuple(ITEM_TYPES)
             for (name, t), (_n, _v, a) in zip(items, values):
-                if t not in FIELD_TYPES:
-                    self.error(a, f"{c.name} ne capture pas un {t} ; types : {', '.join(FIELD_TYPES)}")
+                if t not in allowed:
+                    self.error(a, f"{c.name} : pas d'item {t} ; types : {', '.join(allowed)}")
                     return None, None
         else:
             # The items share the node's data_type: written, or the type of the first one
@@ -1018,16 +1052,13 @@ class GraphChecker:
             node.props["data_type"] = ITEM_TYPES[t]
             items = [(name, t) for name, _t in items]
         node.items = items
+        node.item_options = {n: o for n, o in options.items() if o}
         inputs, outputs = self.schema.sockets(self.g.kind, spec, node.props)
         sockets = [Socket(name, name, t) for name, t in items]
-        if shape.named:
-            named += values
-        else:
-            # Each value to its own item: an empty one in between is skipped by name
-            named += [(name, v, a) for name, v, a in values]
-        flags = [Socket(name, name, "Bool") for name, _t in items] if shape.flags else []
-        return (inputs[:shape.inputs] + sockets,
-                outputs[:shape.outputs] + (sockets if shape.typed else flags))
+        # Each value to its own item, by name: an empty one in between is skipped
+        named += values
+        added = {"value": sockets, "flag": [Socket(name, name, "Bool") for name, _t in items]}.get(shape.out, [])
+        return inputs[:shape.inputs] + sockets, outputs[:shape.outputs] + added
 
     def existing_group(self, c):
         """A node group of the file with that key, when the text does not define one."""

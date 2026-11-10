@@ -29,8 +29,10 @@ def cause(warning):
         return "frame coupé"
     if "sans effet" in warning:
         return "nœuds sans effet"
-    if "description des items" in warning:
-        return "description d'items de Menu Switch"
+    if "porte le nom d'une entrée ou d'un réglage" in warning:
+        return "item au nom d'une entrée du nœud"
+    if "de l'item" in warning and "non exporté" in warning:
+        return "option d'un item donné par position"
     if "(dans deux panneaux ?)" in warning:
         return "nom répété dans l'interface"
     if "désactivé (mute)" in warning:

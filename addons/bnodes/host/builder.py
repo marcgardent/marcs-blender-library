@@ -12,10 +12,10 @@ from .. import lang
 from ..lang import ir
 from ..lang.errors import BnError, Diagnostic
 from ..lang.layout import layout
-from ..lang.schema import ITEM_NODES, ITEM_TYPES, TYPES
+from ..lang.schema import ITEM_NODES, TYPES
 from ..lang.typecheck import REPEAT_ITEMS
 from . import modules
-from .schema import TREE_TYPES, BlenderSchema, fresh_item, fresh_options, same_option
+from .schema import TREE_TYPES, BlenderSchema, fresh_item, fresh_options, item_option_names, new_item, same_option
 
 DATABLOCKS = {"OBJECT": "objects", "COLLECTION": "collections", "MATERIAL": "materials",
               "IMAGE": "images", "TEXTURE": "textures"}
@@ -234,16 +234,27 @@ class Builder:
                     self.fail(n, f"Blender refuse le lien {src.name} ({src.type}) → {dst.name} ({dst.type})")
 
     def items(self, node, n):
-        """The items of a Capture Attribute or a switch, in the order of the text."""
-        items = getattr(node, ITEM_NODES[n.bl_idname].collection)
-        items.clear()
+        """The items of a node of ITEM_NODES, in the order of the text, with their options."""
+        shape = ITEM_NODES[n.bl_idname]
+        getattr(node, shape.collection).clear()
         for name, type in n.items:
-            if n.bl_idname == "GeometryNodeCaptureAttribute":
-                items.new(ITEM_TYPES[type], name)
-            elif n.bl_idname == "GeometryNodeMenuSwitch":
-                items.new(name)
-            else:
-                items.new()
+            new_item(node, shape, name, type)
+        # Options once every item is there: a new item may change those before it.
+        # Fetched again, as adding items may move the earlier ones in memory
+        for (name, _type), item in zip(n.items, getattr(node, shape.collection)):
+            if shape.named and item.name != name:
+                self.fail(n, f"Blender renomme l'item « {name} » en « {item.name} »")
+            wanted = n.item_options.get(name, {})
+            known = item_option_names(item, shape)
+            unknown = [o for o in wanted if o not in known]
+            if unknown:
+                self.fail(n, f"item « {name} » : option {unknown[0]} inconnue ; "
+                             f"options : {', '.join(known) or 'aucune'}")
+            for option, value in wanted.items():
+                try:
+                    setattr(item, option, value)
+                except (TypeError, ValueError) as e:
+                    self.fail(n, f"option {option} de l'item « {name} » : {e}")
 
     def socket(self, g, n, node, ident, side):
         """A Blender socket from its text identifier.

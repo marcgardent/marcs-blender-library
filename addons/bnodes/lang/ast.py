@@ -46,6 +46,8 @@ class Arg:
     value: object
     line: int
     col: int
+    # `Lisse(description: "…"): a`: an item's other settings, by their Blender name
+    options: list = field(default_factory=list)  # of Arg, all named
 
 
 @dataclass

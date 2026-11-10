@@ -179,7 +179,10 @@ def args(items):
 
 
 def arg(a):
-    return expr(a.value) if a.name is None else f"{label(a.name)}: {expr(a.value)}"
+    if a.name is None:
+        return expr(a.value)
+    options = f"({args(a.options)})" if a.options else ""
+    return f"{label(a.name)}{options}: {expr(a.value)}"
 
 
 def expr(e, outer=0):

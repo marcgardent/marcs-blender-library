@@ -16,10 +16,10 @@ from ..lang import ast, sugar
 from ..lang.printer import to_source
 from ..lang.ir import (FOREACH_INPUT, FOREACH_OUTPUT, REPEAT_INPUT, REPEAT_OUTPUT, SIMULATION_INPUT, ZONE_INPUTS,
                        ZONE_OUTPUTS)
-from ..lang.schema import IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_VALUE, RESERVED, TYPES, key, snake
+from ..lang.schema import FIELD_TYPES, IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_VALUE, RESERVED, TYPES, key, snake
 from .modules import module_of
-from .schema import (SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, fresh_options, option_names, same_option,
-                     snapshot, text_name)
+from .schema import (SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, fresh_item_options, fresh_options,
+                     item_option_names, option_names, same_option, snapshot, text_name)
 
 KINDS = {v: k for k, v in TREE_TYPES.items()}
 IMPLICIT_CALLS = {mode: name for name, (mode, _type) in IMPLICIT.items()}
@@ -599,8 +599,15 @@ class GraphReader:
         inputs = [s for s in node.inputs if not s.is_unavailable and s.type != "CUSTOM"]
         incoming = self.incoming.get(node.name, {})
         shape = ITEM_NODES.get(node.bl_idname)
+        item_of = {}
         if shape is not None:
             self.item_types(node, shape, inputs[shape.inputs:], incoming, props)
+            # Each item socket with its item: unavailable fixed sockets aside, they go in step
+            every = [s for s in node.inputs if s.type != "CUSTOM"][shape.inputs:]
+            made = [(s.name, SOCKET_TYPES.get(s.type) if shape.typed else None) for s in every]
+            fresh = fresh_item_options(node.bl_idname, made)
+            item_of = {s.identifier: (i, f) for s, i, f in zip(every, getattr(node, shape.collection), fresh)}
+            self.item_names(node, shape, inputs[:shape.inputs], every, spec)
         positional = True
         geometry_first = False
         for i, sock in enumerate(inputs):
@@ -625,8 +632,9 @@ class GraphReader:
             label = None if positional else sock.name if item else socket_name(sock, inputs, group)
             if i == 0 and sock.type == "GEOMETRY" and not sock.is_multi_input and links:
                 geometry_first = True
+            options = self.item_options(node, shape, *item_of[sock.identifier], sock) if item else []
             for v in values:
-                args.append(ast.Arg(label, v, 0, 0))
+                args.append(ast.Arg(label, v, 0, 0, options))
         for pname, value in props.items():
             args.append(ast.Arg(pname, prop_literal(spec.props[pname], value), 0, 0))
 
@@ -656,10 +664,6 @@ class GraphReader:
             if shape.typed and given is not None and given != wanted:
                 self.warn(f"« {node.name} » : l'item « {sock.name} » est un {wanted} qui reçoit un {given} ; "
                           f"relu comme {given}")
-        if node.bl_idname == "GeometryNodeMenuSwitch":
-            lost = [i.name for i in node.enum_items if i.description]
-            if lost:
-                self.warn(f"« {node.name} » : description des items {', '.join(lost)} non exportée")
         if not shape.typed:
             # As the checker reads it: the type of the first item that has a value
             given = "Float"
@@ -673,6 +677,37 @@ class GraphReader:
                 props.pop("data_type", None)
             else:
                 props["data_type"] = node.data_type
+
+    def item_options(self, node, shape, item, fresh, sock):
+        """`nom(option: valeur): …`: the settings of an item that differ from those the builder
+        gives it (`fresh`)."""
+        options = []
+        field = SOCKET_TYPES.get(sock.type) in FIELD_TYPES
+        for option in item_option_names(item, shape):
+            value = getattr(item, option)
+            if option not in fresh or same(value, fresh[option]) or option in shape.field_only and not field:
+                continue
+            if isinstance(value, str) and ('"' in value or "\n" in value):
+                self.warn(f"« {node.name} » : {option} de l'item « {sock.name} » : "
+                          "guillemets et retours à la ligne remplacés")
+            options.append(ast.Arg(option, option_literal(item, option, value), 0, 0))
+        if options and not shape.named:
+            # Items given by position have no name to hang options on
+            self.warn(f"« {node.name} » : {', '.join(a.name for a in options)} de l'item « {sock.name} » "
+                      "non exporté")
+            return []
+        return options
+
+    def item_names(self, node, shape, fixed, every, spec):
+        """An item named like an input or a setting of its node would read back as that one."""
+        if not shape.named:
+            return
+        taken = {s.identifier for s in fixed} | {s.name for s in fixed} | {snake(s.name) for s in fixed}
+        taken |= set(spec.props) if spec is not None else set()
+        for sock in every:
+            if sock.name in taken or snake(sock.name) in taken:
+                self.warn(f"« {node.name} » : l'item « {sock.name} » porte le nom d'une entrée ou d'un réglage "
+                          "du nœud ; pas encore pris en charge par le texte")
 
     def join(self, node):
         """`a + b + c` for a Join Geometry of two links or more.

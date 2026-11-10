@@ -53,6 +53,7 @@ class Node:
     items: list | None = None
     pair: str | None = None    # on a zone's input node: the id of its output node
     main: int = 0              # on a For Each output: how many of its items are main items
+    item_options: dict = field(default_factory=dict)  # item name -> {item property: value}, when written
 
 
 @dataclass

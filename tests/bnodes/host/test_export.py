@@ -16,8 +16,10 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "addons"))
 
 from bnodes.host import build_source, export_tree  # noqa: E402
-from bnodes.host.schema import INTERFACE_FIELDS, fresh_options, option_names, same_option, snapshot  # noqa: E402
-from bnodes.lang import parse, sugar  # noqa: E402
+from bnodes.host.schema import (INTERFACE_FIELDS, fresh_options, item_option_names, option_names,  # noqa: E402
+                                same_option, snapshot)
+from bnodes.lang.schema import ITEM_NODES  # noqa: E402
+from bnodes.lang import BnError, parse, sugar  # noqa: E402
 from bnodes.lang.format import format_source  # noqa: E402
 from bnodes.lang.printer import to_source  # noqa: E402
 
@@ -405,6 +407,84 @@ def test_item_nodes_compute():
     assert mesh.attributes["cubes"].data[0].value == 8
 
 
+def test_more_item_nodes_come_back_identical():
+    src = fixture("items_more.bn")
+    trees = build_source(src, "items_more.bn")
+    text = "\n".join(export_tree(t)[0] for t in trees)
+    assert text == src, text
+    assert all(export_tree(t)[1] == [] for t in trees)
+    by_name = {t.name: t for t in trees}
+    bake = by_name["cuisson"].nodes["b"]
+    assert [(i.name, i.socket_type) for i in bake.bake_items] == [("Geometry", "GEOMETRY"), ("h", "FLOAT")]
+    assert (bake.bake_items[1].attribute_domain, bake.bake_items[1].is_attribute) == ("FACE", True)
+    menu = by_name["modes"].nodes["m"]
+    assert [(i.name, i.description) for i in menu.enum_items] == [
+        ("Lisse", "Garde la géométrie telle quelle"), ("Rugueux", "")]
+    # An option taken out of the text goes back to a new item's
+    (modes,) = build_source(src.split("\n\n")[-1].replace('(description: "Garde la géométrie telle quelle")', ""),
+                            "items_more.bn")
+    assert modes.nodes["m"].enum_items[0].description == ""
+
+
+GRIDS = """geometry graph grilles(points: Geometry, t: Float) -> (densité: Float, champ: Float, n: Int) {
+  r = RasterizePoints(points, densité: 1.0, vitesse: Normal().normal)
+  f = FieldToGrid(r.densité, a: t * 2.0, b: Index())
+  return (densité: r.densité, champ: f.a, n: ListLength(CombineList(1.0, t, 3.0)))
+}
+"""
+
+
+def test_grid_and_list_items_come_back_identical():
+    if not all(hasattr(bpy.types, k) for k in ("GeometryNodeRasterizePoints", "GeometryNodeFieldToGrid",
+                                               "GeometryNodeCombineList")):
+        return  # not in this Blender
+    (tree,) = build_source(GRIDS, "grilles.bn")
+    assert export_tree(tree) == (GRIDS, [])
+    r = next(n for n in tree.nodes if n.bl_idname == "GeometryNodeRasterizePoints")
+    assert [(i.name, i.type) for i in r.rasterize_items] == [("densité", "SCALAR"), ("vitesse", "VECTOR")]
+    f = next(n for n in tree.nodes if n.bl_idname == "GeometryNodeFieldToGrid")
+    assert [(i.name, i.data_type) for i in f.grid_items] == [("a", "FLOAT"), ("b", "INT")]
+    c = next(n for n in tree.nodes if n.bl_idname == "GeometryNodeCombineList")
+    assert len(c.combine_list_items) == 3 and c.data_type == "FLOAT"
+
+
+def test_item_settings_blender_would_change_fail():
+    for src, message in (
+            ('  return FormatString("{a b}", "a b": 1.0)', "Blender renomme l'item « a b » en « a_b »"),
+            ("  return Bake(h(couleur: 1): t).h", "item « h » : option couleur inconnue"),
+            ('  return Bake(h(attribute_domain: CIEL): t).h', "option attribute_domain de l'item « h »")):
+        out = "String" if "Format" in src else "Float"
+        try:
+            build_source(f"geometry graph essai_options(t: Float) -> {out} {{\n{src}\n}}\n", "essai.bn")
+        except BnError as e:
+            assert e.diagnostics[0].message.startswith(message), e.diagnostics[0].message
+        else:
+            raise AssertionError(src)
+
+
+ITEMS_MORE_CALLER = """geometry graph essai_items_plus(geometry: Geometry) -> Geometry {
+  texte = FormatString("{n}-{x}", n: 12, x: "ab")
+  return geometry |> StoreNamedAttribute(name: "taille", value: StringLength(texte))
+    |> StoreNamedAttribute(name: "un", value: listes(3))
+    |> StoreNamedAttribute(name: "cuit", value: cuisson(geometry, 0.25).h)
+}
+"""
+
+
+def test_more_item_nodes_compute():
+    tree = build_source(fixture("items_more.bn") + "\n" + ITEMS_MORE_CALLER, "essai.bn")[-1]
+    obj = bpy.data.objects.new("essai_plus", bpy.data.meshes.new("essai_plus"))
+    bpy.context.scene.collection.objects.link(obj)
+    mod = obj.modifiers.new("essai", "NODES")
+    mod.node_group = tree
+    obj.data.from_pydata([(0, 0, 0), (1, 0, 0), (0, 1, 0)], [], [(0, 1, 2)])
+    mesh = obj.evaluated_get(bpy.context.evaluated_depsgraph_get()).data
+    # "12-ab", item 1 of a list of indices, and a Bake with nothing baked lets its values through
+    assert mesh.attributes["taille"].data[0].value == 5
+    assert abs(mesh.attributes["un"].data[0].value - 1.0) < 1e-6
+    assert abs(mesh.attributes["cuit"].data[0].value - 0.25) < 1e-6
+
+
 def close(a, b):
     """Equal, floats to a relative 1e-5: bounds far out (±3.4e38) differ in their last digits."""
     if isinstance(a, (tuple, list)) and isinstance(b, (tuple, list)):
@@ -447,6 +527,7 @@ def test_bundled_assets_export_and_come_back_stable():
     for name in names:
         tree = bpy.data.node_groups[name]
         before = node_kinds(tree)
+        held = item_settings(tree)
         settings = interface(tree)
         written = options(tree)
         text, warnings = export_tree(tree)
@@ -464,6 +545,7 @@ def test_bundled_assets_export_and_come_back_stable():
         again, _ = export_tree(rebuilt)
         assert again == text, name
         assert node_kinds(rebuilt) == before, name
+        assert item_settings(rebuilt) == held, name
         assert all(close(a, b) for a, b in zip(interface(rebuilt), settings)), name
         assert options(rebuilt) == [d.replace('"', "'").replace("\n", " ") if isinstance(d, str) else d
                                     for d in written], name
@@ -472,8 +554,31 @@ def test_bundled_assets_export_and_come_back_stable():
     assert stats["exported"] == len(names) and stats["stable"] >= 75
 
 
+def item_settings(tree):
+    """Each item node that reaches the output, with its items and their settings."""
+    out = Counter()
+    for n in reached(tree):
+        shape = ITEM_NODES.get(n.bl_idname)
+        if shape is not None:
+            items = tuple((getattr(i, "name", None), tuple((o, plain_text(getattr(i, o))) for o in item_option_names(i, shape)
+                                         if o not in shape.field_only))
+                          for i in getattr(n, shape.collection))
+            out[(n.bl_idname, items)] += 1
+    return out
+
+
+def plain_text(v):
+    return v.replace('"', "'").replace("\n", " ") if isinstance(v, str) else v
+
+
 def node_kinds(tree):
     """Node types that reach the output, reroutes, frames and dead nodes aside."""
+    return Counter(n.bl_idname for n in reached(tree)
+                   if n.bl_idname not in ("NodeReroute", "NodeGroupInput", "NodeGroupOutput"))
+
+
+def reached(tree):
+    """The nodes that reach the active output."""
     out = next((n for n in tree.nodes if n.bl_idname == "NodeGroupOutput" and n.is_active_output), None)
     seen, stack = set(), [out] if out else []
     while stack:
@@ -485,9 +590,7 @@ def node_kinds(tree):
             for link in s.links:
                 if not link.is_muted:
                     stack.append(link.from_node)
-    nodes = [tree.nodes[n] for n in seen]
-    return Counter(n.bl_idname for n in nodes
-                   if n.bl_idname not in ("NodeReroute", "NodeGroupInput", "NodeGroupOutput"))
+    return [tree.nodes[n] for n in seen]
 
 
 def main():

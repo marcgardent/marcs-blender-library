@@ -192,16 +192,39 @@ la fois : `a < b < c` est une erreur. Un Compare ou un Math qu'aucune formule ne
 
 ### Nœuds à items
 
-Capture Attribute, Index Switch et Menu Switch reçoivent leurs items de l'appel :
+Les nœuds dont les sockets sont une liste d'items reçoivent leurs items de l'appel,
+après leurs entrées fixes :
 
 | Écrit | Items |
 |---|---|
 | `c = CaptureAttribute(geometry, hauteur: h, "Rest Position": p, domain: FACE)` | un item par valeur nommée, du type de sa valeur ; `c.hauteur` la relit |
 | `IndexSwitch(i, a, b, c)` | un item par valeur après l'index |
 | `m = MenuSwitch(mode, Lisse: a, Rugueux: b)` | un item par nom ; `m.output` est la valeur choisie, `m.lisse` vrai quand Lisse l'est |
+| `FormatString("{nom} n°{n}", nom: s, n: i)` | un item par valeur nommée (`Float`, `Int` ou `String`), lu par `{nom}` dans le format |
+| `b = Bake(Geometry: g, h: hauteur)` | un item par valeur nommée, entrée et sortie : `b.geometry`, `b.h` |
+| `l = FieldToList(n, valeur: Index())` | après le nombre d'éléments, un champ par nom ; `l.valeur` est sa liste |
+| `f = FieldToGrid(topologie, a: champ)` | après la topologie, un champ par nom (`Float`, `Int`, `Bool`, `Vector`) ; `f.a` est sa grille |
+| `r = RasterizePoints(points, densité: d, vitesse: v)` | après les entrées fixes, un item par nom, `Float` ou `Vector` ; `r.densité` |
+| `CombineList(a, b, c)` | un item par valeur ; la liste de ces valeurs |
 
-Les items d'un switch ont le type de la première valeur, ou celui de `data_type:` écrit.
-`_` laisse un item vide, sans lien ni valeur : `IndexSwitch(i, geometry, _, cube)`.
+Les items d'un switch et de Combine List ont le type de la première valeur, ou celui de
+`data_type:` écrit ; ceux des autres nœuds, chacun le type de sa valeur.
+`_` laisse un item vide, sans lien ni valeur, quand les items partagent un type :
+`IndexSwitch(i, geometry, _, cube)`.
+
+**Options d'un item.** Les autres réglages d'un item nommé s'écrivent entre parenthèses
+après son nom, sous leur nom Blender, comme les [options d'une entrée](#entrées-et-sorties) :
+
+```
+MenuSwitch(mode, Lisse(description: "Garde la géométrie telle quelle"): a, Rugueux: b)
+Bake(Geometry: g, h(attribute_domain: FACE, is_attribute: true): hauteur)
+```
+
+Une option absente garde le réglage d'un item neuf ; le nom et le type ne s'écrivent
+pas en option. Le constructeur refuse une option que l'item n'a pas, et un nom que
+Blender changerait (Format String n'accepte que des identifiants : `{a b}` deviendrait
+`a_b`). Sur un item Bake qui n'est pas un champ (une géométrie…), Blender règle
+lui-même `is_attribute` et `attribute_domain` : le texte ne les écrit pas.
 
 ### Zone Repeat
 
@@ -340,10 +363,13 @@ avertissement :
   s'écrit actif ;
 - les panneaux de l'interface, et deux entrées du même nom dans deux panneaux ;
 - les réglages d'outil de l'arbre (`is_tool`…), et le bouton de gestion du modifier ;
-- la description des items d'un Menu Switch ;
+- un item qui porte le nom d'une entrée fixe ou d'un réglage de son nœud (un item
+  « Selection » de Capture Attribute) ;
+- un item typé (Capture Attribute, Bake, Format String…) sans lien ni valeur que le texte sache
+  écrire (une géométrie non reliée) ;
 - le domaine d'un état de simulation ou d'un attribut généré par For Each, quand il
   n'est pas `POINT` ; la valeur d'un item de menu non relié ;
-- les bundles et closures, Format String, Bake, Field to List et les gizmos ;
+- les bundles et closures, Closure to List, le Viewer et les gizmos ;
 - les nœuds qui n'influencent aucune sortie.
 
 Reconstruit à sa place, un groupe garde ses panneaux, et ses modifiers et appels gardent
