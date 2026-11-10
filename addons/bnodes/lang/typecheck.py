@@ -438,9 +438,19 @@ class GraphChecker:
         self.env[stmt.name] = value
 
     def look(self, node, look):
-        """`@ mute`: the Blender properties of how a node is shown."""
-        if look is not None:
-            node.look.update((flag, True) for flag in look.flags)
+        """`@ "Label" #color hide mute`: the Blender properties of how a node is shown."""
+        if look is None:
+            return
+        if look.label is not None:
+            node.look["label"] = look.label
+        if look.color is not None:
+            color = colors.rgb(look.color[1:])
+            if color is None:
+                self.error(look, f"couleur « {look.color} » inconnue : #rrggbb, #rgb ou un nom CSS (#orange, #teal…)")
+            else:
+                node.look["use_custom_color"] = True
+                node.look["color"] = color
+        node.look.update((flag, True) for flag in look.flags)
 
     def return_stmt(self, stmt, gout):
         gout.line, gout.col = stmt.line, stmt.col

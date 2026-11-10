@@ -143,14 +143,24 @@ continue pas.
 ### Présentation d'un nœud
 
 Une instruction peut finir par `@` suivi de la présentation du nœud qu'elle fait, celui
-que son nom désigne (le dernier d'un `|>`) :
+que son nom désigne (le dernier d'un `|>`). Chaque partie est facultative, dans cet
+ordre, sur la ligne du `@` :
 
 ```
-plus = SetPosition(geometry, offset: centre) @ mute
-return h @ mute
+p = Position() @ hide
+h = sin(p.x + t) * 0.2 @ "Hauteur" #e07030
+plus = SetPosition(geometry, offset: centre) @ #orange hide mute
+return h @ "Fin"
 ```
 
+- `"Libellé"` : le titre affiché du nœud, à la place de son nom de type ;
+- `#couleur` : sa couleur, écrite comme celle d'un frame ;
+- `hide` : le nœud est replié ;
 - `mute` : le nœud est désactivé ; il laisse passer sa première entrée.
+
+Un nœud présenté autrement qu'un nœud neuf est toujours une instruction nommée : un nœud
+écrit dans une expression n'a pas de place pour sa présentation. Un arbre sans
+présentation particulière s'écrit sans aucun `@`.
 
 Après `return`, la présentation est celle du Group Output (ou, dans une zone Repeat,
 celle de sa sortie). Une instruction qui ne fait pas de nœud à elle (`a = b`) n'en prend
@@ -304,7 +314,9 @@ Formater garde les commentaires et les lignes vides entre instructions.
 Tree → Text écrit tout l'arbre, sauf ce qui suit, qu'il signale chaque fois par un
 avertissement :
 
-- la présentation des nœuds : libellé, couleur, nœud replié ; un Group Input désactivé ;
+- la présentation des Group Input (libellé, couleur, replié), que le texte n'a pas en
+  nœuds, et celle du nœud d'entrée d'une zone Repeat (celle de sa sortie s'écrit sur le
+  `return` de son bloc) ;
 - les panneaux de l'interface, et deux entrées du même nom dans deux panneaux ;
 - les réglages d'outil de l'arbre (`is_tool`…), et le bouton de gestion du modifier ;
 - la description des items d'un Menu Switch ;

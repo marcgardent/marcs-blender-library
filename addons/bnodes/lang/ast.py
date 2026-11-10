@@ -99,10 +99,12 @@ class Not:
 
 @dataclass
 class Look:
-    """`@ mute` after a statement: how the node it makes is shown in the editor."""
-    flags: list  # of words: mute
+    """`@ "Label" #color hide mute` after a statement: how the node it makes is shown in the editor."""
+    flags: list  # of words: hide, mute
     line: int
     col: int
+    label: str | None = None
+    color: object = None  # the color's text with its `#`, or None; an (r, g, b) when read from a tree
 
 
 @dataclass

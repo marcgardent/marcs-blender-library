@@ -199,26 +199,34 @@ class GraphReader:
             flags.insert(0, "is_modifier")
         if flags:
             self.warn(f"réglages de l'arbre non exportés : {', '.join(flags)}")
-        looks = Counter()
+        # What `@ …` could not carry: the Group Input nodes, which the text has none of
+        looks = {"": Counter(), "NodeGroupInput": Counter()}
         for n in self.tree.nodes:
             if n.bl_idname in SKIP or n.name in self.shown:
                 continue
             if n.mute:
                 self.warn(f"« {n.name} » est désactivé (mute) ; le texte l'exporte actif")
-            looks["libellé"] += bool(n.label)
-            looks["couleur"] += n.use_custom_color
-            looks["replié"] += n.hide
-        if +looks:
-            self.warn("présentation non exportée : " + ", ".join(f"{k} ({v})" for k, v in looks.items() if v))
+            counts = looks.get(n.bl_idname, looks[""])
+            counts["libellé"] += bool(n.label)
+            counts["couleur"] += n.use_custom_color
+            counts["replié"] += n.hide
+        for kind, counts in looks.items():
+            if +counts:
+                what = "des Group Input " if kind else ""
+                self.warn(f"présentation {what}non exportée : " + ", ".join(f"{k} ({v})" for k, v in counts.items() if v))
 
     # Looks
 
     def look(self, node):
-        """`@ mute` for a node shown otherwise than a new one, else None."""
+        """`@ "Label" #color hide mute` for a node shown otherwise than a new one, else None."""
         if node.bl_idname in ("NodeGroupInput", REPEAT_INPUT):
             return None  # not a statement of the text
-        flags = ["mute"] if node.mute else []
-        return ast.Look(flags, 0, 0) if flags else None
+        label = node.label.replace('"', "'").replace("\n", " ") or None
+        color = tuple(node.color) if node.use_custom_color else None
+        flags = [f for f in ("hide", "mute") if getattr(node, f)]
+        if label is None and color is None and not flags:
+            return None
+        return ast.Look(flags, 0, 0, label, color)
 
     def looked(self, node):
         """The look of a node as it is written, which the text then holds."""

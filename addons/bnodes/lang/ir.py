@@ -31,7 +31,7 @@ class Node:
     frame: str | None = None  # id of the frame it sits in
     items: list | None = None  # (name, type) of a zone's items, on both nodes of the zone
     pair: str | None = None    # on a zone's input node: the id of its output node
-    look: dict = field(default_factory=dict)  # Blender property -> value: mute, how it is shown
+    look: dict = field(default_factory=dict)  # Blender property -> value: label, color, hide, mute
 
 
 @dataclass

@@ -137,7 +137,10 @@ def looked(lines, look):
 
 
 def look_text(look):
-    return "@ " + " ".join(look.flags)
+    """`@ "Label" #color hide mute`, each part only when there is one."""
+    color = look.color if look.color is None or isinstance(look.color, str) else "#" + colors.spell(look.color)
+    return " ".join(["@"] + [part for part in (look.label is not None and quote(look.label), color) if part]
+                    + look.flags)
 
 
 def repeat_head(s, pad):

@@ -8,7 +8,10 @@ from lang.printer import to_source
 
 LOOKS = """geometry graph g(geometry: Geometry, t: Float) -> Geometry {
   p = Position() @ mute
-  vue = SetPosition(geometry, offset: p)
+  vue = SetPosition(geometry, offset: p) @ "Vue" #e07030 hide
+  "Bloc" {
+    c = CombineXYZ(z: t) @ #teal
+  }
   h = geometry |> SetPosition(offset: p)
     |> SubdivideMesh(2) @ mute
   return h @ mute
@@ -31,7 +34,9 @@ def test_a_look_goes_on_the_node_its_statement_makes(schema):
     assert by_name["p"].look == {"mute": True}
     # On a pipe, the node of the last stage, which the name binds
     assert by_name["h"].bl_idname == "GeometryNodeSubdivideMesh" and by_name["h"].look == {"mute": True}
-    assert by_name["vue"].look == {}
+    assert by_name["vue"].look == {"label": "Vue", "use_custom_color": True,
+                                   "color": (224 / 255, 112 / 255, 48 / 255), "hide": True}
+    assert by_name["c"].look == {"use_custom_color": True, "color": (0.0, 128 / 255, 128 / 255)}
     assert g.node("group_output").look == {"mute": True}
 
 
@@ -47,14 +52,22 @@ def test_a_look_needs_a_node_of_its_own(schema):
         compile_source(src, schema, "t.bn")
 
 
-def test_a_word_that_starts_the_next_statement_is_no_flag():
-    src = "geometry graph g(geometry: Geometry) -> Geometry {\n  a = Position() @ mute\n  mute = a\n  return geometry\n}\n"
-    (stmt, alias, _ret) = parse(src).graphs[0].body
-    assert stmt.look.flags == ["mute"] and alias.name == "mute"
+def test_the_next_line_is_the_next_statement():
+    src = ("geometry graph g(geometry: Geometry) -> Geometry {\n  a = Position() @ mute\n  hide = a\n"
+           "  b = Position() @ \"B\"\n  #red {\n    c = b\n  }\n  return geometry\n}\n")
+    (stmt, alias, b, frame, _ret) = parse(src).graphs[0].body
+    assert stmt.look.flags == ["mute"] and alias.name == "hide"
+    assert (b.look.label, b.look.color) == ("B", None) and frame.color == "#red"
+
+
+def test_an_unknown_look_color_is_an_error(schema):
+    src = "geometry graph g(geometry: Geometry) -> Geometry {\n  a = Position() @ #nope\n  return geometry\n}\n"
+    with pytest.raises(BnError, match="couleur « #nope » inconnue"):
+        compile_source(src, schema, "t.bn")
 
 
 def test_an_empty_look_is_an_error():
-    with pytest.raises(BnError, match="après @ : mute"):
+    with pytest.raises(BnError, match="après @, sur sa ligne"):
         parse("geometry graph g(geometry: Geometry) -> Geometry {\n  a = Position() @\n  return geometry\n}\n")
     with pytest.raises(BnError, match="donné deux fois"):
         parse("geometry graph g(geometry: Geometry) -> Geometry {\n  a = Position() @ mute mute\n  return geometry\n}\n")

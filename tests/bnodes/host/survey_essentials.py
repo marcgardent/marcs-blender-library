@@ -37,6 +37,8 @@ def cause(warning):
         return "guillemets et retours à la ligne dans un texte"
     if "désactivé (mute)" in warning:
         return "nœud désactivé"
+    if "présentation des Group Input" in warning:
+        return "présentation des Group Input"
     if "présentation non exportée" in warning:
         return "présentation (libellés, couleurs, nœuds repliés)"
     if "panneaux de l'interface" in warning:

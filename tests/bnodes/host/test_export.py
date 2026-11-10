@@ -340,14 +340,44 @@ def test_a_node_left_aside_by_hand_is_written():
     assert tree.nodes["h"].mute and export_tree(tree) == (text, [])
 
 
-def test_panels_and_looks_are_reported():
+def test_looks_come_back_identical():
+    src = fixture("looks.bn")
+    (tree,) = build_source(src, "looks.bn")
+    h = tree.nodes["h"]
+    assert h.label == "Hauteur" and h.use_custom_color and tuple(round(c, 3) for c in h.color) == (0.878, 0.439, 0.188)
+    assert tree.nodes["p"].hide and tree.nodes["décalage"].mute and tree.nodes["Group Output"].label == "Fin"
+    text, warnings = export_tree(tree)
+    assert (text, warnings) == (src, []), (text, warnings)
+
+
+def test_a_node_with_a_look_gets_a_name():
+    (tree,) = build_source(fixture("wave.bn"), "wave.bn")
+    sine = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeMath" and n.operation == "SINE")
+    sine.label, sine.hide = "Onde", True
+    text, warnings = export_tree(tree)
+    assert '  math = sin(p.x + t) @ "Onde" hide\n  h = math * 0.2\n' in text and warnings == [], (text, warnings)
+
+
+def test_a_repeat_shows_its_look_on_its_return():
+    trees = build_source(fixture("repeat.bn"), "repeat.bn")
+    rout = next(n for n in trees[0].nodes if n.bl_idname == "GeometryNodeRepeatOutput")
+    rout.hide = True
+    text, warnings = export_tree(trees[0])
+    assert " @ hide\n" in text and warnings == [], (text, warnings)
+    (tree, *_rest) = build_source(text, "repeat.bn")
+    assert next(n for n in tree.nodes if n.bl_idname == "GeometryNodeRepeatOutput").hide
+    assert export_tree(tree) == (text, [])
+
+
+def test_panels_and_unwritten_looks_are_reported():
     (tree,) = build_source(fixture("wave.bn"), "wave.bn")
     tree.interface.new_panel("Réglages")
-    node = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeMath")
-    node.label, node.hide = "Hauteur", True
+    # The text has no Group Input node of its own to show otherwise
+    group_input = tree.nodes["Group Input"]
+    group_input.use_custom_color, group_input.hide = True, True
     _text, warnings = export_tree(tree)
     assert any("panneaux de l'interface (Réglages)" in w for w in warnings), warnings
-    assert any("présentation non exportée : libellé (1), replié (1)" in w for w in warnings), warnings
+    assert any("présentation des Group Input non exportée : couleur (1), replié (1)" in w for w in warnings), warnings
 
 
 ITEMS_CALLER = """geometry graph essai_items(geometry: Geometry) -> Geometry {
@@ -440,9 +470,12 @@ def test_bundled_assets_export_and_come_back_stable():
 
 
 def node_kinds(tree):
-    """Node types, and which are muted: every node, reroutes, frames and group inputs aside."""
-    return Counter((n.bl_idname, n.mute) for n in tree.nodes
-                   if n.bl_idname not in ("NodeReroute", "NodeFrame", "NodeGroupInput"))
+    """Node types and how each is shown: every node, reroutes, frames and group inputs aside.
+
+    Colors to the 8 bits of the `#rrggbb` the text writes them with."""
+    return Counter((n.bl_idname, n.mute, n.hide, n.label.replace('"', "'"),
+                    tuple(round(c * 255) for c in n.color) if n.use_custom_color else None)
+                   for n in tree.nodes if n.bl_idname not in ("NodeReroute", "NodeFrame", "NodeGroupInput"))
 
 
 def main():

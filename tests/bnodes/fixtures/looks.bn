@@ -1,0 +1,8 @@
+geometry graph vague(geometry: Geometry, t: Float) -> Geometry {
+  p = Position() @ hide
+  "Onde" #teal {
+    h = sin(p.x + t) * 0.2 @ "Hauteur" #e07030
+  }
+  décalage = CombineXYZ(z: h) @ #orange hide mute
+  return SetPosition(geometry, offset: décalage) @ "Fin"
+}

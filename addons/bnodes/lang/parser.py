@@ -11,8 +11,8 @@ from .lexer import tokenize
 from .sugar import COMPARE, WORDS
 
 
-# What may follow `@`: the words of a node's look
-LOOK_FLAGS = ("mute",)
+# The words of a node's look after `@`, in the order they are printed
+LOOK_FLAGS = ("hide", "mute")
 
 
 def parse(source, filename="<text>"):
@@ -177,19 +177,23 @@ class Parser:
         self.fail(f"instruction attendue (nom = …, return, ou un frame \"titre\" {{ … }}), trouvé {describe(t)}")
 
     def look(self):
-        """`@ mute` at the end of a statement, or None."""
+        """`@ "Label" #color hide mute` at the end of a statement, each part optional, or None.
+
+        The parts are on the line of the `@`: what the next line starts is the next statement.
+        """
         at = self.accept("@")
         if at is None:
             return None
+        label = self.accept("STRING") if self.tok.line == at.line else None
+        color = self.accept("COLOR") if self.tok.line == at.line else None
         flags = []
-        # A word the next statement starts with is no flag: `mute = …`
-        while self.at("IDENT") and self.tok.text in LOOK_FLAGS and self.peek().kind not in ("=", ":"):
+        while self.at("IDENT") and self.tok.text in LOOK_FLAGS and self.tok.line == at.line:
             if self.tok.text in flags:
                 self.fail(f"« {self.tok.text} » donné deux fois")
             flags.append(self.advance().text)
-        if not flags:
-            self.fail(f"après @ : {', '.join(LOOK_FLAGS)}")
-        return ast.Look(flags, at.line, at.col)
+        if label is None and color is None and not flags:
+            self.fail(f"après @, sur sa ligne : un \"libellé\", une #couleur, {', '.join(LOOK_FLAGS)}")
+        return ast.Look(flags, at.line, at.col, label and label.text, color and color.text)
 
     def frame(self):
         t = self.tok
