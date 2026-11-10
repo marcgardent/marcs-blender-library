@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from . import ast, colors, ir, sugar
 from .errors import BnError, Diagnostic
 from .parser import parse
-from .schema import DATABLOCKS, IMPLICIT, NO_DEFAULT, RANGED, STRICT, TREE_KINDS, TYPES, Socket, can_link, key
+from .schema import (DATABLOCKS, FIELD_TYPES, IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_DEFAULT, NO_VALUE, RANGED, STRICT,
+                     TREE_KINDS, TYPES, Socket, can_link, key)
 
 GROUP_NODES = {
     "geometry": "GeometryNodeGroup",
@@ -729,7 +730,12 @@ class GraphChecker:
                 else:
                     rest.append((name, v, a))
             named = rest
-            inputs, outputs = self.schema.sockets(self.g.kind, spec, node.props)
+            if spec.bl_idname in ITEM_NODES:
+                inputs, outputs = self.item_sockets(c, spec, node, positional, named)
+                if inputs is None:
+                    return None
+            else:
+                inputs, outputs = self.schema.sockets(self.g.kind, spec, node.props)
 
         node.n_inputs, node.n_outputs = len(inputs), len(outputs)
         self.nodes.append(node)
@@ -764,6 +770,62 @@ class GraphChecker:
             self.connect(node, sock, v, a, c.name)
 
         return Out(node.id, outputs, None, c.name)
+
+    def item_sockets(self, c, spec, node, positional, named):
+        """(inputs, outputs) of a node whose items the call makes, which it records in node.items."""
+        shape = ITEM_NODES[spec.bl_idname]
+        fixed = self.schema.sockets(self.g.kind, spec, node.props)[0][:shape.inputs]
+        if shape.named:
+            if len(positional) > shape.inputs:
+                self.error(positional[shape.inputs][1], f"{c.name} : les valeurs se donnent par nom, "
+                                                        f"{c.name}(…, nom: valeur)")
+                return None, None
+            given = [(n, v, a) for n, v, a in named if find_socket(fixed, n) is None]
+            named[:] = [(n, v, a) for n, v, a in named if find_socket(fixed, n) is not None]
+        else:
+            given = [(str(k), v, a) for k, (v, a) in enumerate(positional[shape.inputs:])]
+            del positional[shape.inputs:]
+        items, values = [], []
+        for name, v, a in given:
+            if key(name) in {key(n) for n, _t in items}:
+                self.error(a, f"{c.name} : « {name} » donné deux fois")
+                continue
+            if isinstance(v, Sym) and v.name == NO_VALUE and not shape.typed:
+                # An empty item: no link, its default value (an empty geometry…)
+                items.append((name, None))
+                continue
+            if isinstance(v, Sym):
+                self.error(a, f"nom inconnu « {v.name} »")
+                continue
+            if v is not None:
+                items.append((name, value_type(v)))
+                values.append((name, v, a))
+        if shape.typed:
+            for (name, t), (_n, _v, a) in zip(items, values):
+                if t not in FIELD_TYPES:
+                    self.error(a, f"{c.name} ne capture pas un {t} ; types : {', '.join(FIELD_TYPES)}")
+                    return None, None
+        else:
+            # The items share the node's data_type: written, or the type of the first one
+            chosen = node.props.get("data_type")
+            typed = [t for _n, t in items if t is not None]
+            t = DATA_TYPES.get(chosen) if chosen else typed[0] if typed else "Float"
+            if t not in ITEM_TYPES:
+                self.error(c, f"{c.name} : pas d'items de type {chosen or t}")
+                return None, None
+            node.props["data_type"] = ITEM_TYPES[t]
+            items = [(name, t) for name, _t in items]
+        node.items = items
+        inputs, outputs = self.schema.sockets(self.g.kind, spec, node.props)
+        sockets = [Socket(name, name, t) for name, t in items]
+        if shape.named:
+            named += values
+        else:
+            # Each value to its own item: an empty one in between is skipped by name
+            named += [(name, v, a) for name, v, a in values]
+        flags = [Socket(name, name, "Bool") for name, _t in items] if shape.flags else []
+        return (inputs[:shape.inputs] + sockets,
+                outputs[:shape.outputs] + (sockets if shape.typed else flags))
 
     def existing_group(self, c):
         """A node group of the file with that key, when the text does not define one."""
@@ -837,10 +899,8 @@ class GraphChecker:
 
 
 # Text type -> the socket type of a Repeat zone item
-REPEAT_ITEMS = {"Float": "FLOAT", "Int": "INT", "Bool": "BOOLEAN", "Vector": "VECTOR", "Color": "RGBA",
-                "Rotation": "ROTATION", "Matrix": "MATRIX", "String": "STRING", "Menu": "MENU",
-                "Geometry": "GEOMETRY", "Object": "OBJECT", "Collection": "COLLECTION", "Material": "MATERIAL",
-                "Image": "IMAGE", "Texture": "TEXTURE", "Bundle": "BUNDLE", "Closure": "CLOSURE"}
+REPEAT_ITEMS = {t: v for t, v in ITEM_TYPES.items() if t != "Shader"}
+DATA_TYPES = {v: t for t, v in ITEM_TYPES.items()}
 
 
 def plus_terms(e):

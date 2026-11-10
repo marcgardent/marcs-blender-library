@@ -36,6 +36,9 @@ SOCKET_TYPES = {
 
 PROP_KINDS = {"ENUM", "BOOLEAN", "INT", "FLOAT", "STRING"}
 
+# Where the item list of a node stands in its panel: the editor's, not the tree's
+UI_PROPS = {"active_index"}
+
 # Per Blender version: {kind: {text name: NodeSpec}}, and the socket memo
 _specs = {}
 _sockets = {}
@@ -98,7 +101,7 @@ class BlenderSchema:
                 continue  # not available in this tree kind
             props = {}
             for p in node.bl_rna.properties:
-                if p.identifier in base or p.type not in PROP_KINDS or p.is_readonly:
+                if p.identifier in base or p.type not in PROP_KINDS or p.is_readonly or p.identifier in UI_PROPS:
                     continue
                 if getattr(p, "is_array", False) or getattr(p, "array_length", 0):
                     continue  # a color or a vector property: not in the text yet

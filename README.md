@@ -159,6 +159,12 @@ geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
   module, et Tree → Text réécrit le `use` au lieu de recopier ses graphs. Les groupes
   déjà dans le fichier (un asset ajouté, les Essentials de Blender) s'appellent aussi
   par leur nom en snake_case : `smooth_by_angle(mesh, angle: 0.5)`.
+- Les nœuds à items reçoivent leurs items de l'appel. `CaptureAttribute(geometry,
+  hauteur: h, domain: FACE)` capture chaque valeur nommée (`c.hauteur` la relit).
+  `IndexSwitch(i, a, b, c)` donne un item par valeur. `MenuSwitch(mode, Lisse: a,
+  Rugueux: b)` donne un item par nom ; `m.lisse` est vrai quand il est choisi. Le type
+  des items est celui de la première valeur, sauf `data_type:` écrit. `_` laisse un item
+  vide (sans lien ni valeur, une géométrie vide par exemple).
 - `"Bruit" #orange { … }` met dans un frame les nœuds des instructions du bloc. Titre
   et couleur sont facultatifs (`#e07030 { … }`, `{ … }`). La couleur s'écrit en hexa
   (`#e07030`, `#e73`) ou par un des 148 noms CSS (`#orange`, `#teal`, `#tomato`…).
@@ -198,9 +204,8 @@ arbres construits avec **Add as Modifier** et **Tree → Text**, cases **Sync Se
 - Erreur dans le texte : rien n'est modifié, le curseur va sur la première erreur.
 - Text Editor et Node Editor côte à côte : cliquer un nœud place le curseur sur sa
   ligne, et déplacer le curseur sélectionne les nœuds de la ligne.
-- Pas encore pris en charge : zones Simulation et For Each, nœuds aux sockets ajoutés
-  à la main (Capture Attribute, Bake, Menu Switch…, signalés à l'export), shaders et
-  compositing.
+- Pas encore pris en charge : zones Simulation et For Each, bundles et closures,
+  Format String, Bake et Field to List (signalés à l'export), shaders et compositing.
 
 ## Installation locale (clone git)
 

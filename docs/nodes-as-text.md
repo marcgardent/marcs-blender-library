@@ -30,6 +30,7 @@ le modifier.
 | `< <= > >= == !=` | Compare |
 | `and`, `or`, `xor`, `not` | Boolean Math (`and` lie plus fort que `or` et `xor`) |
 | `rocher_brut(1.0, 4).mesh` | l'appel d'un autre graph du fichier |
+| `CaptureAttribute(g, hauteur: h)`, `IndexSwitch(i, a, b)`, `MenuSwitch(mode, Lisse: a, Vide: _)` | un item par valeur ; `_` laisse un item vide |
 | `use maths`, `use maths (fbm) from "//lib/maths.bn"` | en tête : les graphs d'un autre texte, d'un fichier |
 | `smooth_by_angle(mesh, angle: 0.5)` | l'appel d'un groupe déjà dans le `.blend` |
 | `"Titre" #couleur { … }`, `#e07030 { … }`, `{ … }` | un frame autour des nœuds du bloc |
@@ -180,10 +181,9 @@ geometry graph rochers(sol: Geometry, densité: Float, graine: Int) -> Geometry 
 
 ## Ce que le texte ne sait pas encore écrire
 
-Les zones Simulation et For Each, les nœuds aux sockets ajoutés à la main
-(Capture Attribute, Bake, Menu Switch…), le sous-type des entrées (Factor, Distance…),
-les arbres de shaders et de compositing. « Tree → Text » les signale par un
-avertissement.
+Les zones Simulation et For Each, les bundles et closures, Format String, Bake et Field
+to List, le sous-type des entrées (Factor, Distance…), les panneaux de l'interface, les
+arbres de shaders et de compositing. « Tree → Text » les signale par un avertissement.
 
 Les images de cette page sont prises par
 `blender --factory-startup --python tests/bnodes/gui/shoot_examples.py -- docs/images`.

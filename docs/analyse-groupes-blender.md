@@ -12,13 +12,13 @@ sous-groupes internes (nom en `.xxx` ou sans catalogue).
 
 | Fichier | Groupes | Assets | Relus sans avertissement |
 |---|---|---|---|
-| `geometry_nodes_essentials.blend` | 33 | 27 | 21 |
-| `procedural_hair_node_assets.blend` | 32 | 22 | 9 |
+| `geometry_nodes_essentials.blend` | 33 | 27 | 24 |
+| `procedural_hair_node_assets.blend` | 32 | 22 | 11 |
 | `geometry_nodes_dynamics_assets.blend` (simulation) | 55 | 6 | 21 |
-| `principal_components.blend` | 2 | 2 | 1 |
+| `principal_components.blend` | 2 | 2 | 2 |
 | `compositing_nodes_essentials.blend` | 24 | 17 | 18 |
 | `shading_nodes_essentials.blend` | 4 | 4 | 4 |
-| **Total** | **150** | **78** | **74** |
+| **Total** | **150** | **78** | **80** |
 
 Par usage :
 
@@ -63,25 +63,26 @@ comble ce manque.
 
 ## Ce que le texte ne sait pas encore relire
 
-76 groupes sur 150 donnent un avertissement à la relecture (80 avant que Nodes as Text
-0.4 écrive les zones Repeat). Nombre de groupes touchés, par cause :
+70 groupes sur 150 donnent un avertissement à la relecture. Ils étaient 80 avant les
+zones Repeat, 76 avant Capture Attribute, Menu Switch et Index Switch. Nombre de
+groupes touchés, par cause :
 
 | Cause | Groupes |
 |---|---|
-| Capture Attribute (sockets ajoutés à la main) | 31 |
 | Frame coupé en deux par ses liens | 29 |
-| Menu Switch | 26 |
 | Nœuds sans effet sur la sortie (non exportés) | 23 |
+| Deux entrées ou sorties du même nom, dans deux panneaux | 18 |
 | Combine / Separate Bundle | 17 |
 | Closures (zone et Evaluate Closure) | 15 |
-| Index Switch | 13 |
-| Format String, Field to List, zone Simulation | 3 à 5 |
+| Description des items d'un Menu Switch | 13 |
+| Format String, Field to List, zone Simulation, gizmos | 1 à 5 |
 
 Sept groupes n'ont que des avertissements de forme (frame coupé, nœuds morts), dont Box
-Selection et Sphere Selection. Pour Nodes as Text, l'ordre qui libère le plus de
-groupes : **Capture Attribute**, puis **Menu Switch** et **Index Switch**. Les zones
-**Repeat** se relisent depuis la 0.4 : 4 groupes de plus se reconstruisent à l'identique
-depuis leur texte. Les bundles et closures ne servent qu'à la simulation.
+Selection et Sphere Selection. Les zones **Repeat**, **Capture Attribute**, **Menu
+Switch** et **Index Switch** se relisent : sur les 122 arbres Geometry Nodes, 77 se
+reconstruisent à l'identique depuis leur texte (57 avant ces trois nœuds). Les noms
+répétés et les descriptions viennent des panneaux et des infobulles, que le texte
+n'écrit pas encore. Les bundles et closures ne servent qu'à la simulation.
 
 À noter : les arbres de shaders et de compositing se relisent aussi (`shader graph`,
 `compositor graph`), alors que la construction n'est garantie que pour Geometry Nodes.

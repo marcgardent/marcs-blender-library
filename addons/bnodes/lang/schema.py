@@ -56,11 +56,51 @@ RANGED = {"Float", "Int", "Vector"}
 # Types with no default value in text: links only
 NO_DEFAULT = {"Geometry", "Shader", "Bundle", "Closure", "Matrix"}
 
+# Text type -> the socket type of an item (zone, Capture Attribute) or a node's data_type (switches)
+ITEM_TYPES = {"Float": "FLOAT", "Int": "INT", "Bool": "BOOLEAN", "Vector": "VECTOR", "Color": "RGBA",
+              "Rotation": "ROTATION", "Matrix": "MATRIX", "String": "STRING", "Menu": "MENU",
+              "Geometry": "GEOMETRY", "Shader": "SHADER", "Object": "OBJECT", "Collection": "COLLECTION",
+              "Material": "MATERIAL", "Image": "IMAGE", "Texture": "TEXTURE", "Bundle": "BUNDLE",
+              "Closure": "CLOSURE"}
+
+# What a Capture Attribute can hold: fields only
+FIELD_TYPES = ("Float", "Int", "Bool", "Vector", "Color", "Rotation", "Matrix")
+
+
+@dataclass(frozen=True)
+class ItemNode:
+    """A node whose sockets are a list of items, after a few fixed ones.
+
+    The call makes the items: one per named value (`CaptureAttribute(g, hauteur: h)`,
+    `MenuSwitch(mode, Lisse: a, Rugueux: b)`), or one per value after the fixed
+    inputs (`IndexSwitch(i, a, b, c)`).
+    """
+    collection: str  # the node's item collection, e.g. capture_items
+    inputs: int      # fixed inputs before the items
+    outputs: int     # fixed outputs before the items
+    named: bool      # items given by name, else by position
+    typed: bool      # each item has its own type, else the node's data_type is theirs
+    flags: bool      # one Bool output per item (Menu Switch), else one of its type when typed
+
+
+ITEM_NODES = {
+    "GeometryNodeCaptureAttribute": ItemNode("capture_items", 2, 2, named=True, typed=True, flags=False),
+    "GeometryNodeIndexSwitch": ItemNode("index_switch_items", 1, 1, named=False, typed=False, flags=False),
+    "GeometryNodeMenuSwitch": ItemNode("enum_items", 1, 1, named=True, typed=False, flags=True),
+}
+
+# An item left without a link or a value: `MenuSwitch(mode, Lisse: a, Vide: _)`
+NO_VALUE = "_"
+
 RESERVED = {"graph", "return", "true", "false", "and", "or", "xor", "not", "dot", "cross", "repeat"}
 
 
+# Links Blender converts although one side is strict
+CONVERSIONS = {("Rotation", "Matrix")}
+
+
 def can_link(src, dst):
-    return src == dst or (src not in STRICT and dst not in STRICT)
+    return src == dst or (src not in STRICT and dst not in STRICT) or (src, dst) in CONVERSIONS
 
 
 def snake(name):

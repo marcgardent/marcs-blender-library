@@ -252,6 +252,41 @@ def test_rebuilding_a_repeat_keeps_one_zone():
     assert abs(rin.inputs["pas"].default_value - 0.25) < 1e-6
 
 
+def test_item_nodes_come_back_identical():
+    src = fixture("items.bn")
+    trees = build_source(src, "items.bn")
+    text = "\n".join(export_tree(t)[0] for t in trees)
+    assert text == src, text
+    assert all(export_tree(t)[1] == [] for t in trees)
+    relief = trees[0]
+    capture = next(n for n in relief.nodes if n.bl_idname == "GeometryNodeCaptureAttribute")
+    assert [(i.name, i.data_type) for i in capture.capture_items] == [("hauteur", "FLOAT"), ("Rest Position", "FLOAT_VECTOR")]
+    switch = next(n for n in relief.nodes if n.bl_idname == "GeometryNodeMenuSwitch")
+    assert [i.name for i in switch.enum_items] == ["Lisse", "Rugueux"]
+
+
+ITEMS_CALLER = """geometry graph essai_items(geometry: Geometry) -> Geometry {
+  r = relief(MeshGrid(2.0, 2.0, 3, 3) |> SetPosition(offset: CombineXYZ(z: 0.5)), Lisse, 1)
+  return r.geometry |> StoreNamedAttribute(name: "v", value: r.v)
+    |> StoreNamedAttribute(name: "lisse", value: r.lisse)
+    |> StoreNamedAttribute(name: "cubes", value: AttributeDomainSize(géométries(geometry, 1)).point_count)
+}
+"""
+
+
+def test_item_nodes_compute():
+    tree = build_source(fixture("items.bn") + "\n" + ITEMS_CALLER, "essai.bn")[-1]
+    obj = bpy.data.objects.new("essai", bpy.data.meshes.new("essai"))
+    bpy.context.scene.collection.objects.link(obj)
+    obj.modifiers.new("essai", "NODES").node_group = tree
+    mesh = obj.evaluated_get(bpy.context.evaluated_depsgraph_get()).data
+    # Index 1 picks the captured height; Lisse leaves the grid where it was
+    assert all(abs(d.value - 0.5) < 1e-6 for d in mesh.attributes["v"].data)
+    assert all(d.value for d in mesh.attributes["lisse"].data)
+    assert all(abs(v.co.z - 0.5) < 1e-6 for v in mesh.vertices) and len(mesh.vertices) == 9
+    assert mesh.attributes["cubes"].data[0].value == 8
+
+
 def close(a, b):
     """Equal, floats to a relative 1e-5: bounds far out (±3.4e38) differ in their last digits."""
     if isinstance(a, (tuple, list)) and isinstance(b, (tuple, list)):
@@ -302,7 +337,7 @@ def test_bundled_assets_export_and_come_back_stable():
         assert all(close(a, b) for a, b in zip(interface(rebuilt), settings)), name
         stats["stable"] += 1
     print("   bundled trees:", dict(stats))
-    assert stats["exported"] == len(names) and stats["stable"] >= 50
+    assert stats["exported"] == len(names) and stats["stable"] >= 75
 
 
 def node_kinds(tree):

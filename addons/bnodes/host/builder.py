@@ -12,7 +12,7 @@ from .. import lang
 from ..lang import ir
 from ..lang.errors import BnError, Diagnostic
 from ..lang.layout import layout
-from ..lang.schema import TYPES
+from ..lang.schema import ITEM_NODES, ITEM_TYPES, TYPES
 from ..lang.typecheck import REPEAT_ITEMS
 from . import modules
 from .schema import TREE_TYPES, BlenderSchema, fresh_item
@@ -182,6 +182,8 @@ class Builder:
                 items.clear()
                 for name, type in n.items:
                     items.new(REPEAT_ITEMS[type], name)
+            elif n.items is not None and n.bl_idname in ITEM_NODES:
+                self.items(nodes[n.id], n)
 
         for n in g.nodes:
             node = nodes[n.id]
@@ -203,6 +205,18 @@ class Builder:
                 if not made.is_valid:
                     self.fail(n, f"Blender refuse le lien {src.name} ({src.type}) → {dst.name} ({dst.type})")
 
+    def items(self, node, n):
+        """The items of a Capture Attribute or a switch, in the order of the text."""
+        items = getattr(node, ITEM_NODES[n.bl_idname].collection)
+        items.clear()
+        for name, type in n.items:
+            if n.bl_idname == "GeometryNodeCaptureAttribute":
+                items.new(ITEM_TYPES[type], name)
+            elif n.bl_idname == "GeometryNodeMenuSwitch":
+                items.new(name)
+            else:
+                items.new()
+
     def socket(self, g, n, node, ident, side):
         """A Blender socket from its text identifier.
 
@@ -222,6 +236,15 @@ class Builder:
             io = "INPUT" if side == "inputs" else "OUTPUT"
             names = [(i.name, None) for i in node.node_tree.interface.items_tree
                      if i.item_type == "SOCKET" and i.in_out == io]
+        elif n.items is not None and n.bl_idname in ITEM_NODES:
+            # The fixed sockets by identifier, then the items by position
+            shape = ITEM_NODES[n.bl_idname]
+            sockets = [s for s in sockets if s.type != "CUSTOM"]
+            fixed = shape.inputs if side == "inputs" else shape.outputs
+            found = next((s for s in sockets[:fixed] if s.identifier == ident), None)
+            if found is not None:
+                return found
+            return sockets[fixed + [name for name, _t in n.items].index(ident)]
         elif n.items is not None:
             # Zone items are numbered by Blender too; the input node has the count first
             names = n.items

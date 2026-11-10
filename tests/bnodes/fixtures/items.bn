@@ -1,0 +1,19 @@
+geometry graph relief(
+    geometry: Geometry,
+    mode: Menu = Rugueux,
+    i: Int
+) -> (Geometry: Geometry, v: Float, lisse: Bool) {
+  c = CaptureAttribute(geometry, hauteur: Position().z, "Rest Position": Position(), domain: FACE)
+  "Choix" #steelblue {
+    s = IndexSwitch(i, 0.5, c.hauteur, 2.0)
+    m = MenuSwitch(
+      mode,
+      Lisse: c.geometry,
+      Rugueux: SetPosition(c.geometry, offset: c.rest_position))
+  }
+  return (Geometry: m.output, v: s, lisse: m.lisse)
+}
+
+geometry graph géométries(geometry: Geometry, i: Int) -> Geometry {
+  return IndexSwitch(i, geometry, MeshCube().mesh, MeshUVSphere().mesh)
+}

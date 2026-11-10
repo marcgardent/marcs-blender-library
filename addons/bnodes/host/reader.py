@@ -14,7 +14,7 @@ import bpy
 from ..lang import ast, sugar
 from ..lang.printer import to_source
 from ..lang.ir import REPEAT_INPUT, REPEAT_OUTPUT
-from ..lang.schema import IMPLICIT, RESERVED, TYPES, key, snake
+from ..lang.schema import IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_VALUE, RESERVED, TYPES, key, snake
 from .modules import module_of
 from .schema import SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, snapshot, text_name
 
@@ -23,6 +23,9 @@ IMPLICIT_CALLS = {mode: name for name, (mode, _type) in IMPLICIT.items()}
 INTERFACE_TYPES = {v: k for k, v in TYPES.items()}
 GROUP_NODES = {"GeometryNodeGroup", "ShaderNodeGroup", "CompositorNodeGroup"}
 SKIP = {"NodeFrame", "NodeReroute"}
+
+# Read, but written wrong: a gizmo's links point at the value it moves, not at what feeds it
+NOT_YET = {"GeometryNodeGizmoLinear", "GeometryNodeGizmoDial", "GeometryNodeGizmoTransform"}
 
 # Kept for statements even when they hold their default
 ALWAYS = {"operation"}
@@ -89,6 +92,12 @@ class GraphReader:
         items = [i for i in tree.interface.items_tree if i.item_type == "SOCKET"]
         params = [self.defaults(self.param(i), i) for i in items if i.in_out == "INPUT"]
         outputs = [self.param(i) for i in items if i.in_out == "OUTPUT"]
+        for side, ps in (("entrées", params), ("sorties", outputs)):
+            seen = set()
+            for k in [key(p.name) for p in ps]:
+                if k in seen:
+                    self.warn(f"deux {side} « {k} » (dans deux panneaux ?), pas encore pris en charge par le texte")
+                seen.add(k)
         self.param_keys = [key(p.name) for p in params]
         single = len(outputs) == 1 and outputs[0].name == outputs[0].type
 
@@ -338,7 +347,9 @@ class GraphReader:
         # With one output there is nothing to pick; with several, say which
         if len(outputs) == 1 and sock == outputs[0]:
             return target
-        return member(target, socket_name(sock, outputs, node.bl_idname in GROUP_NODES))
+        # Group sockets and items are named in text, not numbered: Item_1 means nothing there
+        named = node.bl_idname in GROUP_NODES or node.bl_idname in ITEM_NODES
+        return member(target, socket_name(sock, outputs, named))
 
     def expr(self, node):
         if node.name not in self.exprs:
@@ -405,12 +416,12 @@ class GraphReader:
                 self.warn(f"« {node.name} » n'a pas d'arbre ; écrit comme un appel vide")
                 return ast.Call("missing_group", [], 0, 0)
             name = key(node.node_tree.name)
-        elif spec is None:
+        elif spec is None or node.bl_idname in NOT_YET:
             name = text_name(node.bl_idname)
             self.warn(f"{name} (« {node.name} ») n'est pas encore pris en charge par le texte")
         else:
             name = spec.name
-            if has_items(node):
+            if has_items(node) and node.bl_idname not in ITEM_NODES:
                 self.warn(f"{name} (« {node.name} ») a des sockets ajoutés à la main, "
                           "pas encore pris en charge par le texte")
 
@@ -440,19 +451,31 @@ class GraphReader:
 
         inputs = [s for s in node.inputs if not s.is_unavailable and s.type != "CUSTOM"]
         incoming = self.incoming.get(node.name, {})
+        shape = ITEM_NODES.get(node.bl_idname)
+        if shape is not None:
+            self.item_types(node, shape, inputs[shape.inputs:], incoming, props)
         positional = True
         geometry_first = False
         for i, sock in enumerate(inputs):
+            item = shape is not None and i >= shape.inputs
             links = incoming.get(sock.identifier)
             if links:
                 values = [self.use(*src) for src in links]
             else:
-                lit = self.literal(node, sock, defaults)
+                # An item is made by its value: it is always written
+                lit = self.literal(node, sock, {} if item else defaults)
                 values = [lit] if lit is not None else []
+            if not values and item and not shape.typed:
+                values = [ast.Ref(NO_VALUE, 0, 0)]
+            elif not values and item:
+                self.warn(f"{name} (« {node.name} ») : l'item « {sock.name} » n'a ni lien ni valeur "
+                          "que le texte sache écrire ; il est perdu")
             if not values:
                 positional = False
                 continue
-            label = None if positional else socket_name(sock, inputs, group)
+            if item and shape.named:
+                positional = False
+            label = None if positional else sock.name if item else socket_name(sock, inputs, group)
             if i == 0 and sock.type == "GEOMETRY" and not sock.is_multi_input and links:
                 geometry_first = True
             for v in values:
@@ -475,6 +498,34 @@ class GraphReader:
             return ast.Pipe(first, rest, 0, 0)
         self.chain_heads.add(id(call))
         return call
+
+    def item_types(self, node, shape, items, incoming, props):
+        """The text gives an item the type of its value: say when Blender's differs, and
+        write a switch's data_type only when its first item does not tell it."""
+        for sock in items:
+            links = incoming.get(sock.identifier)
+            given = SOCKET_TYPES.get(links[0][1].type) if links else literal_type(snapshot(sock), sock)
+            wanted = SOCKET_TYPES.get(sock.type)
+            if shape.typed and given is not None and given != wanted:
+                self.warn(f"« {node.name} » : l'item « {sock.name} » est un {wanted} qui reçoit un {given} ; "
+                          f"relu comme {given}")
+        if node.bl_idname == "GeometryNodeMenuSwitch":
+            lost = [i.name for i in node.enum_items if i.description]
+            if lost:
+                self.warn(f"« {node.name} » : description des items {', '.join(lost)} non exportée")
+        if not shape.typed:
+            # As the checker reads it: the type of the first item that has a value
+            given = "Float"
+            for sock in items:
+                links = incoming.get(sock.identifier)
+                t = SOCKET_TYPES.get(links[0][1].type) if links else literal_type(snapshot(sock), sock)
+                if t is not None:
+                    given = t
+                    break
+            if ITEM_TYPES.get(given) == node.data_type:
+                props.pop("data_type", None)
+            else:
+                props["data_type"] = node.data_type
 
     def join(self, node):
         """`a + b + c` for a Join Geometry of two links or more.
@@ -714,6 +765,21 @@ def combinations(operands):
     for first in operands[0]:
         for rest in combinations(operands[1:]):
             yield [first] + rest
+
+
+def literal_type(value, sock):
+    """The text type of the literal written for an unlinked socket, as the checker reads it back."""
+    if value is None or sock.type in ("GEOMETRY", "MATRIX", "SHADER", "BUNDLE", "CLOSURE"):
+        return None
+    if isinstance(value, bool):
+        return "Bool"
+    if isinstance(value, int) and sock.type == "INT":
+        return "Int"
+    if isinstance(value, (int, float)):
+        return "Float"
+    if isinstance(value, tuple):
+        return "Color" if len(value) == 4 else "Vector"
+    return SOCKET_TYPES.get(sock.type)
 
 
 def has_items(node):

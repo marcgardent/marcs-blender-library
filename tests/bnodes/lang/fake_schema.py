@@ -13,6 +13,10 @@ COMPARE_OPS = ("LESS_THAN", "LESS_EQUAL", "GREATER_THAN", "GREATER_EQUAL", "EQUA
 COMPARE_TYPES = {"FLOAT": "Float", "INT": "Int", "VECTOR": "Vector", "RGBA": "Color", "STRING": "String"}
 
 
+DATA_TYPES = {"FLOAT": "Float", "INT": "Int", "BOOLEAN": "Bool", "VECTOR": "Vector", "RGBA": "Color",
+              "STRING": "String", "MENU": "Menu", "GEOMETRY": "Geometry", "MATERIAL": "Material", "FONT": "Font"}
+
+
 def S(name, type, identifier=None, multi=False):
     return Socket(name, identifier or name, type, multi)
 
@@ -57,6 +61,15 @@ NODES = {
     }), None, [S("Boolean", "Bool")]),
     "FindInString": (NodeSpec("FindInString", "FunctionNodeFindInString"),
                      [S("String", "String"), S("Search", "String"), S("Mode", "Menu")], [S("First Found", "Int")]),
+    "CaptureAttribute": (NodeSpec("CaptureAttribute", "GeometryNodeCaptureAttribute", {
+        "domain": Prop("domain", "ENUM", ("POINT", "EDGE", "FACE", "CORNER", "CURVE", "INSTANCE", "LAYER")),
+    }), [S("Geometry", "Geometry"), S("Selection", "Bool")], [S("Geometry", "Geometry"), S("Selection", "Bool")]),
+    "IndexSwitch": (NodeSpec("IndexSwitch", "GeometryNodeIndexSwitch", {
+        "data_type": Prop("data_type", "ENUM", tuple(DATA_TYPES)),
+    }), None, None),
+    "MenuSwitch": (NodeSpec("MenuSwitch", "GeometryNodeMenuSwitch", {
+        "data_type": Prop("data_type", "ENUM", tuple(DATA_TYPES)),
+    }), None, None),
 }
 
 
@@ -100,4 +113,13 @@ class FakeSchema:
             inputs = [S("A", t), S("B", t)]
             if op in ("EQUAL", "NOT_EQUAL") and data in ("FLOAT", "VECTOR", "RGBA"):
                 inputs.append(S("Epsilon", "Float"))
+        if spec.name == "IndexSwitch":
+            # Like Blender: a new node has two items, of its data_type
+            t = DATA_TYPES[props.get("data_type", "FLOAT")]
+            inputs = [S("Index", "Int"), S("0", t, "Item_0"), S("1", t, "Item_1")]
+            outputs = [S("Output", t)]
+        if spec.name == "MenuSwitch":
+            t = DATA_TYPES[props.get("data_type", "GEOMETRY")]
+            inputs = [S("Menu", "Menu"), S("A", t, "Item_0"), S("B", t, "Item_1")]
+            outputs = [S("Output", t), S("A", "Bool", "Item_0"), S("B", "Bool", "Item_1")]
         return list(inputs), list(outputs)
