@@ -24,6 +24,27 @@
     },
     {
       "schema_version": "1.0.0",
+      "id": "bnodes",
+      "name": "Nodes as Text",
+      "tagline": "\u00c9crit et relit les arbres de n\u0153uds comme des fonctions",
+      "version": "0.5.0",
+      "type": "add-on",
+      "maintainer": "Marc Gardent",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.2.0",
+      "website": "https://github.com/marcgardent/marcs-blender-library#nodes-as-text",
+      "tags": [
+        "Node",
+        "Geometry Nodes"
+      ],
+      "archive_url": "./bnodes-0.5.0.zip",
+      "archive_size": 70792,
+      "archive_hash": "sha256:c8a5cab8bb914238891b6250b99b51915c4017d6d025a9fa516f1efc5a9fc559"
+    },
+    {
+      "schema_version": "1.0.0",
       "id": "quick_flatten_axis",
       "name": "Quick Flatten Axis",
       "tagline": "Aplatit la s\u00e9lection sur un axe ou la fusionne en un point",
@@ -41,27 +62,6 @@
       "archive_url": "./quick_flatten_axis-1.3.1.zip",
       "archive_size": 1614,
       "archive_hash": "sha256:245b041cd8b4de6df971e66056fe668bb3f954372d1118f02264d38b396f11c4"
-    },
-    {
-      "schema_version": "1.0.0",
-      "id": "bnodes",
-      "name": "Nodes as Text",
-      "tagline": "\u00c9crit et relit les arbres de n\u0153uds comme des fonctions",
-      "version": "0.4.0",
-      "type": "add-on",
-      "maintainer": "Marc Gardent",
-      "license": [
-        "SPDX:GPL-3.0-or-later"
-      ],
-      "blender_version_min": "5.2.0",
-      "website": "https://github.com/marcgardent/marcs-blender-library#nodes-as-text",
-      "tags": [
-        "Node",
-        "Geometry Nodes"
-      ],
-      "archive_url": "./bnodes-0.4.0.zip",
-      "archive_size": 60711,
-      "archive_hash": "sha256:7cc2bf00d422112cb6d2d414f11a5ca238315200575c278044de0772ce0cbb19"
     },
     {
       "schema_version": "1.0.0",
