@@ -1,0 +1,1080 @@
+[
+ {
+  "description": "",
+  "interface": [
+   [
+    "OUTPUT",
+    "Float",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 0.0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ],
+   [
+    "INPUT",
+    "p",
+    "NodeSocketVector",
+    {
+     "default_input": "VALUE",
+     "default_value": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ],
+   [
+    "INPUT",
+    "échelle",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 0.0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ]
+  ],
+  "is_modifier": false,
+  "links": [
+   [
+    0,
+    0,
+    4,
+    0
+   ],
+   [
+    0,
+    1,
+    4,
+    2
+   ],
+   [
+    2,
+    0,
+    3,
+    0
+   ],
+   [
+    3,
+    0,
+    1,
+    0
+   ],
+   [
+    4,
+    0,
+    2,
+    0
+   ]
+  ],
+  "name": "relief",
+  "nodes": [
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupInput",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupOutput",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "SUBTRACT",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     0.5,
+     0.5
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     2.0,
+     0.5
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "noise_dimensions": "3D",
+     "noise_type": "FBM",
+     "normalize": true
+    },
+    "type": "ShaderNodeTexNoise",
+    "values": [
+     null,
+     0.0,
+     null,
+     2.0,
+     0.5,
+     2.0,
+     0.0,
+     1.0,
+     0.0
+    ]
+   }
+  ]
+ },
+ {
+  "description": "",
+  "interface": [
+   [
+    "OUTPUT",
+    "Mesh",
+    "NodeSocketGeometry",
+    {
+     "default_input": "VALUE",
+     "description": "",
+     "hide_in_modifier": false,
+     "structure_type": "AUTO"
+    }
+   ],
+   [
+    "OUTPUT",
+    "Hauteur",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 0.0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ],
+   [
+    "INPUT",
+    "taille",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 0.0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ],
+   [
+    "INPUT",
+    "détail",
+    "NodeSocketInt",
+    {
+     "default_input": "VALUE",
+     "default_value": 0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 2147483647,
+     "min_value": -2147483648,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ]
+  ],
+  "is_modifier": false,
+  "links": [
+   [
+    0,
+    2,
+    17,
+    0
+   ],
+   [
+    1,
+    0,
+    11,
+    0
+   ],
+   [
+    2,
+    0,
+    18,
+    0
+   ],
+   [
+    3,
+    0,
+    1,
+    0
+   ],
+   [
+    3,
+    0,
+    16,
+    0
+   ],
+   [
+    4,
+    0,
+    5,
+    0
+   ],
+   [
+    5,
+    0,
+    0,
+    0
+   ],
+   [
+    5,
+    0,
+    9,
+    0
+   ],
+   [
+    8,
+    0,
+    4,
+    0
+   ],
+   [
+    8,
+    0,
+    11,
+    1
+   ],
+   [
+    8,
+    0,
+    13,
+    0
+   ],
+   [
+    8,
+    1,
+    4,
+    1
+   ],
+   [
+    10,
+    0,
+    19,
+    0
+   ],
+   [
+    11,
+    0,
+    12,
+    0
+   ],
+   [
+    12,
+    0,
+    18,
+    3
+   ],
+   [
+    13,
+    0,
+    14,
+    0
+   ],
+   [
+    14,
+    0,
+    15,
+    1
+   ],
+   [
+    15,
+    0,
+    10,
+    2
+   ],
+   [
+    16,
+    0,
+    10,
+    0
+   ],
+   [
+    16,
+    1,
+    10,
+    1
+   ],
+   [
+    16,
+    2,
+    15,
+    0
+   ],
+   [
+    17,
+    2,
+    9,
+    1
+   ],
+   [
+    18,
+    0,
+    19,
+    1
+   ],
+   [
+    19,
+    0,
+    5,
+    2
+   ]
+  ],
+  "name": "Rocher brut",
+  "nodes": [
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeBoundBox",
+    "values": [
+     null,
+     true
+    ]
+   },
+   {
+    "frame": "Bosses",
+    "group": "relief",
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeGroup",
+    "values": [
+     null,
+     1.5
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "legacy_corner_normals": false,
+     "mute": false
+    },
+    "type": "GeometryNodeInputNormal",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeInputPosition",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeMeshIcoSphere",
+    "values": [
+     null,
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeSetPosition",
+    "values": [
+     null,
+     true,
+     null,
+     [
+      0.0,
+      0.0,
+      0.0
+     ]
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "Forme",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": "Forme",
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "Bosses",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupInput",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupOutput",
+    "values": [
+     null,
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "ShaderNodeCombineXYZ",
+    "values": [
+     null,
+     null,
+     null
+    ]
+   },
+   {
+    "frame": "Bosses",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     null,
+     0.5
+    ]
+   },
+   {
+    "frame": "Bosses",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     0.8,
+     0.5
+    ]
+   },
+   {
+    "frame": "Forme",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     0.4,
+     0.5
+    ]
+   },
+   {
+    "frame": "Forme",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     -1.0,
+     0.5
+    ]
+   },
+   {
+    "frame": "Forme",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MAXIMUM",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     null,
+     0.5
+    ]
+   },
+   {
+    "frame": "Forme",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "ShaderNodeSeparateXYZ",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "ShaderNodeSeparateXYZ",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "SCALE"
+    },
+    "type": "ShaderNodeVectorMath",
+    "values": [
+     null,
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "ADD"
+    },
+    "type": "ShaderNodeVectorMath",
+    "values": [
+     null,
+     null,
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     1.0
+    ]
+   }
+  ]
+ },
+ {
+  "description": "",
+  "interface": [
+   [
+    "OUTPUT",
+    "Geometry",
+    "NodeSocketGeometry",
+    {
+     "default_input": "VALUE",
+     "description": "",
+     "hide_in_modifier": false,
+     "structure_type": "AUTO"
+    }
+   ],
+   [
+    "INPUT",
+    "sol",
+    "NodeSocketGeometry",
+    {
+     "default_input": "VALUE",
+     "description": "",
+     "hide_in_modifier": false,
+     "structure_type": "AUTO"
+    }
+   ],
+   [
+    "INPUT",
+    "densité",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 0.0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ],
+   [
+    "INPUT",
+    "graine",
+    "NodeSocketInt",
+    {
+     "default_input": "VALUE",
+     "default_value": 0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 2147483647,
+     "min_value": -2147483648,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ]
+  ],
+  "is_modifier": true,
+  "links": [
+   [
+    0,
+    0,
+    3,
+    6
+   ],
+   [
+    0,
+    0,
+    13,
+    1
+   ],
+   [
+    1,
+    0,
+    3,
+    0
+   ],
+   [
+    1,
+    2,
+    3,
+    5
+   ],
+   [
+    2,
+    0,
+    3,
+    2
+   ],
+   [
+    2,
+    1,
+    13,
+    0
+   ],
+   [
+    3,
+    0,
+    6,
+    0
+   ],
+   [
+    4,
+    0,
+    11,
+    0
+   ],
+   [
+    5,
+    0,
+    4,
+    0
+   ],
+   [
+    6,
+    0,
+    5,
+    0
+   ],
+   [
+    10,
+    0,
+    1,
+    0
+   ],
+   [
+    10,
+    0,
+    4,
+    0
+   ],
+   [
+    10,
+    1,
+    1,
+    4
+   ],
+   [
+    10,
+    2,
+    0,
+    3
+   ],
+   [
+    10,
+    2,
+    1,
+    6
+   ],
+   [
+    12,
+    0,
+    6,
+    2
+   ],
+   [
+    13,
+    0,
+    14,
+    0
+   ],
+   [
+    14,
+    0,
+    15,
+    0
+   ],
+   [
+    15,
+    0,
+    12,
+    2
+   ]
+  ],
+  "name": "rochers",
+  "nodes": [
+   {
+    "frame": "Semis",
+    "group": null,
+    "items": [],
+    "props": {
+     "data_type": "FLOAT",
+     "mute": false
+    },
+    "type": "FunctionNodeRandomValue",
+    "values": [
+     0.3,
+     1.0,
+     0,
+     null
+    ]
+   },
+   {
+    "frame": "Semis",
+    "group": null,
+    "items": [],
+    "props": {
+     "distribute_method": "RANDOM",
+     "mute": false,
+     "use_legacy_normal": false
+    },
+    "type": "GeometryNodeDistributePointsOnFaces",
+    "values": [
+     null,
+     true,
+     0.0,
+     10.0,
+     null,
+     1.0,
+     null
+    ]
+   },
+   {
+    "frame": "",
+    "group": "Rocher brut",
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeGroup",
+    "values": [
+     1.0,
+     4
+    ]
+   },
+   {
+    "frame": "Semis",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeInstanceOnPoints",
+    "values": [
+     null,
+     true,
+     null,
+     false,
+     0,
+     null,
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeJoinGeometry",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "realize_to_point_domain": false
+    },
+    "type": "GeometryNodeRealizeInstances",
+    "values": [
+     null,
+     true,
+     true,
+     0
+    ]
+   },
+   {
+    "frame": "Semis",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeTranslateInstances",
+    "values": [
+     null,
+     true,
+     null,
+     true
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "Semis",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "À régler : la densité dépend de l'aire du sol",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupInput",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupOutput",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": "Semis",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "ShaderNodeCombineXYZ",
+    "values": [
+     0.0,
+     0.0,
+     null
+    ]
+   },
+   {
+    "frame": "Semis",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     null,
+     0.5
+    ]
+   },
+   {
+    "frame": "Semis",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     0.2,
+     0.5
+    ]
+   },
+   {
+    "frame": "Semis",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     -1.0,
+     0.5
+    ]
+   }
+  ]
+ }
+]

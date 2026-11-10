@@ -925,6 +925,10 @@ class GraphChecker:
         if not ok:
             self.error(at, f"{where} attend {sock.type}, reçoit {v.type}")
             return
+        if sock.type == "Int" and v.type == "Float":
+            # Blender would not round it: say so rather than fail at build
+            self.error(at, f"{where} attend un entier : {int(v.value)} plutôt que {v.value}")
+            return
         node.values[sock.identifier] = v.value
 
 

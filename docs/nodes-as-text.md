@@ -4,7 +4,7 @@ Nodes as Text écrit un arbre Geometry Nodes comme une fonction, dans un texte `
 du Text Editor de Blender, et relit un arbre existant en texte. L'installation et les
 raccourcis sont dans le [README](../README.md#nodes-as-text).
 
-Les trois exemples ci-dessous couvrent toute la syntaxe. Ce sont de vrais fichiers,
+Les trois exemples ci-dessous couvrent l'essentiel de la syntaxe. Ce sont de vrais fichiers,
 dans [`exemples/`](exemples/) : un test les construit dans Blender et vérifie que
 l'arbre se relit en texte à l'identique.
 
@@ -13,6 +13,8 @@ panneau Nodes, **Add as Modifier** sur un objet sélectionné, et régler ses en
 le modifier.
 
 ## La syntaxe en bref
+
+Chaque construction est décrite dans la [référence du langage](reference.md).
 
 | Écrit | Donne |
 |---|---|

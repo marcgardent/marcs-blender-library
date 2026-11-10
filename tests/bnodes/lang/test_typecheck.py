@@ -167,3 +167,8 @@ def test_datablock_by_name(schema):
         assert "attend Material" in errors(graph("  return SetMaterial(geometry, material: 3)"), schema)[0]
     finally:
         del NODES["SetMaterial"]
+
+
+def test_a_float_literal_does_not_go_into_an_int(schema):
+    with pytest.raises(BnError, match="attend un entier : 3 plutôt que 3.0"):
+        compile_source("geometry graph g() -> Geometry {\n  return MeshGrid(1.0, 1.0, 3.0, 3)\n}\n", schema)

@@ -1,0 +1,329 @@
+[
+ {
+  "description": "",
+  "interface": [
+   [
+    "OUTPUT",
+    "Geometry",
+    "NodeSocketGeometry",
+    {
+     "default_input": "VALUE",
+     "description": "",
+     "hide_in_modifier": false,
+     "structure_type": "AUTO"
+    }
+   ],
+   [
+    "INPUT",
+    "geometry",
+    "NodeSocketGeometry",
+    {
+     "default_input": "VALUE",
+     "description": "",
+     "hide_in_modifier": false,
+     "structure_type": "AUTO"
+    }
+   ],
+   [
+    "INPUT",
+    "t",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 0.0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ]
+  ],
+  "is_modifier": true,
+  "links": [
+   [
+    0,
+    0,
+    15,
+    0
+   ],
+   [
+    1,
+    0,
+    9,
+    0
+   ],
+   [
+    8,
+    0,
+    1,
+    0
+   ],
+   [
+    8,
+    1,
+    12,
+    1
+   ],
+   [
+    10,
+    0,
+    1,
+    3
+   ],
+   [
+    11,
+    0,
+    12,
+    0
+   ],
+   [
+    12,
+    0,
+    13,
+    0
+   ],
+   [
+    13,
+    0,
+    14,
+    0
+   ],
+   [
+    14,
+    0,
+    10,
+    2
+   ],
+   [
+    15,
+    2,
+    11,
+    0
+   ]
+  ],
+  "name": "rocks",
+  "nodes": [
+   {
+    "frame": "Noise",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeInputPosition",
+    "values": []
+   },
+   {
+    "frame": "Output",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeSetPosition",
+    "values": [
+     null,
+     true,
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "Noise",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": "Noise",
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "Detail",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "Check the scale",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "label": "Output",
+     "label_size": 20,
+     "mute": false,
+     "shrink": true
+    },
+    "type": "NodeFrame",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupInput",
+    "values": []
+   },
+   {
+    "frame": "Output",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupOutput",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": "Output",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "ShaderNodeCombineXYZ",
+    "values": [
+     0.0,
+     0.0,
+     null
+    ]
+   },
+   {
+    "frame": "Detail",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     0.1,
+     0.5
+    ]
+   },
+   {
+    "frame": "",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "ADD",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     null,
+     0.5
+    ]
+   },
+   {
+    "frame": "",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     2.0,
+     0.5
+    ]
+   },
+   {
+    "frame": "Output",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     0.5,
+     0.5
+    ]
+   },
+   {
+    "frame": "Detail",
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "ShaderNodeSeparateXYZ",
+    "values": [
+     null
+    ]
+   }
+  ]
+ }
+]

@@ -1,0 +1,12 @@
+// Les autres façons d'écrire, acceptées en 1.0 : Formater et Tree → Text les réécrivent
+geometry graph formes(u: Vector, v: Vector, a: Bool, b: Bool, geometry: Geometry) -> (
+    Geometry: Geometry,
+    d: Float,
+    x: Bool
+) {
+  "Court" #e73 {
+    d = u dot v + length(u cross v) + u · v + dot(u, v)
+  }
+  x = xor(a, b)
+  return (Geometry: geometry |> SetShadeSmooth(), d: d, x: x)
+}

@@ -102,6 +102,7 @@ Selected Markers* (Shift+K) puis G.
 
 Blender 5.2+. Text Editor et Node Editor, Geometry Nodes seulement pour l'instant.
 Trois exemples commentés, avec leurs images : [docs/nodes-as-text.md](docs/nodes-as-text.md).
+La référence du langage et sa règle de compatibilité : [docs/reference.md](docs/reference.md).
 
 Un arbre de nœuds s'écrit comme une fonction dans un texte `.bn`, et un arbre existant
 se réécrit en texte :

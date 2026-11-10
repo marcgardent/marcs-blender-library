@@ -1,0 +1,238 @@
+[
+ {
+  "description": "Deux fois x",
+  "interface": [
+   [
+    "OUTPUT",
+    "Float",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 0.0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ],
+   [
+    "INPUT",
+    "x",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 0.0,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ]
+  ],
+  "is_modifier": false,
+  "links": [
+   [
+    0,
+    0,
+    2,
+    0
+   ],
+   [
+    2,
+    0,
+    1,
+    0
+   ]
+  ],
+  "name": "double",
+  "nodes": [
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupInput",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupOutput",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false,
+     "operation": "MULTIPLY",
+     "use_clamp": false
+    },
+    "type": "ShaderNodeMath",
+    "values": [
+     null,
+     2.0,
+     0.5
+    ]
+   }
+  ]
+ },
+ {
+  "description": "",
+  "interface": [
+   [
+    "OUTPUT",
+    "Geometry",
+    "NodeSocketGeometry",
+    {
+     "default_input": "VALUE",
+     "description": "",
+     "hide_in_modifier": false,
+     "structure_type": "AUTO"
+    }
+   ],
+   [
+    "INPUT",
+    "geometry",
+    "NodeSocketGeometry",
+    {
+     "default_input": "VALUE",
+     "description": "",
+     "hide_in_modifier": false,
+     "structure_type": "AUTO"
+    }
+   ],
+   [
+    "INPUT",
+    "hauteur",
+    "NodeSocketFloat",
+    {
+     "default_input": "VALUE",
+     "default_value": 0.5,
+     "description": "",
+     "hide_in_modifier": false,
+     "max_value": 3.4028234663852886e+38,
+     "min_value": -3.4028234663852886e+38,
+     "structure_type": "AUTO",
+     "subtype": "NONE"
+    }
+   ]
+  ],
+  "is_modifier": true,
+  "links": [
+   [
+    0,
+    0,
+    4,
+    2
+   ],
+   [
+    1,
+    0,
+    3,
+    0
+   ],
+   [
+    2,
+    0,
+    1,
+    0
+   ],
+   [
+    2,
+    1,
+    0,
+    0
+   ],
+   [
+    4,
+    0,
+    1,
+    3
+   ]
+  ],
+  "name": "décale",
+  "nodes": [
+   {
+    "frame": null,
+    "group": "double",
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeGroup",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "GeometryNodeSetPosition",
+    "values": [
+     null,
+     true,
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupInput",
+    "values": []
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "NodeGroupOutput",
+    "values": [
+     null
+    ]
+   },
+   {
+    "frame": null,
+    "group": null,
+    "items": [],
+    "props": {
+     "mute": false
+    },
+    "type": "ShaderNodeCombineXYZ",
+    "values": [
+     0.0,
+     0.0,
+     null
+    ]
+   }
+  ]
+ }
+]

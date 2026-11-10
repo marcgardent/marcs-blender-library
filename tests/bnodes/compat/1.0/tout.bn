@@ -1,0 +1,80 @@
+// Le corpus de la LTS 1 : chaque construction du langage, une fois au moins.
+// Il doit se construire à l'identique dans toute la 1.x (tests/bnodes/host/test_compat.py).
+use outils (décale)
+
+// Entrées : défauts, bornes, champs implicites, options, noms entre guillemets
+geometry graph entrées(
+    geometry: Geometry,
+    force: Float(subtype: FACTOR, description: "La part gardée") = 0.25 in 0.0..1.0,
+    "Nombre de tours": Int = 3 in 1..,
+    p: Vector = Position(),
+    id: Int = ID(),
+    uv: Vector = (0.5, 0.5),
+    teinte: Color = (1.0, 0.5, 0.0),
+    actif: Bool = true,
+    nom: String = "hauteur",
+    matière: Material,
+    mode: Menu = Lisse,
+    taille: Float(subtype: DISTANCE, structure_type: SINGLE) = 1.0
+) -> (Geometry: Geometry, Hauteur: Float(description: "La hauteur de chaque point"), Choisi: Bool) {
+  "Toutes les sortes d'entrées"
+  hauteur = p.z * force + nombre_de_tours + id * 0.01 + uv.x
+  m = MenuSwitch(mode, Lisse: geometry, Rugueux: décale(geometry, taille))
+  return (
+    Geometry: m.output |> SetMaterial(material: matière) |> StoreNamedAttribute(name: nom, value: hauteur),
+    Hauteur: hauteur,
+    Choisi: actif and m.lisse)
+}
+
+// Formules : opérateurs, fonctions, produits, comparaisons, logique, composantes
+geometry graph formules(
+    a: Float,
+    b: Float,
+    u: Vector,
+    v: Vector,
+    i: Int,
+    j: Int
+) -> (nombre: Float, vecteur: Vector, vrai: Bool) {
+  n = -a + b * 2.0 - a / b + sin(a) + atan2(a, b) + pow(a, 2.0) + mod(a, 3.0) + min(a, b)
+  w = normalize(u × v) * 2.0 + u - v / 2.0 + abs(-u)
+  d = u ⋅ v + length(w) + distance(u, v)
+  vrai = (a < b and not i == j or a >= d) xor nand(i > 0, j != 1) and u == v
+  return (nombre: n + d, vecteur: w, vrai: vrai)
+}
+
+// Nœuds : arguments par position puis par nom, propriétés, sorties, enchaînements, + entre géométries
+geometry graph nœuds(geometry: Geometry, densité: Float) -> Geometry {
+  "Semis" #yellowgreen {
+    points = DistributePointsOnFaces(geometry, density: densité)
+    cailloux = SetShadeSmooth(MeshIcoSphere(0.1, 2).mesh)
+  }
+  "Bord" #ee7733 {
+    "Imbriqué" {
+      bord = geometry |> MeshToCurve()
+        |> CurveToMesh(CurvePrimitiveCircle(radius: 0.02))
+    }
+  }
+  {
+    posés = InstanceOnPoints(points.points, instance: cailloux, rotation: points.rotation)
+  }
+  "À régler" #tomato {}
+  return geometry + posés + bord
+}
+
+// Zones et items : repeat imbriqués, Capture Attribute, Index Switch, Menu Switch, item vide
+geometry graph zones(geometry: Geometry, n: Int, i: Int) -> (Geometry: Geometry, Somme: Float) {
+  r = repeat(n, mesh: geometry, somme: 0.0) {
+    haut = Position().z >= somme
+    monté = ExtrudeMesh(mesh, haut, offset_scale: 0.1)
+    return (mesh: monté.mesh, somme: somme + 0.1)
+  }
+  table = repeat(n, total: 0.0) {
+    colonnes = repeat(n, s: total) {
+      return s + iteration
+    }
+    return colonnes
+  }
+  c = CaptureAttribute(r.mesh, hauteur: Position().z, "Rest Position": Position(), domain: FACE)
+  choix = IndexSwitch(i, c.geometry, _, MeshCube().mesh)
+  return (Geometry: choix, Somme: c.hauteur + table + IndexSwitch(i, i, 2.0, data_type: FLOAT))
+}
