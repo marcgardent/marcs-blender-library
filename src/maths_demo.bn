@@ -16,25 +16,27 @@ geometry graph tracé(y: Float, colonne: Float, rangée: Float) -> Geometry {
 geometry graph "démo courbes"() -> Geometry {
   x = Position().x
   "Courbes" #e07030 {
-    ligne_1 = tracé(biais(x, 0.25), 0.0, 0.0) + tracé(gain(x, 0.25), 1.0, 0.0)
-      + tracé(accélère(x, 3.0), 2.0, 0.0)
-      + tracé(freine(x, 3.0), 3.0, 0.0)
-    ligne_2 = tracé(accélère_freine(x, 3.0), 0.0, 1.0) + tracé(impulsion(x, 6.0), 1.0, 1.0)
-      + tracé(bosse(x, 0.5, 0.3), 2.0, 1.0)
-      + tracé(parabole(x, 2.0), 3.0, 1.0)
+    ligne_1 = tracé(biais(x, 0.25), 0.0, 0.0) + tracé(gain(x, 0.25), 1.0, 0.0) + tracé(accélère(x, 3.0), 2.0, 0.0) + tracé(freine(x, 3.0), 3.0, 0.0)
+    ligne_2 = tracé(accélère_freine(x, 3.0), 0.0, 1.0) + tracé(impulsion(x, 6.0), 1.0, 1.0) + tracé(bosse(x, 0.5, 0.3), 2.0, 1.0) + tracé(parabole(x, 2.0), 3.0, 1.0)
+    ligne_3 = tracé(rebond(x), 0.0, 2.0) + tracé(élastique(x), 1.0, 2.0) + tracé(recul(x), 2.0, 2.0) + tracé(marches(x * 4.0, 0.3) / 4.0, 3.0, 2.0)
   }
   "Ondes" #steelblue {
-    ligne_3 = tracé(marches(x * 4.0, 0.3) / 4.0, 0.0, 2.0) + tracé(triangle(x * 2.0), 1.0, 2.0)
-      + tracé(créneau(x * 2.0, 0.3), 2.0, 2.0)
-      + tracé(sinus01(x * 2.0), 3.0, 2.0)
+    ligne_4 = tracé(triangle(x * 2.0), 0.0, 3.0) + tracé(créneau(x * 2.0, 0.3), 1.0, 3.0) + tracé(sinus01(x * 2.0), 2.0, 3.0)
   }
-  return ligne_1 + ligne_2 + ligne_3
+  return ligne_1 + ligne_2 + ligne_3 + ligne_4
 }
 
 // La surface d'un SDF, maillée dans un cube de 2.6 de côté autour du centre
 geometry graph surface(distance: Float, centre: Vector) -> Geometry {
   // Un fond négatif : sinon le bord du cube devient lui aussi une surface
-  volume = VolumeCube(-distance, -1.0, min: centre - 1.3, max: centre + 1.3, resolution_x: 96, resolution_y: 96, resolution_z: 96)
+  volume = VolumeCube(
+    -distance,
+    -1.0,
+    min: centre - 1.3,
+    max: centre + 1.3,
+    resolution_x: 96,
+    resolution_y: 96,
+    resolution_z: 96)
   return VolumeToMesh(volume, threshold: 0.0) |> SetShadeSmooth()
 }
 
@@ -59,7 +61,27 @@ geometry graph "démo sdf"() -> Geometry {
     bol = surface(max(coque(sdf_sphère(s, 1.0), 0.12), s.z - 0.3), (5.6, -3.6, 0.0))
     // Des billes répétées, gardées dans une boîte
     t = p - (8.4, -3.6, 0.0)
-    billes = surface(max(sdf_sphère(répétition(t, 0.6), 0.22), sdf_boîte(t, (0.95, 0.95, 0.95))), (8.4, -3.6, 0.0))
+    billes = surface(
+      max(sdf_sphère(répétition(t, 0.6), 0.22), sdf_boîte(t, (0.95, 0.95, 0.95))),
+      (8.4, -3.6, 0.0))
   }
-  return sphère + boîte + tore + cylindre + capsule + creusée + bol + billes
+  "Nouvelles formes" #cadetblue {
+    u = p - (0.0, -7.2, 0.0)
+    cône = surface(sdf_cône(u, 0.9, 0.9, 0.25), (0.0, -7.2, 0.0))
+    ellipsoïde = surface(sdf_ellipsoïde(p - (2.8, -7.2, 0.0), (1.15, 0.75, 0.55)), (2.8, -7.2, 0.0))
+    octaèdre = surface(sdf_octaèdre(p - (5.6, -7.2, 0.0), 1.15), (5.6, -7.2, 0.0))
+    // Une colonne carrée tordue sur sa hauteur
+    tordue = surface(
+      sdf_boîte(torsion(p - (8.4, -7.2, 0.0), 0.7), (0.5, 0.5, 1.0)) - 0.05,
+      (8.4, -7.2, 0.0))
+  }
+  return sphère + boîte + tore + cylindre + capsule + creusée + bol + billes + cône + ellipsoïde + octaèdre + tordue
+}
+
+// Des montagnes : une grille relevée par un bruit fractal en crêtes
+geometry graph "démo bruits"() -> Geometry {
+  hauteur = fbm_crêtes(Position() * 0.2, 6) * 2.2
+  return MeshGrid(8.0, 8.0, 240, 240) |> SetPosition(offset: CombineXYZ(z: hauteur))
+    |> SetShadeSmooth()
+    |> SetMaterial(material: "Montagne")
 }

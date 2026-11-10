@@ -1,0 +1,15 @@
+geometry graph déport(
+    geometry: Geometry,
+    force: Float = 0.25 in 0.001..0.999,
+    pas: Int = 3 in 1..10,
+    actif: Bool = true,
+    direction: Vector = (0.0, 0.0, 1.0),
+    teinte: Color = (0.8, 0.3, 0.1),
+    p: Vector = Position(),
+    id: Int = ID(),
+    nom: String = "déport",
+    matière: Material = "Rust",
+    jeu: Float in -1.0..1.0
+) -> Geometry {
+  return SetPosition(geometry, offset: direction * force + p * jeu)
+}

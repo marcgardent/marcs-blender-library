@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0.0",
-  "asset_size_bytes": 1053567,
-  "asset_count": 44,
+  "asset_size_bytes": 1650572,
+  "asset_count": 60,
   "file_count": 4,
   "pages": [
     {
       "url": "_v1/assets-00000.json",
-      "hash": "SHA256:ba2a5f663114cb502d72088b2769d459b781dbd9981f5a18ccf9a52f08037404"
+      "hash": "SHA256:7788eb59ed343c076920500af8e27b08a5a7aa8479271cfd47fa47410443ad76"
     }
   ],
   "catalogs": [
@@ -39,11 +39,25 @@
       "simple_name": "Geometry Nodes-Maths-Angles"
     },
     {
+      "path": "Geometry Nodes/Maths/Bruits",
+      "uuids": [
+        "a19651d8-4add-4a92-a14f-95d39a01df4c"
+      ],
+      "simple_name": "Geometry Nodes-Maths-Bruits"
+    },
+    {
       "path": "Geometry Nodes/Maths/Champs de distance",
       "uuids": [
         "35939de3-539a-476b-9ebc-25c8d8a7df10"
       ],
       "simple_name": "Geometry Nodes-Maths-Champs de distance"
+    },
+    {
+      "path": "Geometry Nodes/Maths/Couleurs",
+      "uuids": [
+        "85199657-c026-4a23-9b92-0a73c02aef8a"
+      ],
+      "simple_name": "Geometry Nodes-Maths-Couleurs"
     },
     {
       "path": "Geometry Nodes/Maths/Courbes",
@@ -72,6 +86,13 @@
         "391bddc9-8b92-4969-ba9e-ce961a8c3f5f"
       ],
       "simple_name": "Geometry Nodes-Maths-Vecteurs"
+    },
+    {
+      "path": "Geometry Nodes/Maths/\u00c9chantillonnage",
+      "uuids": [
+        "25d9369e-ae19-4a8e-bd0d-65df2d70d488"
+      ],
+      "simple_name": "Geometry Nodes-Maths-\u00c9chantillonnage"
     },
     {
       "path": "Geometry Nodes/Outils",

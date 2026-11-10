@@ -18,3 +18,6 @@ f3de963a-6f99-4f8d-bd4f-a49adb7c5e79:Geometry Nodes/Maths/Ondes:Geometry Nodes-M
 92950255-dbd3-4b12-9454-b78123f90546:Geometry Nodes/Maths/Angles:Geometry Nodes-Maths-Angles
 35939de3-539a-476b-9ebc-25c8d8a7df10:Geometry Nodes/Maths/Champs de distance:Geometry Nodes-Maths-Champs de distance
 d7443a2b-2977-41a1-9689-e55f78125685:Geometry Nodes/Maths/Hasard:Geometry Nodes-Maths-Hasard
+85199657-c026-4a23-9b92-0a73c02aef8a:Geometry Nodes/Maths/Couleurs:Geometry Nodes-Maths-Couleurs
+25d9369e-ae19-4a8e-bd0d-65df2d70d488:Geometry Nodes/Maths/Échantillonnage:Geometry Nodes-Maths-Échantillonnage
+a19651d8-4add-4a92-a14f-95d39a01df4c:Geometry Nodes/Maths/Bruits:Geometry Nodes-Maths-Bruits

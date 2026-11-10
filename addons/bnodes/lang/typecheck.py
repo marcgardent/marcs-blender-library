@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from . import ast, colors, ir, sugar
 from .errors import BnError, Diagnostic
-from .schema import DATABLOCKS, STRICT, TREE_KINDS, TYPES, Socket, can_link, key
+from .schema import DATABLOCKS, IMPLICIT, NO_DEFAULT, RANGED, STRICT, TREE_KINDS, TYPES, Socket, can_link, key
 
 GROUP_NODES = {
     "geometry": "GeometryNodeGroup",
@@ -96,6 +96,9 @@ class GraphChecker:
         self.separated = {}  # (node id, output identifier) -> SeparateXYZ node id, for p.x
         self.frames = []
         self.returned = None
+        self.zone = None  # inside a repeat body: (output node, its item sockets, input node, its outputs)
+        self.given = set()  # states the current repeat body returns
+        self.frame_now = None
 
     def error(self, at, message):
         self.diags.append(Diagnostic(self.filename, at.line, at.col, message))
@@ -117,6 +120,7 @@ class GraphChecker:
         if not ok:
             return None
 
+        defaults = self.defaults()
         gin = ir.Node(ir.GROUP_INPUT, "NodeGroupInput", n_outputs=len(g.params), line=g.line, col=g.col)
         gout = ir.Node(ir.GROUP_OUTPUT, "NodeGroupOutput", n_inputs=len(g.outputs), line=g.line, col=g.col)
         self.nodes += [gin, gout]
@@ -131,7 +135,86 @@ class GraphChecker:
             self.error(g, f"return manquant dans « {g.name} »")
 
         return ir.Graph(g.kind, g.name, [(p.name, p.type) for p in g.params],
-                        [(o.name, o.type) for o in g.outputs], self.nodes, g.line, g.col, self.frames)
+                        [(o.name, o.type) for o in g.outputs], self.nodes, g.line, g.col, self.frames, defaults)
+
+    # Interface
+
+    def defaults(self):
+        """{input name: {"value", "min", "max", "implicit"}} from `name: Type = default in lo..hi`."""
+        for o in self.g.outputs:
+            if o.default is not None or o.range is not None:
+                self.error(o, f"la sortie « {o.name} » n'a ni valeur par défaut ni bornes")
+        out = {}
+        for p in self.g.params:
+            spec = {}
+            d = p.default
+            if isinstance(d, ast.Call) and d.name in IMPLICIT:
+                mode, wanted = IMPLICIT[d.name]
+                if d.args:
+                    self.error(d, f"{d.name}() en valeur par défaut ne prend pas d'argument")
+                elif p.type != wanted:
+                    self.error(d, f"{d.name}() ne sert de valeur par défaut qu'à une entrée {wanted}")
+                else:
+                    spec["implicit"] = mode
+            elif d is not None:
+                value = self.default_value(p, d)
+                if value is not None:
+                    spec["value"] = value
+            if p.range is not None:
+                bounds = self.bounds(p)
+                if bounds is not None:
+                    spec.update((k, v) for k, v in zip(("min", "max"), bounds) if v is not None)
+            if spec:
+                out[p.name] = spec
+        return out
+
+    def default_value(self, p, d):
+        t = p.type
+        if t in NO_DEFAULT:
+            self.error(d, f"une entrée {t} n'a pas de valeur par défaut")
+            return None
+        if t == "Menu" and isinstance(d, (ast.Ref, ast.String)):
+            return d.name if isinstance(d, ast.Ref) else d.value
+        if not isinstance(d, (ast.Number, ast.String, ast.Bool, ast.Tuple, ast.Neg)):
+            self.error(d, f"valeur par défaut de « {p.name} » : un nombre, un tuple, true/false, un texte"
+                          f" ou {', '.join(n + '()' for n in IMPLICIT)}")
+            return None
+        v = self.eval(d)
+        if v is None:
+            return None
+        if t == "Float" and v.type in ("Int", "Float"):
+            return float(v.value)
+        if t in ("Int", "Bool") and v.type == t:
+            return v.value
+        # A Vector of 2 or 4 numbers sets the socket's dimensions
+        if t == "Vector" and isinstance(v.value, tuple) or t == "Rotation" and v.type == "Vector" and len(v.value) == 3:
+            return v.value
+        if t == "Color" and v.type in ("Vector", "Color") and len(v.value) in (3, 4):
+            return v.value
+        if (t == "String" or t in DATABLOCKS) and v.type == "String":
+            return v.value
+        self.error(d, f"valeur par défaut de type {v.type} pour une entrée {t}")
+        return None
+
+    def bounds(self, p):
+        at = p.range[0] or p.range[1]
+        if p.type not in RANGED:
+            self.error(at, f"une entrée {p.type} n'a pas de bornes ; bornes pour : {', '.join(sorted(RANGED))}")
+            return None
+        values = []
+        for b in p.range:
+            if b is None:
+                values.append(None)
+                continue
+            v = self.eval(b) if isinstance(b, (ast.Number, ast.Neg)) else None
+            if not (isinstance(v, Lit) and v.type in ("Int", "Float")) or p.type == "Int" and v.type != "Int":
+                self.error(b, f"borne de « {p.name} » : un nombre{' entier' if p.type == 'Int' else ''}")
+                return None
+            values.append(v.value if p.type == "Int" else float(v.value))
+        if None not in values and values[0] > values[1]:
+            self.error(at, f"bornes de « {p.name} » : le min dépasse le max")
+            return None
+        return tuple(values)
 
     # Statements
 
@@ -142,17 +225,24 @@ class GraphChecker:
                 self.error(stmt, "instruction après return")
                 return
             created = len(self.nodes)
+            self.frame_now = frame
             if isinstance(stmt, ast.Frame):
                 self.frame_stmt(stmt, gout, frame)
                 continue
             if isinstance(stmt, ast.Assign):
                 self.assign_stmt(stmt)
+            elif self.zone is not None:
+                self.zone_return(stmt)
+                self.returned = stmt
+                self.zone[0].frame = frame
             else:
                 self.return_stmt(stmt, gout)
                 self.returned = stmt
                 gout.frame = frame
             for n in self.nodes[created:]:
-                n.frame = frame
+                # A repeat body has placed its own nodes, frames included
+                if n.frame is None:
+                    n.frame = frame
 
     def frame_stmt(self, f, gout, parent):
         color = None
@@ -169,7 +259,10 @@ class GraphChecker:
             self.error(stmt, f"« {stmt.name} » est déjà défini")
             return
         created = len(self.nodes)
-        value = self.eval(stmt.value)
+        if isinstance(stmt.value, ast.Repeat):
+            value = self.repeat(stmt.value, stmt.name)
+        else:
+            value = self.eval(stmt.value)
         if value is None:
             # Keep the name known, so later uses do not report it again
             self.env[stmt.name] = None
@@ -205,6 +298,92 @@ class GraphChecker:
         value = self.eval(stmt.value)
         if value is not None:
             self.connect(gout, outs[0], value, stmt.value, "return")
+
+    # Repeat zones
+
+    def repeat(self, e, name):
+        """A Repeat zone: its input node takes the count and the starting states, its body
+        computes the next states from the current ones, its output node gives the last."""
+        rin = ir.Node(f"n{len(self.nodes)}", ir.REPEAT_INPUT, line=e.line, col=e.col)
+        rout = ir.Node(f"n{len(self.nodes) + 1}", ir.REPEAT_OUTPUT, line=e.line, col=e.col)
+        rin.pair = rout.id
+        self.nodes += [rin, rout]
+        count = self.eval(e.count)
+        starts, items = [], []
+        for a in e.states:
+            v = self.eval(a.value)
+            t = value_type(v)
+            if key(a.name) in {key(n) for n, _t in items}:
+                self.error(a, f"état « {a.name} » déclaré deux fois")
+                continue
+            if key(a.name) == "iteration":
+                self.error(a, "« iteration » est le numéro du tour : choisir un autre nom d'état")
+                continue
+            if v is None:
+                continue
+            if t not in REPEAT_ITEMS:
+                self.error(a, f"un état de repeat ne peut pas être de type {t}")
+                continue
+            items.append((a.name, t))
+            starts.append((a, v))
+        rin.items = rout.items = items
+        states = [Socket(n, n, t) for n, t in items]
+        rin_inputs = [Socket("Iterations", "Iterations", "Int")] + states
+        rin_outputs = [Socket("Iteration", "Iteration", "Int")] + states
+        rin.n_inputs, rin.n_outputs = len(rin_inputs), len(rin_outputs)
+        rout.n_inputs = rout.n_outputs = len(states)
+        if count is not None:
+            self.connect(rin, rin_inputs[0], count, e.count, "repeat")
+        for (a, v), sock in zip(starts, states):
+            self.connect(rin, sock, v, a, "repeat")
+
+        # The body sees the outer names, the states and `iteration`; its own names stay inside
+        saved = self.env, self.returned, self.zone, self.given
+        self.env = dict(self.env)
+        for sock in states:
+            self.env[key(sock.name)] = Out(rin.id, rin_outputs, sock, key(sock.name))
+        self.env["iteration"] = Out(rin.id, rin_outputs, rin_outputs[0], "iteration")
+        self.returned = None
+        self.zone = (rout, states, rin, rin_outputs)
+        self.given = set()
+        frame = self.frame_now
+        self.statements(e.body, None, frame)
+        if not self.returned:
+            self.error(e, f"return manquant dans le repeat de « {name} »")
+        # A state the body does not return goes on unchanged
+        for sock in states:
+            if sock.name not in self.given:
+                rout.links.append((sock.identifier, ir.Link(rin.id, sock.identifier)))
+        rin.frame = rout.frame = frame
+        self.env, self.returned, self.zone, self.given = saved
+        self.frame_now = frame
+        # With no state left, uses of the name would only repeat the error
+        return Out(rout.id, states, None, name) if states else None
+
+    def zone_return(self, stmt):
+        rout, states, _rin, _outs = self.zone
+        if isinstance(stmt.value, ast.Record):
+            for f in stmt.value.fields:
+                sock = next((s for s in states if key(f.name) == key(s.name)), None)
+                if sock is None:
+                    self.error(f, f"« {f.name} » n'est pas un état du repeat ; états : "
+                                  f"{', '.join(s.name for s in states)}")
+                    continue
+                if sock.name in self.given:
+                    self.error(f, f"état « {f.name} » rendu deux fois")
+                    continue
+                self.given.add(sock.name)
+                value = self.eval(f.value)
+                if value is not None:
+                    self.connect(rout, sock, value, f, "repeat")
+            return
+        if len(states) != 1:
+            self.error(stmt, f"ce repeat a plusieurs états : return ({', '.join(s.name + ': …' for s in states)})")
+            return
+        self.given.add(states[0].name)
+        value = self.eval(stmt.value)
+        if value is not None:
+            self.connect(rout, states[0], value, stmt.value, "repeat")
 
     # Expressions
 
@@ -524,6 +703,13 @@ class GraphChecker:
             self.error(at, f"{where} attend {sock.type}, reçoit {v.type}")
             return
         node.values[sock.identifier] = v.value
+
+
+# Text type -> the socket type of a Repeat zone item
+REPEAT_ITEMS = {"Float": "FLOAT", "Int": "INT", "Bool": "BOOLEAN", "Vector": "VECTOR", "Color": "RGBA",
+                "Rotation": "ROTATION", "Matrix": "MATRIX", "String": "STRING", "Menu": "MENU",
+                "Geometry": "GEOMETRY", "Object": "OBJECT", "Collection": "COLLECTION", "Material": "MATERIAL",
+                "Image": "IMAGE", "Texture": "TEXTURE", "Bundle": "BUNDLE", "Closure": "CLOSURE"}
 
 
 def plus_terms(e):

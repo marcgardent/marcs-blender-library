@@ -13,7 +13,8 @@ from ..lang import ir
 from ..lang.errors import BnError, Diagnostic
 from ..lang.layout import layout
 from ..lang.schema import TYPES
-from .schema import TREE_TYPES, BlenderSchema
+from ..lang.typecheck import REPEAT_ITEMS
+from .schema import TREE_TYPES, BlenderSchema, fresh_item
 
 DATABLOCKS = {"OBJECT": "objects", "COLLECTION": "collections", "MATERIAL": "materials",
               "IMAGE": "images", "TEXTURE": "textures"}
@@ -77,7 +78,42 @@ class Builder:
                 and g.inputs[0][1] == g.outputs[0][1] == "Geometry"):
             tree.is_modifier = True
         self.fill(tree, g, built, kept)
+        # After the links: a menu input only has its items once it feeds a menu
+        self.defaults(tree, g)
         return tree
+
+    def defaults(self, tree, g):
+        """Each input's default, bounds and implicit field as written, else a new socket's."""
+        items = [i for i in tree.interface.items_tree if i.item_type == "SOCKET" and i.in_out == "INPUT"]
+        for name, _type in g.inputs:
+            item = next(i for i in items if i.name == name)
+            spec = g.defaults.get(name, {})
+            fresh = fresh_item(item.socket_type)
+            if "min_value" in fresh:
+                item.min_value = spec.get("min", fresh["min_value"])
+                item.max_value = spec.get("max", fresh["max_value"])
+            if "default_input" in fresh:
+                item.default_input = spec.get("implicit", fresh["default_input"])
+            if "default_value" not in fresh:
+                continue
+            value = spec.get("value", fresh["default_value"])
+            if item.socket_type.removeprefix("NodeSocket").upper() in DATABLOCKS and isinstance(value, str):
+                found = getattr(bpy.data, DATABLOCKS[item.socket_type.removeprefix("NodeSocket").upper()]).get(value)
+                if found is None:
+                    self.fail(g, f"« {name} » : {_type} « {value} » introuvable dans le fichier")
+                value = found
+            elif item.socket_type == "NodeSocketVector" and hasattr(item, "dimensions"):
+                if item.dimensions != len(value):
+                    # The item changes type (Vector2D…): its default holds the new size once fetched again
+                    item.dimensions = len(value)
+                    item = next(i for i in tree.interface.items_tree
+                                if i.item_type == "SOCKET" and i.in_out == "INPUT" and i.name == name)
+            elif isinstance(value, tuple) and len(value) == 3 and len(item.default_value) == 4:
+                value = (*value, 1.0)
+            try:
+                item.default_value = value
+            except (TypeError, ValueError) as e:
+                self.fail(g, f"valeur par défaut de « {name} » : {e}")
 
     def fill(self, tree, g, built, kept):
         pos = layout(g)
@@ -116,6 +152,17 @@ class Builder:
                 except (TypeError, ValueError, AttributeError) as e:
                     self.fail(n, f"{prop}: {e}")
 
+        # Zones: pair each input with its output, then give the output its items (the input follows)
+        for n in g.nodes:
+            if n.pair:
+                nodes[n.id].pair_with_output(nodes[n.pair])
+        for n in g.nodes:
+            if n.items is not None and n.bl_idname == ir.REPEAT_OUTPUT:
+                items = nodes[n.id].repeat_items
+                items.clear()
+                for name, type in n.items:
+                    items.new(REPEAT_ITEMS[type], name)
+
         for n in g.nodes:
             node = nodes[n.id]
             name = n.name or FIXED_NAMES.get(n.id)
@@ -151,6 +198,12 @@ class Builder:
         elif n.group:
             callee = self.graphs[n.group]
             names = callee.inputs if side == "inputs" else callee.outputs
+        elif n.items is not None:
+            # Zone items are numbered by Blender too; the input node has the count first
+            names = n.items
+            if n.bl_idname == ir.REPEAT_INPUT:
+                names = [("Iterations" if side == "inputs" else "Iteration", "Int")] + names
+            sockets = [s for s in sockets if s.type != "CUSTOM"]
         if names is not None:
             return sockets[[name for name, _t in names].index(ident)]
         sock = next((s for s in sockets if s.identifier == ident), None)

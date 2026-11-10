@@ -14,11 +14,11 @@ sous-groupes internes (nom en `.xxx` ou sans catalogue).
 |---|---|---|---|
 | `geometry_nodes_essentials.blend` | 33 | 27 | 21 |
 | `procedural_hair_node_assets.blend` | 32 | 22 | 9 |
-| `geometry_nodes_dynamics_assets.blend` (simulation) | 55 | 6 | 17 |
+| `geometry_nodes_dynamics_assets.blend` (simulation) | 55 | 6 | 21 |
 | `principal_components.blend` | 2 | 2 | 1 |
 | `compositing_nodes_essentials.blend` | 24 | 17 | 18 |
 | `shading_nodes_essentials.blend` | 4 | 4 | 4 |
-| **Total** | **150** | **78** | **70** |
+| **Total** | **150** | **78** | **74** |
 
 Par usage :
 
@@ -63,8 +63,8 @@ comble ce manque.
 
 ## Ce que le texte ne sait pas encore relire
 
-80 groupes sur 150 donnent un avertissement à la relecture. Nombre de groupes touchés,
-par cause :
+76 groupes sur 150 donnent un avertissement à la relecture (80 avant que Nodes as Text
+0.4 écrive les zones Repeat). Nombre de groupes touchés, par cause :
 
 | Cause | Groupes |
 |---|---|
@@ -72,7 +72,6 @@ par cause :
 | Frame coupé en deux par ses liens | 29 |
 | Menu Switch | 26 |
 | Nœuds sans effet sur la sortie (non exportés) | 23 |
-| Zone Repeat | 19 |
 | Combine / Separate Bundle | 17 |
 | Closures (zone et Evaluate Closure) | 15 |
 | Index Switch | 13 |
@@ -80,8 +79,9 @@ par cause :
 
 Sept groupes n'ont que des avertissements de forme (frame coupé, nœuds morts), dont Box
 Selection et Sphere Selection. Pour Nodes as Text, l'ordre qui libère le plus de
-groupes : **Capture Attribute**, puis **Menu Switch** et **Index Switch**, puis les
-zones **Repeat**. Les bundles et closures ne servent qu'à la simulation.
+groupes : **Capture Attribute**, puis **Menu Switch** et **Index Switch**. Les zones
+**Repeat** se relisent depuis la 0.4 : 4 groupes de plus se reconstruisent à l'identique
+depuis leur texte. Les bundles et closures ne servent qu'à la simulation.
 
 À noter : les arbres de shaders et de compositing se relisent aussi (`shader graph`,
 `compositor graph`), alors que la construction n'est garantie que pour Geometry Nodes.

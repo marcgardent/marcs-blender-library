@@ -5,6 +5,9 @@ from dataclasses import dataclass, field
 GROUP_INPUT = "group_input"
 GROUP_OUTPUT = "group_output"
 
+REPEAT_INPUT = "GeometryNodeRepeatInput"
+REPEAT_OUTPUT = "GeometryNodeRepeatOutput"
+
 
 @dataclass(frozen=True)
 class Link:
@@ -26,6 +29,8 @@ class Node:
     line: int = 0
     col: int = 0
     frame: str | None = None  # id of the frame it sits in
+    items: list | None = None  # (name, type) of a zone's items, on both nodes of the zone
+    pair: str | None = None    # on a zone's input node: the id of its output node
 
 
 @dataclass
@@ -48,6 +53,8 @@ class Graph:
     line: int = 0
     col: int = 0
     frames: list = field(default_factory=list)  # parents before their children
+    # input name -> {"value", "min", "max", "implicit"}, each only when written
+    defaults: dict = field(default_factory=dict)
 
     def node(self, node_id):
         return next(n for n in self.nodes if n.id == node_id)

@@ -1,0 +1,20 @@
+geometry graph pousses(geometry: Geometry, tours: Int) -> (Geometry: Geometry, Hauteur: Float) {
+  r = repeat(tours, mesh: geometry, hauteur: 0.0, pas: 0.5) {
+    "Pousse" #yellowgreen {
+      haut = Position().z >= hauteur
+      monté = ExtrudeMesh(mesh, haut, offset_scale: pas)
+    }
+    return (mesh: monté.mesh, hauteur: hauteur + pas)
+  }
+  return (Geometry: r.mesh, Hauteur: r.hauteur)
+}
+
+geometry graph table(n: Int) -> Float {
+  lignes = repeat(n, total: 0.0) {
+    colonnes = repeat(n, somme: total) {
+      return somme + iteration
+    }
+    return colonnes
+  }
+  return lignes
+}

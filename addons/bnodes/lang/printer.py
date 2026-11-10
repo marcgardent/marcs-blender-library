@@ -46,7 +46,7 @@ def graph(g):
 
 
 def header(g):
-    params = [f"{name(p.name)}: {p.type}" for p in g.params]
+    params = [param(p) for p in g.params]
     if g.single_output:
         outputs = g.outputs[0].type
     else:
@@ -59,6 +59,16 @@ def header(g):
     return [(g.line, f"{g.kind} graph {name(g.name)}(")] + lines + [(g.params[-1].line, f") -> {outputs} {{")]
 
 
+def param(p):
+    text = f"{name(p.name)}: {p.type}"
+    if p.default is not None:
+        text += f" = {expr(p.default)}"
+    if p.range is not None:
+        lo, hi = (expr(b) if b is not None else "" for b in p.range)
+        text += f" in {lo}..{hi}"
+    return text
+
+
 def statement(s, pad=INDENT):
     """A statement indented by `pad`; a frame with its body one step further in."""
     if isinstance(s, ast.Frame):
@@ -69,6 +79,11 @@ def statement(s, pad=INDENT):
         for inner in s.body:
             lines += statement(inner, pad + INDENT)
         return lines + [(s.end, pad + "}")]
+    if isinstance(s, ast.Assign) and isinstance(s.value, ast.Repeat):
+        lines = repeat_head(s, pad)
+        for inner in s.value.body:
+            lines += statement(inner, pad + INDENT)
+        return lines + [(s.value.end, pad + "}")]
     if isinstance(s, ast.Assign):
         return block(f"{pad}{s.name} = ", s.value, s.line, pad)
     if isinstance(s.value, ast.Record):
@@ -77,6 +92,18 @@ def statement(s, pad=INDENT):
             return [(s.line, line)]
         return spread(f"{pad}return (", s.value.fields, s.line, pad)
     return block(f"{pad}return ", s.value, s.line, pad)
+
+
+def repeat_head(s, pad):
+    """`name = repeat(count, state: start, …) {`, one argument per line when too long."""
+    r = s.value
+    items = [ast.Arg(None, r.count, r.line, r.col)] + r.states
+    line = f"{pad}{s.name} = repeat({args(items)}) {{"
+    if len(line) <= WIDTH:
+        return [(s.line, line)]
+    lines = spread(f"{pad}{s.name} = repeat(", items, s.line, pad)
+    lines[-1] = (lines[-1][0], lines[-1][1] + " {")
+    return lines
 
 
 def frame_head(f):

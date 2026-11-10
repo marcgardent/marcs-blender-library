@@ -1,5 +1,5 @@
 {
-  "asset_count": 44,
+  "asset_count": 60,
   "file_count": 4,
   "assets": [
     {
@@ -338,6 +338,38 @@
       }
     },
     {
+      "name": "courbure",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/courbure.webp",
+        "hash": "SHA256:4ecc772bc21f455b0f15588a515cd14b32cf7d04bc3b59f5bc2a46b1a19dbb8d"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Courbe l'espace vers le haut le long de X : \u00ab force \u00bb radians par unit\u00e9 de longueur",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
       "name": "cr\u00e9neau",
       "id_type": "NODETREE",
       "files": [
@@ -391,6 +423,72 @@
         ],
         "author": "Marc Gardent",
         "description": "Une direction au hasard, uniforme sur la sph\u00e8re",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "fbm",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/fbm.webp",
+        "hash": "SHA256:445d51d585a92939c1e82c29b8a6d5184f5247101a5559c72725760b5d7c45d8"
+      },
+      "meta": {
+        "catalog_id": "a19651d8-4add-4a92-a14f-95d39a01df4c",
+        "tags": [
+          "bruit",
+          "noise",
+          "fbm",
+          "fractal",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un bruit fractal : des octaves de bruit de plus en plus fines et faibles, entre -1 et 1 environ",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "fbm cr\u00eates",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/fbm-cretes.webp",
+        "hash": "SHA256:a798b38dfea67ec3f9855f6d59b31bf260a2b103e87559b9cfcaaf68331c6fba"
+      },
+      "meta": {
+        "catalog_id": "a19651d8-4add-4a92-a14f-95d39a01df4c",
+        "tags": [
+          "bruit",
+          "noise",
+          "fbm",
+          "fractal",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un bruit fractal en cr\u00eates : des ar\u00eates vives, pour des montagnes ; entre 0 et 1 environ",
         "properties": [
           {
             "name": "type",
@@ -506,10 +604,10 @@
         "min": "5.2"
       },
       "meta": {
-        "catalog_id": "391bddc9-8b92-4969-ba9e-ce961a8c3f5f",
+        "catalog_id": "85199657-c026-4a23-9b92-0a73c02aef8a",
         "tags": [
-          "vecteur",
-          "vector",
+          "couleur",
+          "palette",
           "maths"
         ],
         "author": "Marc Gardent",
@@ -546,6 +644,65 @@
         ],
         "author": "Marc Gardent",
         "description": "Des marches d'escalier : chacune monte en douceur sur sa derni\u00e8re fraction \u00ab mont\u00e9e \u00bb",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "normale sdf",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "La normale d'un SDF par diff\u00e9rences : sa valeur en p, puis en p d\u00e9cal\u00e9 un peu sur x, y et z",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "palette",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/palette.webp",
+        "hash": "SHA256:bef9c01e33eb75d4ec991bfe3b251dc598d862cfb75e794fdcda225381d0ffd9"
+      },
+      "meta": {
+        "catalog_id": "85199657-c026-4a23-9b92-0a73c02aef8a",
+        "tags": [
+          "couleur",
+          "palette",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Une palette cosinus d'Inigo Quilez : a + b \u00d7 cos(2\u03c0 (c \u00d7 t + d)), une couleur pour chaque t",
         "properties": [
           {
             "name": "type",
@@ -646,6 +803,38 @@
       }
     },
     {
+      "name": "point fibonacci",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/point-fibonacci.webp",
+        "hash": "SHA256:d06552fdf9e23b9b979835b0915ced1571b21e4f2e3e5262e14d441cf276fc88"
+      },
+      "meta": {
+        "catalog_id": "25d9369e-ae19-4a8e-bd0d-65df2d70d488",
+        "tags": [
+          "points",
+          "sampling",
+          "r\u00e9partition",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Le point \u00ab index \u00bb de \u00ab nombre \u00bb points r\u00e9partis r\u00e9guli\u00e8rement sur la sph\u00e8re de rayon 1",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
       "name": "proche sur segment",
       "id_type": "NODETREE",
       "files": [
@@ -663,6 +852,70 @@
         ],
         "author": "Marc Gardent",
         "description": "Le point du segment [a, b] le plus proche de p, sa distance \u00e0 p et sa place (0 en a, 1 en b)",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebond",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/rebond.webp",
+        "hash": "SHA256:6310e89acc8ea26dea75a2e25befe1b707101cd390a0f8b228b98df568ea1a7a"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Retombe et rebondit trois fois avant de se poser sur 1 : une balle",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "recul",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/recul.webp",
+        "hash": "SHA256:b2e4ca99fc600b53ad8ae12a7720edadb234473ad7f1f8b2662ac90a2e0bd86a"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Recule avant de partir : la force 1.70158 recule de 10 %",
         "properties": [
           {
             "name": "type",
@@ -769,6 +1022,38 @@
       }
     },
     {
+      "name": "sdf cercle",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sdf-cercle.webp",
+        "hash": "SHA256:7df2a9b15b375db2aefd7dcbe7d5ec17402e4fb015589046e38aba938e8d9a85"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un cercle du plan XY (2D : z ne compte pas)",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
       "name": "sdf cylindre",
       "id_type": "NODETREE",
       "files": [
@@ -791,6 +1076,134 @@
         ],
         "author": "Marc Gardent",
         "description": "Un cylindre ferm\u00e9 le long de Z, de hauteur 2 \u00d7 demi hauteur",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sdf c\u00f4ne",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sdf-cone.webp",
+        "hash": "SHA256:c9c53d299a25d936e1a6915a03df145ca8d5c4ed57dc22f5c0d11fac1e82ec70"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un tronc de c\u00f4ne le long de Z, de hauteur 2 \u00d7 demi hauteur ; rayon haut 0 donne un c\u00f4ne",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sdf ellipso\u00efde",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sdf-ellipsoide.webp",
+        "hash": "SHA256:f24d8e93b5851b97031e67fed2c098a5d795b8d1051e8effd1b17ac42b1cd876"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un ellipso\u00efde de demi-axes donn\u00e9s ; distance approch\u00e9e, exacte sur la surface",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sdf octa\u00e8dre",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sdf-octaedre.webp",
+        "hash": "SHA256:cdab80f729fe5a638c26801b2e43a97e0d5c00e8f1934cd7282d81d971f62123"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un octa\u00e8dre dont les pointes sont \u00e0 la distance \u00ab taille \u00bb ; distance approch\u00e9e",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sdf rectangle",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sdf-rectangle.webp",
+        "hash": "SHA256:63b553d5cd9b3d930ef5abba3fbe050ac736543f9b363eb5e6bd4129d973dd06"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un rectangle du plan XY de demi-c\u00f4t\u00e9s donn\u00e9s (2D : z ne compte pas)",
         "properties": [
           {
             "name": "type",
@@ -929,6 +1342,38 @@
       }
     },
     {
+      "name": "suite r2",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/suite-r2.webp",
+        "hash": "SHA256:f9b5e2b66bbddcc91075d538b8e9c1e85a0c935539819b26e78b1ecfd43db648"
+      },
+      "meta": {
+        "catalog_id": "25d9369e-ae19-4a8e-bd0d-65df2d70d488",
+        "tags": [
+          "points",
+          "sampling",
+          "r\u00e9partition",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Le point \u00ab index \u00bb de la suite R2 : des points du carr\u00e9 [0, 1]\u00b2 sans trou ni amas",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
       "name": "sur le plan",
       "id_type": "NODETREE",
       "files": [
@@ -946,6 +1391,38 @@
         ],
         "author": "Marc Gardent",
         "description": "Ce qui reste de v sans sa part le long de la normale : sa projection sur le plan",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "torsion",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/torsion.webp",
+        "hash": "SHA256:6c789cc61c04d05cf50d4d0d0a65ed350290a9581b7780437a2497a5e63d893c"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Tord l'espace autour de Z : un tour de \u00ab force \u00bb radians par unit\u00e9 de hauteur",
         "properties": [
           {
             "name": "type",
@@ -978,6 +1455,38 @@
         ],
         "author": "Marc Gardent",
         "description": "Onde triangle : 0 sur les entiers, 1 au milieu",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "\u00e9lastique",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/elastique.webp",
+        "hash": "SHA256:d7f9630865e52d8ad6258d308cdb31bb938496eaf0350d627dde36a9e9a9dadc"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "D\u00e9passe 1 puis y revient en oscillant : un ressort l\u00e2ch\u00e9",
         "properties": [
           {
             "name": "type",
@@ -1402,8 +1911,8 @@
     },
     {
       "path": "assets/geometry_nodes/maths.blend",
-      "size_in_bytes": 563165,
-      "hash": "SHA256:f6c0b1c63c4177b1244f9e3aa7764ae40f227806feeded270aa361234eff754b",
+      "size_in_bytes": 1160170,
+      "hash": "SHA256:e684996570a227120c32caa3dfb47f47fe991fa7ef98a2ee295407bce3a91ac8",
       "blender_version": "5.2.45"
     },
     {

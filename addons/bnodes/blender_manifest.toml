@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "bnodes"
-version = "0.3.1"
+version = "0.4.0"
 name = "Nodes as Text"
 tagline = "Écrit et relit les arbres de nœuds comme des fonctions"
 maintainer = "Marc Gardent"

@@ -85,13 +85,25 @@ class Parser:
         return ast.Graph(kind.text, name.text, params, outputs, single, body, kind.line, kind.col, end.line)
 
     def typed_list(self, close):
-        """`name: Type, ...` up to `close`, which is consumed."""
+        """`name: Type = default in lo..hi, ...` up to `close`, which is consumed."""
         items = []
         while not self.accept(close):
             name = self.accept("STRING") or self.expect("IDENT", what="nom")
             self.expect(":")
             t = self.expect("IDENT", what="type")
-            items.append(ast.Param(name.text, t.text, name.line, name.col))
+            p = ast.Param(name.text, t.text, name.line, name.col)
+            if self.accept("="):
+                p.default = self.unary()
+            if self.at("IDENT", "in") and self.peek().kind != ":":
+                # Either side may be left open: `in 0.0..`, `in ..1.0`
+                self.advance()
+                lo = None if self.at("..") else self.unary()
+                self.expect("..", what="« .. » entre le min et le max")
+                hi = self.unary() if self.tok.kind in ("NUMBER", "-") else None
+                if lo is None and hi is None:
+                    self.fail("bornes vides : écrire au moins le min ou le max")
+                p.range = (lo, hi)
+            items.append(p)
             if not self.accept(","):
                 self.expect(close)
                 break
@@ -114,7 +126,8 @@ class Parser:
                           "choisir un autre nom")
             self.advance()
             self.advance()
-            return ast.Assign(t.text, self.expr(), t.line, t.col)
+            value = self.repeat() if self.at("KEYWORD", "repeat") else self.expr()
+            return ast.Assign(t.text, value, t.line, t.col)
         self.fail(f"instruction attendue (nom = …, return, ou un frame \"titre\" {{ … }}), trouvé {describe(t)}")
 
     def frame(self):
@@ -129,6 +142,23 @@ class Parser:
             body.append(self.statement())
         end = self.advance()
         return ast.Frame(label and label.text, color and color.text, body, t.line, t.col, end.line)
+
+    def repeat(self):
+        t = self.advance()
+        self.expect("(", what="« ( » après repeat")
+        args = self.args()
+        if not args or args[0].name is not None:
+            self.fail("repeat attend d'abord le nombre de tours : repeat(10, état: départ, …)", t)
+        if len(args) < 2:
+            self.fail("repeat attend au moins un état : repeat(10, état: départ)", t)
+        self.expect("{", what="« { » après repeat(…)")
+        body = []
+        while not self.at("}"):
+            if self.at("EOF"):
+                self.fail("« } » attendu avant la fin du fichier")
+            body.append(self.statement())
+        end = self.advance()
+        return ast.Repeat(args[0].value, args[1:], body, t.line, t.col, end.line)
 
     def expr(self):
         left = self.disjunction()
@@ -214,6 +244,8 @@ class Parser:
             return ast.String(t.text, t.line, t.col)
         if self.accept("KEYWORD", "true") or self.accept("KEYWORD", "false"):
             return ast.Bool(t.text == "true", t.line, t.col)
+        if self.at("KEYWORD", "repeat"):
+            self.fail("repeat s'écrit seul, en valeur d'un nom : r = repeat(10, état: départ) { … }")
         if self.at("KEYWORD", "xor") and self.peek().kind == "(":
             # The function form, kept from before `xor` was an operator
             self.advance()

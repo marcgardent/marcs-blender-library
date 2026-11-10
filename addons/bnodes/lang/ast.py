@@ -132,11 +132,29 @@ class Frame:
 
 
 @dataclass
+class Repeat:
+    """`repeat(count, state: start, …) { … return (state: next, …) }`: a Repeat zone.
+
+    Written only as the value of an assignment. In the body the states are names,
+    and `iteration` is the number of the current turn, from 0.
+    """
+    count: object
+    states: list  # of Arg, all named
+    body: list
+    line: int
+    col: int
+    end: int = 0  # line of the closing brace
+
+
+@dataclass
 class Param:
+    """`name: Type = default in lo..hi`; the default and the range are optional."""
     name: str
     type: str
     line: int
     col: int
+    default: object = None  # a literal, or a call such as Position() for an implicit input
+    range: tuple | None = None  # (lo, hi) literals, None for an open side
 
 
 @dataclass

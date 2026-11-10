@@ -2,10 +2,10 @@ from dataclasses import dataclass
 
 from .errors import BnError, Diagnostic
 
-KEYWORDS = {"graph", "return", "true", "false", "and", "or", "xor", "not"}
+KEYWORDS = {"graph", "return", "true", "false", "and", "or", "xor", "not", "repeat"}
 
-# Longest first, so "->" wins over "-" and "==" over "="
-PUNCT = ("|>", "->", "<=", ">=", "==", "!=", "<", ">", "(", ")", "{", "}", ",", ":", ".", "=", "+", "-", "*", "/",
+# Longest first, so "->" wins over "-", "==" over "=" and ".." over "."
+PUNCT = ("|>", "->", "<=", ">=", "==", "!=", "<", ">", "(", ")", "{", "}", ",", ":", "..", ".", "=", "+", "-", "*", "/",
          "⋅", "·", "×")
 
 

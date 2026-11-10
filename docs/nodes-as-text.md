@@ -18,6 +18,8 @@ le modifier.
 |---|---|
 | `geometry graph herbe(sol: Geometry, densité: Float) -> Geometry { … }` | un node group, ses entrées et sa sortie |
 | `"Pente max": Float`, puis `pente_max` | un nom avec espaces, utilisé en snake_case |
+| `force: Float = 0.25 in 0.0..1.0`, `p: Vector = Position()` | une entrée avec sa valeur par défaut et ses bornes, une entrée qui prend la position |
+| `r = repeat(n, somme: 0.0) { return somme + iteration }` | une zone Repeat : ses états, le numéro du tour, les états suivants |
 | `-> (Mesh: Geometry, Hauteur: Float)` et `return (Mesh: m, Hauteur: h)` | plusieurs sorties |
 | `points = DistributePointsOnFaces(sol, density: 2.0)` | un nœud, entrées dans l'ordre puis par nom |
 | `points.rotation`, `p.z` | une sortie d'un nœud, une composante d'un vecteur |
@@ -176,8 +178,8 @@ geometry graph rochers(sol: Geometry, densité: Float, graine: Int) -> Geometry 
 
 ## Ce que le texte ne sait pas encore écrire
 
-Les zones (Simulation, Repeat, For Each), les nœuds aux sockets ajoutés à la main
-(Capture Attribute, Bake, Menu Switch…), les valeurs par défaut des entrées d'un graph,
+Les zones Simulation et For Each, les nœuds aux sockets ajoutés à la main
+(Capture Attribute, Bake, Menu Switch…), le sous-type des entrées (Factor, Distance…),
 les arbres de shaders et de compositing. « Tree → Text » les signale par un
 avertissement.
 

@@ -13,10 +13,12 @@ import bpy
 
 from ..lang import ast, sugar
 from ..lang.printer import to_source
-from ..lang.schema import RESERVED, TYPES, key, snake
-from .schema import SOCKET_TYPES, TREE_TYPES, BlenderSchema, snapshot, text_name
+from ..lang.ir import REPEAT_INPUT, REPEAT_OUTPUT
+from ..lang.schema import IMPLICIT, RESERVED, TYPES, key, snake
+from .schema import SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, snapshot, text_name
 
 KINDS = {v: k for k, v in TREE_TYPES.items()}
+IMPLICIT_CALLS = {mode: name for name, (mode, _type) in IMPLICIT.items()}
 INTERFACE_TYPES = {v: k for k, v in TYPES.items()}
 GROUP_NODES = {"GeometryNodeGroup", "ShaderNodeGroup", "CompositorNodeGroup"}
 SKIP = {"NodeFrame", "NodeReroute"}
@@ -66,6 +68,7 @@ class GraphReader:
         self.index = {n.name: i for i, n in enumerate(tree.nodes)}
         self.exprs = {}
         self.chain_heads = set()  # ids of calls whose first argument is a geometry name
+        self.opened = set()  # frames written as blocks so far
 
     def warn(self, message):
         self.warnings.append(f"{self.tree.name} : {message}")
@@ -75,7 +78,7 @@ class GraphReader:
         if self.kind is None:
             raise ValueError(f"{tree.name} n'est pas un arbre de nœuds lisible")
         items = [i for i in tree.interface.items_tree if i.item_type == "SOCKET"]
-        params = [self.param(i) for i in items if i.in_out == "INPUT"]
+        params = [self.defaults(self.param(i), i) for i in items if i.in_out == "INPUT"]
         outputs = [self.param(i) for i in items if i.in_out == "OUTPUT"]
         self.param_keys = [key(p.name) for p in params]
         single = len(outputs) == 1 and outputs[0].name == outputs[0].type
@@ -84,7 +87,11 @@ class GraphReader:
         out = next((n for n in outs if n.is_active_output), outs[0] if outs else None)
 
         self.incoming = self.resolve_links()
+        # A Repeat output reaches its input even when no link joins them
+        self.pairs = {n.paired_output.name: n for n in tree.nodes
+                      if n.bl_idname == REPEAT_INPUT and n.paired_output is not None}
         reached = self.reach(out)
+        self.zone_of = self.zones(reached)
         dead = [n for n in tree.nodes if n.bl_idname not in SKIP and n not in reached
                 and n.bl_idname != "NodeGroupInput"]
         if dead:
@@ -109,9 +116,16 @@ class GraphReader:
                 src = vector[0][0].name
                 uses[src] = uses.get(src, 0) + uses.get(n.name, 0) - 1
         taken = set(self.param_keys)
+        for rout, rin in self.pairs.items():
+            if rout in self.zone_of or any(n.name == rout for n in reached):
+                taken.update([key(s.name) for s in self.items(rin.outputs)[1:]] + ["iteration"])
         self.bound = {}
         for n in sorted(reached, key=lambda n: self.index[n.name]):
-            if n.bl_idname in ("NodeGroupInput", "NodeGroupOutput") or n.name in self.separates:
+            if n.bl_idname in ("NodeGroupInput", "NodeGroupOutput", REPEAT_INPUT) or n.name in self.separates:
+                continue
+            if n.bl_idname == REPEAT_OUTPUT:
+                # A zone is a block: always a statement of its own
+                self.bound[n.name] = unique(self.binding_name(n), taken)
                 continue
             # Written inline, a node would land in its user's frame
             used_by = user.get(n.name)
@@ -129,7 +143,7 @@ class GraphReader:
                 links = self.incoming.get(out.name, {}).get(sock.identifier)
                 if links:
                     fields.append((o_name, self.use(*links[0])))
-        for name in self.statement_order():
+        for name in self.statement_order(None):
             node = self.tree.nodes[name]
             body.append((node, ast.Assign(self.bound[name], self.expr(node), 0, 0)))
         if single and fields:
@@ -145,6 +159,43 @@ class GraphReader:
             type = item.socket_type.removeprefix("NodeSocket")
             self.warn(f"type d'interface {item.socket_type} inconnu du texte")
         return ast.Param(item.name, type, 0, 0)
+
+    def defaults(self, p, item):
+        """The default, bounds and implicit field of an input, when they differ from a new socket's."""
+        fresh = fresh_item(item.socket_type)
+        if "default_input" in fresh and item.default_input != fresh["default_input"]:
+            call = IMPLICIT_CALLS.get(item.default_input)
+            if call is not None and IMPLICIT[call][1] == p.type:
+                p.default = ast.Call(call, [], 0, 0)
+            else:
+                self.warn(f"entrée « {item.name} » : valeur implicite {item.default_input} non exportée")
+        elif "default_value" in fresh and not same(snapshot(item), fresh["default_value"]):
+            p.default = self.default_literal(item, p.type)
+        if "min_value" in fresh:
+            bounds = [None if bounded(v, f) else ast.Number(int(v), True, 0, 0) if p.type == "Int" else number(v)
+                      for v, f in ((item.min_value, fresh["min_value"]), (item.max_value, fresh["max_value"]))]
+            if bounds != [None, None]:
+                p.range = tuple(bounds)
+        return p
+
+    def default_literal(self, item, type):
+        value = snapshot(item)
+        if type == "Float":
+            return number(value)
+        if type == "Int":
+            return ast.Number(int(value), True, 0, 0)
+        if type == "Bool":
+            return ast.Bool(bool(value), 0, 0)
+        if type in ("Vector", "Rotation", "Color") and isinstance(value, tuple):
+            if type == "Color" and len(value) == 4 and same(value[3], 1.0):
+                value = value[:3]
+            return ast.Tuple([number(v) for v in value], 0, 0)
+        if type == "Menu":
+            return enum_literal(value)
+        if isinstance(value, str):
+            return ast.String(value.replace('"', "'").replace("\n", " "), 0, 0)
+        self.warn(f"valeur par défaut de « {item.name} » ({type}) non exportée")
+        return None
 
     # Links
 
@@ -191,7 +242,55 @@ class GraphReader:
             reached.append(n)
             for links in self.incoming.get(n.name, {}).values():
                 stack.extend(src for src, _sock in links)
+            if n.name in self.pairs:
+                stack.append(self.pairs[n.name])
         return reached
+
+    def zones(self, reached):
+        """{node name: name of the Repeat output whose body holds it}, the innermost zone.
+
+        A node is in a zone when it depends on the zone's input and the zone's output
+        depends on it, as Blender decides.
+        """
+        depends = {}
+
+        def on(n, rin):
+            k = (n.name, rin.name)
+            if k not in depends:
+                depends[k] = False  # a cycle is no dependency
+                depends[k] = any(src == rin or on(src, rin)
+                                 for links in self.incoming.get(n.name, {}).values() for src, _s in links)
+            return depends[k]
+
+        members = {}
+        names = {n.name for n in reached}
+        for rout, rin in self.pairs.items():
+            if rout not in names:
+                continue
+            inside, stack, seen = set(), [self.tree.nodes[rout]], set()
+            while stack:
+                n = stack.pop()
+                for links in self.incoming.get(n.name, {}).values():
+                    for src, _s in links:
+                        if src.name in seen or src == rin:
+                            continue
+                        seen.add(src.name)
+                        if on(src, rin):
+                            inside.add(src.name)
+                            stack.append(src)
+            members[rout] = inside
+        zone_of = {}
+        for rout, inside in sorted(members.items(), key=lambda kv: len(kv[1])):
+            for name in inside:
+                zone_of.setdefault(name, rout)
+        # The input sits where its output sits
+        for rout, rin in self.pairs.items():
+            if rout in zone_of:
+                zone_of[rin.name] = zone_of[rout]
+        return zone_of
+
+    def items(self, sockets):
+        return [s for s in sockets if s.type != "CUSTOM"]
 
     # Names
 
@@ -215,6 +314,8 @@ class GraphReader:
 
     def use(self, node, sock):
         """The expression for one output of a node, at the place it is used."""
+        if node.bl_idname == REPEAT_INPUT:
+            return ast.Ref("iteration" if sock.identifier == "Iteration" else key(sock.name), 0, 0)
         if node.bl_idname == "NodeGroupInput":
             i = [s for s in node.outputs if s.type != "CUSTOM"].index(sock)
             return ast.Ref(self.param_keys[i], 0, 0)
@@ -232,8 +333,60 @@ class GraphReader:
 
     def expr(self, node):
         if node.name not in self.exprs:
-            self.exprs[node.name] = self.call(node)
+            self.exprs[node.name] = self.repeat(node) if node.bl_idname == REPEAT_OUTPUT else self.call(node)
         return self.exprs[node.name]
+
+    def repeat(self, rout):
+        """`repeat(count, state: start, …) { … return (state: next, …) }` for a Repeat zone."""
+        rin = self.pairs[rout.name]
+        incoming = self.incoming.get(rin.name, {})
+        sockets = self.items(rin.inputs)
+        values = []
+        for sock in sockets:
+            links = incoming.get(sock.identifier)
+            if links:
+                values.append(self.use(*links[0]))
+            elif sock.type == "GEOMETRY":
+                # Nothing linked: an empty geometry
+                values.append(ast.Call("JoinGeometry", [], 0, 0))
+            else:
+                values.append(self.literal(rin, sock, {}))
+        for sock, v in zip(sockets, values):
+            if v is None:
+                self.warn(f"repeat « {rout.name} » : « {sock.name} » ({sock.type}) part sans valeur, "
+                          "pas encore pris en charge par le texte")
+        values = [v if v is not None else ast.Ref("aucun", 0, 0) for v in values]
+        count, starts = values[0], values[1:]
+        states = [ast.Arg(s.name, v, 0, 0) for s, v in zip(sockets[1:], starts)]
+        # In the body a state hides the group input of the same name
+        hidden = {key(s.name) for s in sockets[1:]} & set(self.param_keys)
+        inside = [n for n, z in self.zone_of.items() if z == rout.name] + [rout.name]
+        gin = [s for n in inside for links in self.incoming.get(n, {}).values() for s in links
+               if s[0].bl_idname == "NodeGroupInput"]
+        for src, sock in gin:
+            k = self.param_keys[self.items(src.outputs).index(sock)]
+            if k in hidden:
+                self.warn(f"repeat « {rout.name} » : son corps lit l'entrée « {k} », cachée par l'état du même nom ; "
+                          "pas encore pris en charge par le texte")
+                hidden.discard(k)
+
+        statements = [(self.tree.nodes[n], ast.Assign(self.bound[n], self.expr(self.tree.nodes[n]), 0, 0))
+                      for n in self.statement_order(rout.name)]
+        fields = []
+        outgoing = self.incoming.get(rout.name, {})
+        for sock in self.items(rout.inputs):
+            links = outgoing.get(sock.identifier)
+            if links and links[0][0] == rin and links[0][1].name == sock.name:
+                continue  # unchanged: the text leaves it out
+            value = self.use(*links[0]) if links else self.literal(rout, sock, {})
+            if value is not None:
+                fields.append((sock.name, value))
+        if len(sockets) == 2 and fields:
+            ret = ast.Return(fields[0][1], 0, 0)
+        else:
+            ret = ast.Return(ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0), 0, 0)
+        body = self.framed(statements + [(rout, ret)], base=frame_path(rout), notes=False)
+        return ast.Repeat(count, states, body, 0, 0)
 
     def call(self, node):
         group = node.bl_idname in GROUP_NODES
@@ -431,12 +584,14 @@ class GraphReader:
             value = value.replace('"', "'").replace("\n", " ")
         return ast.String(value, 0, 0)
 
-    def statement_order(self):
-        """Bound nodes, each after the ones it uses, staying in the current frame when it can, else in tree order."""
+    def statement_order(self, zone):
+        """Bound nodes of a zone's body (None: the graph's), each after the ones it uses,
+        staying in the current frame when it can, else in tree order."""
+        names = [n for n in self.bound if self.zone_of.get(n) == zone]
+        level = {self.bound[n] for n in names}
         deps = {}
-        for name in self.bound:
-            deps[name] = {r for r in refs(self.expr(self.tree.nodes[name]))
-                          if r in self.bound.values()}
+        for name in names:
+            deps[name] = {r for r in refs(self.expr(self.tree.nodes[name])) if r in level}
         by_binding = {b: n for n, b in self.bound.items()}
         waiting = {n: {by_binding[d] for d in ds if by_binding[d] != n} for n, ds in deps.items()}
         ready = [n for n, ds in waiting.items() if not ds]
@@ -455,14 +610,19 @@ class GraphReader:
 
     # Frames
 
-    def framed(self, statements):
-        """[(node, statement)] in order -> the body, with frames as blocks around their statements."""
+    def framed(self, statements, base=(), notes=True):
+        """[(node, statement)] in order -> the body, with frames as blocks around their statements.
+
+        A repeat body is framed inside the frames `base` of its statement; notes go in the graph's body.
+        """
         body = []
         stack = [(None, body)]
-        opened = set()
+        # Shared with the repeat bodies, framed first: a frame opened there is no note
+        opened = self.opened
         blocks = {}
         for node, stmt in statements:
             path = frame_path(node) if node is not None else []
+            path = path[len(base):] if [f.name for f in path[:len(base)]] == [f.name for f in base] else []
             names = [f.name for f in path]
             while len(stack) > 1 and stack[-1][0].name not in names:
                 stack.pop()
@@ -476,6 +636,8 @@ class GraphReader:
                 stack.append((f, block.body))
             stack[-1][1].append(stmt)
 
+        if not notes:
+            return body
         # Frames around no exported node are notes, written where their parent is
         frames = sorted((n for n in self.tree.nodes if n.bl_idname == "NodeFrame"), key=lambda n: self.index[n.name])
 
@@ -485,10 +647,11 @@ class GraphReader:
             return block
 
         for f in frames:
-            if f.name in blocks:
+            if f.name in blocks or f.name in opened:
                 continue
             parent = frame_name(f)
-            if parent is None or parent in opened:
+            # A note in a frame of a repeat body is not written
+            if parent is None or parent in blocks:
                 where = body if parent is None else blocks[parent].body
                 # Before the return, which nothing may follow
                 at = len(where) - 1 if where and holds_return(where[-1]) else len(where)
@@ -575,6 +738,11 @@ def same(a, b):
     return a == b
 
 
+def bounded(value, fresh):
+    """No bound written: the new socket's, or one so far out it means none (old files hold ±3.40282e38)."""
+    return same(value, fresh) or abs(value) >= 1e30
+
+
 def number(v):
     return ast.Number(float(f"{float(v):.7g}"), False, 0, 0)
 
@@ -624,3 +792,20 @@ def refs(e):
         yield from refs(e.right)
     elif isinstance(e, (ast.Neg, ast.Not)):
         yield from refs(e.value)
+    elif isinstance(e, ast.Repeat):
+        yield from refs(e.count)
+        for a in e.states:
+            yield from refs(a.value)
+        for s in e.body:
+            yield from statement_refs(s)
+
+
+def statement_refs(s):
+    if isinstance(s, ast.Frame):
+        for inner in s.body:
+            yield from statement_refs(inner)
+    elif isinstance(s, ast.Return) and isinstance(s.value, ast.Record):
+        for f in s.value.fields:
+            yield from refs(f.value)
+    else:
+        yield from refs(s.value)

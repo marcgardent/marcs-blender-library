@@ -168,6 +168,24 @@ class BlenderSchema:
         return _sockets[key]
 
 
+# What a new interface input of each socket type holds: the text writes only what differs
+INTERFACE_FIELDS = ("default_value", "min_value", "max_value", "default_input")
+_fresh_items = {}
+
+
+def fresh_item(socket_type):
+    """{field: value} of a new group input of `socket_type`, fields it has only."""
+    if socket_type not in _fresh_items:
+        tree = bpy.data.node_groups.new(".bnodes_fresh", "GeometryNodeTree")
+        try:
+            item = tree.interface.new_socket("x", in_out="INPUT", socket_type=socket_type)
+            _fresh_items[socket_type] = {f: snapshot(item) if f == "default_value" else getattr(item, f)
+                                         for f in INTERFACE_FIELDS if hasattr(item, f)}
+        finally:
+            bpy.data.node_groups.remove(tree)
+    return _fresh_items[socket_type]
+
+
 def snapshot(sock):
     """A socket's default_value as plain Python: tuples for vectors, names for datablocks."""
     value = getattr(sock, "default_value", None)

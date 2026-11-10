@@ -39,7 +39,24 @@ DATABLOCKS = {"Object", "Collection", "Material", "Image", "Texture"}
 
 TREE_KINDS = ("geometry", "shader", "compositor")
 
-RESERVED = {"graph", "return", "true", "false", "and", "or", "xor", "not", "dot", "cross"}
+# Default of an unlinked group input taken from the context: `p: Vector = Position()`.
+# Text call -> (interface default_input, the one type it suits)
+IMPLICIT = {
+    "Position": ("POSITION", "Vector"),
+    "Normal": ("NORMAL", "Vector"),
+    "Index": ("INDEX", "Int"),
+    "ID": ("ID_OR_INDEX", "Int"),
+    "InstanceTransform": ("INSTANCE_TRANSFORM", "Matrix"),
+    "SelfObject": ("SELF_OBJECT", "Object"),
+}
+
+# Types whose interface socket has a min and a max: `t: Float = 0.5 in 0.0..1.0`
+RANGED = {"Float", "Int", "Vector"}
+
+# Types with no default value in text: links only
+NO_DEFAULT = {"Geometry", "Shader", "Bundle", "Closure", "Matrix"}
+
+RESERVED = {"graph", "return", "true", "false", "and", "or", "xor", "not", "dot", "cross", "repeat"}
 
 
 def can_link(src, dst):

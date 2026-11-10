@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "addons"))
 
 from bnodes.host import build_source, export_tree  # noqa: E402
+from bnodes.host.schema import INTERFACE_FIELDS, snapshot  # noqa: E402
 from bnodes.lang import parse, sugar  # noqa: E402
 from bnodes.lang.format import format_source  # noqa: E402
 from bnodes.lang.printer import to_source  # noqa: E402
@@ -183,6 +184,93 @@ def test_rebuilding_a_group_keeps_its_callers_and_settings():
     assert any(n.bl_idname == "GeometryNodeSetShadeSmooth" and n.domain == "EDGE" for n in smooth.nodes)
 
 
+def test_defaults_bounds_and_implicit_fields_come_back_identical():
+    if "Rust" not in bpy.data.materials:
+        bpy.data.materials.new("Rust")
+    src = fixture("defaults.bn")
+    (tree,) = build_source(src, "defaults.bn")
+    items = {i.name: i for i in tree.interface.items_tree if i.item_type == "SOCKET" and i.in_out == "INPUT"}
+    assert abs(items["force"].default_value - 0.25) < 1e-6 and abs(items["force"].max_value - 0.999) < 1e-6
+    assert close(tuple(items["teinte"].default_value), (0.8, 0.3, 0.1, 1.0))
+    assert items["p"].default_input == "POSITION" and items["id"].default_input == "ID_OR_INDEX"
+    assert items["matière"].default_value == bpy.data.materials["Rust"]
+    text, warnings = export_tree(tree)
+    assert text == src, text
+    assert warnings == []
+
+
+def test_a_default_removed_from_the_text_is_reset():
+    if "Rust" not in bpy.data.materials:
+        bpy.data.materials.new("Rust")
+    src = fixture("defaults.bn")
+    build_source(src, "defaults.bn")
+    (tree,) = build_source(src.replace(" = 0.25 in 0.001..0.999", "").replace(" = Position()", ""), "defaults.bn")
+    items = {i.name: i for i in tree.interface.items_tree if i.item_type == "SOCKET" and i.in_out == "INPUT"}
+    assert items["force"].default_value == 0.0 and items["force"].max_value > 1e30
+    assert items["p"].default_input == "VALUE"
+
+
+def test_repeat_zones_come_back_identical():
+    src = fixture("repeat.bn")
+    trees = build_source(src, "repeat.bn")
+    for tree in trees:
+        pairs = [n for n in tree.nodes if n.bl_idname == "GeometryNodeRepeatInput"]
+        assert pairs and all(n.paired_output is not None for n in pairs), tree.name
+        assert all(link.is_valid for link in tree.links), tree.name
+    text = "\n".join(export_tree(t)[0] for t in trees)
+    assert text == src, text
+    assert all(export_tree(t)[1] == [] for t in trees)
+
+
+CALLER = """geometry graph essai(geometry: Geometry) -> Geometry {
+  p = pousses(MeshGrid(1.0, 1.0, 3, 3), 4)
+  return p.geometry |> StoreNamedAttribute(name: "h", value: p.hauteur)
+    |> StoreNamedAttribute(name: "t", value: table(5))
+}
+"""
+
+
+def test_repeat_zones_compute():
+    tree = build_source(fixture("repeat.bn") + "\n" + CALLER, "essai.bn")[-1]
+    obj = bpy.data.objects.new("essai", bpy.data.meshes.new("essai"))
+    bpy.context.scene.collection.objects.link(obj)
+    obj.modifiers.new("essai", "NODES").node_group = tree
+    mesh = obj.evaluated_get(bpy.context.evaluated_depsgraph_get()).data
+    # 4 turns of 0.5; 5 rows of 0 + 1 + 2 + 3 + 4
+    assert abs(mesh.attributes["h"].data[0].value - 2.0) < 1e-6
+    assert abs(mesh.attributes["t"].data[0].value - 50.0) < 1e-6
+    # Each turn extrudes the top faces once more
+    assert max(v.co.z for v in mesh.vertices) > 1.5 and len(mesh.vertices) > 9
+
+
+def test_rebuilding_a_repeat_keeps_one_zone():
+    src = fixture("repeat.bn")
+    build_source(src, "repeat.bn")
+    pousses, _table = build_source(src.replace("pas: 0.5", "pas: 0.25"), "repeat.bn")
+    assert [n.bl_idname for n in pousses.nodes].count("GeometryNodeRepeatInput") == 1
+    rin = next(n for n in pousses.nodes if n.bl_idname == "GeometryNodeRepeatInput")
+    assert abs(rin.inputs["pas"].default_value - 0.25) < 1e-6
+
+
+def close(a, b):
+    """Equal, floats to a relative 1e-5: bounds far out (±3.4e38) differ in their last digits."""
+    if isinstance(a, (tuple, list)) and isinstance(b, (tuple, list)):
+        return len(a) == len(b) and all(close(x, y) for x, y in zip(a, b))
+    if isinstance(a, float) or isinstance(b, float):
+        return abs(a - b) <= 1e-5 * max(1.0, abs(a), abs(b))
+    return a == b
+
+
+def interface(tree):
+    """What the text holds of each input: its default, bounds and implicit field."""
+    out = []
+    for i in tree.interface.items_tree:
+        if i.item_type == "SOCKET" and i.in_out == "INPUT":
+            out.append((i.name, *(snapshot(i) if f == "default_value" else getattr(i, f)
+                                  for f in INTERFACE_FIELDS if hasattr(i, f))))
+    return out
+
+
 def test_bundled_assets_export_and_come_back_stable():
     root = bpy.utils.system_resource("DATAFILES", path="assets/nodes")
     ours = {g.name for g in bpy.data.node_groups}
@@ -195,6 +283,7 @@ def test_bundled_assets_export_and_come_back_stable():
     for name in names:
         tree = bpy.data.node_groups[name]
         before = node_kinds(tree)
+        settings = interface(tree)
         text, warnings = export_tree(tree)
         stats["exported"] += 1
         stats["compare as symbol"] += sum(text.count(f" {op} ") for op in sugar.COMPARE)
@@ -210,6 +299,7 @@ def test_bundled_assets_export_and_come_back_stable():
         again, _ = export_tree(rebuilt)
         assert again == text, name
         assert node_kinds(rebuilt) == before, name
+        assert all(close(a, b) for a, b in zip(interface(rebuilt), settings)), name
         stats["stable"] += 1
     print("   bundled trees:", dict(stats))
     assert stats["exported"] == len(names) and stats["stable"] >= 50

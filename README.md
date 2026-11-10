@@ -135,6 +135,23 @@ geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
   `imply` et `nimply` s'écrivent en fonctions : `nand(a, b)`.
 - Un nom avec des espaces se déclare entre guillemets (`"Point Count": Int`) et
   s'utilise en snake_case (`point_count`). Commentaires : `//`.
+- Une entrée peut avoir une valeur par défaut et des bornes : `force: Float = 0.25`,
+  `t: Float = 0.5 in 0.0..1.0`, `rayon: Float in 0.0..` (un côté peut rester ouvert).
+  `p: Vector = Position()` prend la position du point quand l'entrée n'est pas reliée ;
+  de même `Normal()`, `Index()`, `ID()`, `InstanceTransform()` et `SelfObject()`. Un
+  vecteur de 2 ou 4 nombres (`uv: Vector = (0.5, 0.5)`) donne une entrée de cette dimension.
+- `r = repeat(n, état: départ, …) { … return (état: suivant, …) }` donne une zone Repeat.
+  Dans le bloc, chaque état est un nom et `iteration` le numéro du tour (0, 1, 2…) ;
+  `return` donne les états du tour suivant, un état non rendu passe tel quel. Après le
+  bloc, `r.état` est sa dernière valeur (`r` seul quand il n'y a qu'un état). Les noms
+  du bloc y restent. Les états peuvent être des nombres, des vecteurs, des géométries… :
+
+  ```
+  r = repeat(octaves, somme: 0.0, amplitude: 0.5, fréquence: 1.0) {
+    bruit = TexNoise(p * fréquence, 1.0, 0.0).factor * 2.0 - 1.0
+    return (somme: somme + bruit * amplitude, amplitude: amplitude * 0.5, fréquence: fréquence * 2.0)
+  }
+  ```
 - `"Bruit" #orange { … }` met dans un frame les nœuds des instructions du bloc. Titre
   et couleur sont facultatifs (`#e07030 { … }`, `{ … }`). La couleur s'écrit en hexa
   (`#e07030`, `#e73`) ou par un des 148 noms CSS (`#orange`, `#teal`, `#tomato`…).
@@ -174,7 +191,7 @@ arbres construits avec **Add as Modifier** et **Tree → Text**, cases **Sync Se
 - Erreur dans le texte : rien n'est modifié, le curseur va sur la première erreur.
 - Text Editor et Node Editor côte à côte : cliquer un nœud place le curseur sur sa
   ligne, et déplacer le curseur sélectionne les nœuds de la ligne.
-- Pas encore pris en charge : zones (Simulation, Repeat…), nœuds aux sockets ajoutés
+- Pas encore pris en charge : zones Simulation et For Each, nœuds aux sockets ajoutés
   à la main (Capture Attribute, Bake, Menu Switch…, signalés à l'export), shaders et
   compositing.
 
@@ -199,7 +216,7 @@ apparaît tout de suite. Sinon, à la main : Préférences > File Paths > Asset 
 | Tonneau Fermé, Tonneau | Geometry Nodes (modifier) | Geometry Nodes/Tonneau | `assets/geometry_nodes/tonneau.blend` |
 | Cerclage, Fond Planches | Geometry Nodes (groupe) | Geometry Nodes/Tonneau | `assets/geometry_nodes/tonneau.blend` |
 | Centre Mesh, Box Normalisée, Profil Cloche, Poussée Radiale, Choix Axe, Orienter Axe, Paire Miroir | Geometry Nodes (groupe) | Geometry Nodes/Outils | `assets/geometry_nodes/tonneau.blend` |
-| Maths : 31 fonctions (courbes, ondes, vecteurs, angles, SDF, hasard) | Geometry Nodes (groupe) | Geometry Nodes/Maths/… | `assets/geometry_nodes/maths.blend` |
+| Maths : 47 fonctions (courbes, ondes, vecteurs, angles, couleurs, SDF, bruits, hasard, répartitions) | Geometry Nodes (groupe) | Geometry Nodes/Maths/… | `assets/geometry_nodes/maths.blend` |
 
 ### Outline Backface
 
@@ -287,16 +304,17 @@ Ajout : Add Modifier > Geometry Nodes > Tonneau, ou glisser depuis l'Asset Brows
 
 ![Maths](previews/maths.png)
 
-31 fonctions qui manquent à Blender, écrites en texte avec
-[Nodes as Text](#nodes-as-text) dans `src/maths.bn` : courbes de réglage (biais, gain,
-accélère, impulsion, bosse, marches…), ondes (triangle, créneau), vecteurs et angles,
-champs de distance signée (sphère, boîte, tore, cylindre, capsule, soustraction douce,
-coque, répétition) et tirages au hasard. Chacune a sa vignette, tracée à partir des
-valeurs que Blender calcule. La liste, les démos et la façon de mailler un SDF :
+47 fonctions qui manquent à Blender, écrites en texte avec
+[Nodes as Text](#nodes-as-text) dans `src/maths.bn` : courbes de réglage et d'animation
+(biais, gain, accélère, rebond, élastique, bosse, marches…), ondes (triangle, créneau),
+vecteurs et angles, couleurs (palette cosinus), champs de distance signée (sphère, boîte,
+tore, cylindre, capsule, cône, ellipsoïde, octaèdre, soustraction douce, coque,
+répétition, torsion, courbure), bruits fractals (fbm, fbm en crêtes, écrits avec un
+`repeat`), tirages au hasard et répartitions régulières (Fibonacci, R2). Chacune a sa vignette, tracée à partir des valeurs que Blender calcule. La liste, les démos et la façon de mailler un SDF :
 [docs/maths.md](docs/maths.md). Ce que Blender livre déjà, et pourquoi ces fonctions :
 [docs/analyse-groupes-blender.md](docs/analyse-groupes-blender.md).
 
-- Une entrée `p` laissée libre prend la position du point, une entrée `id` l'index.
+- Une entrée `p` laissée libre prend la position du point, une entrée `id` son identifiant.
 - Dans un texte `.bn`, coller `src/maths.bn` en tête puis appeler les fonctions en
   snake_case : `bosse(x, 0.5, 0.2)`, `sdf_tore(p, 1.0, 0.25)`.
 
