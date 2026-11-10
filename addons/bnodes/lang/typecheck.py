@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from . import ast, colors, ir, sugar
 from .errors import BnError, Diagnostic
+from .parser import parse
 from .schema import DATABLOCKS, IMPLICIT, NO_DEFAULT, RANGED, STRICT, TREE_KINDS, TYPES, Socket, can_link, key
 
 GROUP_NODES = {
@@ -42,19 +43,134 @@ class Sym:
     name: str
 
 
-def check(file, schema, filename="<text>"):
-    """Checked graphs, callees before callers. Raises BnError."""
-    diags = []
-    by_name = {}
-    # Graphs are called by their key: "Smooth by Angle" is called as smooth_by_angle(...)
-    for g in file.graphs:
-        if key(g.name) in by_name:
-            diags.append(Diagnostic(filename, g.line, g.col, f"graph « {key(g.name)} » défini deux fois"))
-        by_name[key(g.name)] = g
+def check(file, schema, filename="<text>", load=None):
+    """Checked graphs, callees before callers, those of the modules first. Raises BnError.
 
+    `load(name, source)` gives a module's (text, filename) for a `use`, or raises
+    LookupError with the reason; without it, a `use` is an error.
+    """
+    return Modules(schema, load).check(file, filename).order
+
+
+@dataclass
+class Unit:
+    """A checked file: its graphs by key, and every graph it needs, callees first."""
+    graphs: dict  # key -> ast.Graph
+    order: list   # of ir.Graph, those of its own modules included
+
+
+class Modules:
+    """Checks a file and the modules it uses, each module once."""
+
+    def __init__(self, schema, load):
+        self.schema = schema
+        self.load = load
+        self.done = {}  # (name, source) -> Unit
+        self.units = {}  # id of a Use -> the Unit it loaded
+
+    def check(self, file, filename, ident=None, stack=()):
+        diags = []
+        imported = self.imports(file, filename, stack, diags)
+        by_name = {}
+        # Graphs are called by their key: "Smooth by Angle" is called as smooth_by_angle(...)
+        for g in file.graphs:
+            if key(g.name) in by_name:
+                diags.append(Diagnostic(filename, g.line, g.col, f"graph « {key(g.name)} » défini deux fois"))
+            elif key(g.name) in imported:
+                diags.append(Diagnostic(filename, g.line, g.col, f"« {key(g.name)} » est défini ici et importé de "
+                                                                 f"{imported[key(g.name)][1].name}"))
+            by_name[key(g.name)] = g
+        callable_ = {k: g for k, (g, _u) in imported.items()} | by_name
+        order = self.needed(file.uses, imported)
+        # A module that failed would make every call to it an unknown node too
+        unsure = any(id(u) not in self.units for u in file.uses)
+        own = check_graphs(file.graphs, by_name, callable_, self.schema, filename, diags, unsure)
+        if diags:
+            raise BnError(diags)
+        for g in own:
+            g.module = ident
+        seen = set()
+        return Unit(by_name, [g for g in order + own if not (g.name in seen or seen.add(g.name))])
+
+    def imports(self, file, filename, stack, diags):
+        """{key: (ast.Graph, its Use)} of the graphs the uses bring."""
+        imported = {}
+        names = set()
+        for u in file.uses:
+            def error(message):
+                diags.append(Diagnostic(filename, u.line, u.col, message))
+            if u.name in names:
+                error(f"module « {u.name} » importé deux fois : un seul use par module")
+                continue
+            names.add(u.name)
+            unit = self.unit(u, stack, error)
+            if unit is None:
+                continue
+            self.units[id(u)] = unit
+            wanted = u.names if u.names is not None else list(unit.graphs)
+            for k in wanted:
+                if k not in unit.graphs:
+                    error(f"« {k} » n'est pas dans le module {u.name} ; graphs : {short_list(sorted(unit.graphs))}")
+                elif k in imported and imported[k][1].name != u.name:
+                    error(f"« {k} » est dans {imported[k][1].name} et dans {u.name} : "
+                          f"choisir avec use {u.name} (…)")
+                else:
+                    imported[k] = (unit.graphs[k], u)
+        return imported
+
+    def unit(self, u, stack, error):
+        ident = (u.name, u.source)
+        if ident in stack:
+            error("import circulaire : " + " → ".join(n for n, _s in stack + (ident,)))
+            return None
+        if ident in self.done:
+            return self.done[ident]
+        if self.load is None:
+            error("use : aucun module à charger ici")
+            return None
+        try:
+            text, filename = self.load(u.name, u.source)
+        except LookupError as e:
+            error(f"module « {u.name} » : {e.args[0] if e.args else e}")
+            return None
+        try:
+            unit = self.check(parse(text, filename), filename, ident, stack + (ident,))
+        except BnError as e:
+            first, n = e.diagnostics[0], len(e.diagnostics)
+            error(f"module « {u.name} » : {first}" + (f" (+{n - 1} erreur(s))" if n > 1 else ""))
+            return None
+        self.done[ident] = unit
+        return unit
+
+    def needed(self, uses, imported):
+        """The modules' graphs to build: a whole module, or the names listed and what they call."""
+        out = []
+        for u in uses:
+            unit = self.units.get(id(u))
+            if unit is None:
+                continue
+            if u.names is None:
+                out += unit.order
+                continue
+            by_ir = {g.name: g for g in unit.order}
+            keep = set()
+            todo = [unit.graphs[k].name for k in u.names if k in unit.graphs]
+            while todo:
+                name = todo.pop()
+                if name in keep or name not in by_ir:
+                    continue
+                keep.add(name)
+                todo += [n.group for n in by_ir[name].nodes if n.group]
+            out += [g for g in unit.order if g.name in keep]
+        return out
+
+
+def check_graphs(graphs, by_name, callable_, schema, filename, diags, unsure=False):
+    """The file's own graphs, checked, callees before callers."""
     checked, calls = {}, {}
-    for g in file.graphs:
-        c = GraphChecker(g, by_name, schema, filename, diags)
+    for g in graphs:
+        c = GraphChecker(g, callable_, schema, filename, diags)
+        c.unsure = unsure
         checked[key(g.name)] = c.run()
         calls[key(g.name)] = c.calls
 
@@ -75,11 +191,8 @@ def check(file, schema, filename="<text>"):
         if checked.get(name):
             order.append(checked[name])
 
-    for g in file.graphs:
+    for g in graphs:
         visit(key(g.name), key(g.name))
-
-    if diags:
-        raise BnError(diags)
     return order
 
 
@@ -99,6 +212,7 @@ class GraphChecker:
         self.zone = None  # inside a repeat body: (output node, its item sockets, input node, its outputs)
         self.given = set()  # states the current repeat body returns
         self.frame_now = None
+        self.unsure = False  # a module failed to load: an unknown call may be one of its graphs
 
     def error(self, at, message):
         self.diags.append(Diagnostic(self.filename, at.line, at.col, message))
@@ -584,13 +698,25 @@ class GraphChecker:
                 named.append((a.name, v, a))
 
         node = ir.Node(f"n{len(self.nodes)}", "", line=c.line, col=c.col)
+        spec = None if c.name in self.graphs else self.schema.node(self.g.kind, c.name)
+        group = self.existing_group(c) if c.name not in self.graphs and spec is None else None
         if c.name in self.graphs:
             inputs, outputs = self.group_signature(c, node)
             if inputs is None:
                 return None
+        elif group is not None:
+            if isinstance(group, list):
+                self.error(c, f"« {c.name} » désigne plusieurs groupes du fichier : "
+                              f"{', '.join(g.name for g in group)}")
+                return None
+            node.bl_idname = GROUP_NODES[self.g.kind]
+            node.group = group.name
+            inputs = [Socket(n, n, t) for n, t in group.inputs]
+            outputs = [Socket(n, n, t) for n, t in group.outputs]
         else:
-            spec = self.schema.node(self.g.kind, c.name)
             if spec is None:
+                if self.unsure:
+                    return None
                 close = difflib.get_close_matches(c.name, self.schema.node_names(self.g.kind), 3)
                 hint = f" ; voulez-vous dire {', '.join(close)} ?" if close else ""
                 self.error(c, f"nœud « {c.name} » inconnu dans un arbre {self.g.kind}{hint}")
@@ -638,6 +764,11 @@ class GraphChecker:
             self.connect(node, sock, v, a, c.name)
 
         return Out(node.id, outputs, None, c.name)
+
+    def existing_group(self, c):
+        """A node group of the file with that key, when the text does not define one."""
+        groups = getattr(self.schema, "groups", None)
+        return groups(self.g.kind).get(c.name) if groups else None
 
     def group_signature(self, c, node):
         callee = self.graphs[c.name]

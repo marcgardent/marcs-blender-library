@@ -1,4 +1,5 @@
-// Les démos de la boîte à outils : à construire avec maths.bn, qui définit les fonctions.
+// Les démos de la boîte à outils, avec les fonctions du texte maths.bn
+use maths
 
 // La courbe y = f(x) pour x de 0 à 1, dans un cadre de 1 × 1 placé à la colonne et à la rangée
 geometry graph tracé(y: Float, colonne: Float, rangée: Float) -> Geometry {

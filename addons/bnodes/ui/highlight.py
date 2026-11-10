@@ -49,7 +49,12 @@ def classify(tokens):
         elif t.kind == "COLOR" and rgb(t.text[1:]):
             out.append((t, rgb(t.text[1:])))
         elif t.kind == "IDENT":
-            if t.text in TREE_KINDS and nxt is not None and nxt.text == "graph":
+            # `use` and `from` are keywords only on a use line: `use maths from "…"`
+            if t.text == "use" and i == 0 and nxt is not None and nxt.kind == "IDENT" \
+                    or t.text == "from" and nxt is not None and nxt.kind in ("STRING", "OPEN_STRING") \
+                    and tokens[0].text in ("use", ")"):
+                out.append((t, "keyword"))
+            elif t.text in TREE_KINDS and nxt is not None and nxt.text == "graph":
                 out.append((t, "keyword"))
             elif t.text in TYPES and prev in (":", "->"):
                 out.append((t, t.text))

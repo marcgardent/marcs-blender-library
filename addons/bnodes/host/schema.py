@@ -7,7 +7,7 @@ are read on demand with the properties set, and memoized.
 
 import bpy
 
-from ..lang.schema import NodeSpec, Prop, Socket
+from ..lang.schema import TYPES, GroupSpec, NodeSpec, Prop, Socket, key
 
 TREE_TYPES = {
     "geometry": "GeometryNodeTree",
@@ -143,6 +143,23 @@ class BlenderSchema:
     def sockets(self, kind, spec, props):
         inputs, outputs, _values, _props = self.fresh(kind, spec, props)
         return list(inputs), list(outputs)
+
+    def groups(self, kind):
+        """{key: GroupSpec} of the file's node groups of that kind, hidden ones (.name) aside."""
+        types = {v: k for k, v in TYPES.items()}
+        found = {}
+        for tree in bpy.data.node_groups if kind in TREE_TYPES else ():
+            if tree.bl_idname != TREE_TYPES[kind] or tree.name.startswith("."):
+                continue
+            items = [i for i in tree.interface.items_tree if i.item_type == "SOCKET"]
+            sig = [tuple((i.name, types.get(i.socket_type, i.socket_type.removeprefix("NodeSocket")))
+                         for i in items if i.in_out == io) for io in ("INPUT", "OUTPUT")]
+            spec = GroupSpec(tree.name, *sig)
+            k = key(tree.name)
+            if k in found:
+                spec = (found[k] if isinstance(found[k], list) else [found[k]]) + [spec]
+            found[k] = spec
+        return found
 
     def defaults(self, kind, spec, props):
         """What a new node holds once `props` are set: ({input identifier: value}, {prop: value})."""

@@ -15,6 +15,7 @@ from ..lang import ast, sugar
 from ..lang.printer import to_source
 from ..lang.ir import REPEAT_INPUT, REPEAT_OUTPUT
 from ..lang.schema import IMPLICIT, RESERVED, TYPES, key, snake
+from .modules import module_of
 from .schema import SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, snapshot, text_name
 
 KINDS = {v: k for k, v in TREE_TYPES.items()}
@@ -43,6 +44,9 @@ def read_tree(tree, schema):
     warnings = []
     graphs = {}
     order = []
+    # A group another module built is written as a use of that module, not copied
+    home = module_of(tree)
+    uses = {}
 
     def visit(t, seen):
         if t in graphs or t in seen:
@@ -51,12 +55,17 @@ def read_tree(tree, schema):
         graph = reader.read()
         # Only the groups that reach the output are exported with it
         for callee in sorted(reader.callees, key=lambda c: c.name):
-            visit(callee, seen | {t})
+            module = module_of(callee)
+            if module is not None and module != home:
+                uses.setdefault(module, set()).add(key(callee.name))
+            else:
+                visit(callee, seen | {t})
         graphs[t] = graph
         order.append(graph)
 
     visit(tree, frozenset())
-    return ast.File(order), warnings
+    return ast.File(order, [ast.Use(name, sorted(names), source, 0, 0)
+                            for (name, source), names in uses.items()]), warnings
 
 
 class GraphReader:

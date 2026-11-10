@@ -63,6 +63,10 @@ NODES = {
 class FakeSchema:
     def __init__(self):
         self.calls = 0
+        self.existing = {}  # key -> GroupSpec: the node groups already in the file
+
+    def groups(self, kind):
+        return self.existing if kind == "geometry" else {}
 
     def node(self, kind, name):
         if kind != "geometry" or name not in NODES:

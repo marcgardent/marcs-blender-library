@@ -16,7 +16,21 @@ PRECEDENCE = {"|>": 1, "or": 2, "xor": 2, "and": 3, "not": 4, "<": 5, "<=": 5, "
 
 
 def to_source(file):
-    return "\n".join(render(graph(g)) for g in file.graphs)
+    head = render(line for u in sorted_uses(file.uses) for line in use(u))
+    return (head + "\n" if head else "") + "\n".join(render(graph(g)) for g in file.graphs)
+
+
+def sorted_uses(uses):
+    return sorted(uses, key=lambda u: (u.name, u.source or ""))
+
+
+def use(u):
+    """`use name (a, b) from "source"`, one name per line when too long."""
+    tail = f' from {quote(u.source)}' if u.source is not None else ""
+    line = f"use {u.name}" + (f" ({', '.join(u.names)})" if u.names else "") + tail
+    if len(line) <= WIDTH or not u.names:
+        return [(u.line, line)]
+    return [(u.line, f"use {u.name} (")] + [(u.line, f"{INDENT}{n},") for n in u.names] + [(u.line, ")" + tail)]
 
 
 def render(lines):

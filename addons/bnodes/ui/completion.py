@@ -8,7 +8,7 @@ through to the Text Editor. A watcher opens it after `(`, `.` or `:`.
 import blf
 import bpy
 
-from ..host import BlenderSchema
+from ..host import BlenderSchema, modules
 from ..lang.complete import OPENERS, complete, product_sign
 from . import actions, draw, prefs
 
@@ -34,7 +34,7 @@ def refresh(text):
     """Suggestions at the cursor of the text; False, and closed, when there are none."""
     line, col = text.current_line_index + 1, text.current_character + 1
     with BlenderSchema() as schema:
-        Popup.start, items = complete(text.as_string(), line, col, schema)
+        Popup.start, items = complete(text.as_string(), line, col, schema, modules.load)
     Popup.line, Popup.items = line, items
     Popup.selected = min(Popup.selected, len(items) - 1) if items else 0
     Popup.text = text if items else None

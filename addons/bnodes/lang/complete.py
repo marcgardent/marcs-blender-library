@@ -37,8 +37,10 @@ class Outline:
     body: int      # index of `{` in the token list, or None
 
 
-def complete(source, line, col, schema):
-    """(start column, items) at a 1-based cursor; an item replaces line[start:col]."""
+def complete(source, line, col, schema, load=None):
+    """(start column, items) at a 1-based cursor; an item replaces line[start:col].
+
+    With `load` (see typecheck.check), the graphs of the `use` lines are suggested too."""
     lines = source.split("\n")
     if not 1 <= line <= len(lines):
         return col, []
@@ -54,7 +56,9 @@ def complete(source, line, col, schema):
         return start, matching([Item(name, name, "#" + code, "color") for name, code in CSS.items()], prefix)
     tokens = [t for t in tokens if t.kind != "COMMENT"]
     everything = [t for t in tokenize(source, strict=False) if t.kind != "COMMENT"]
-    items = Context(tokens, line, outlines(everything), schema).items()
+    # The file's own graphs last: they win over a group or a module graph of the same key
+    graphs = existing(schema) + imported(everything, load) + outlines(everything)
+    items = Context(tokens, line, graphs, schema).items()
     return start, matching(items, prefix)
 
 
@@ -118,6 +122,41 @@ def outlines(tokens):
     return found
 
 
+def imported(tokens, load):
+    """Outlines of the graphs that the `use` lines at the head of the file bring."""
+    found = []
+    i = 0
+    while load and i + 1 < len(tokens) and tokens[i].text == "use" and tokens[i + 1].kind == "IDENT":
+        name, names, source = tokens[i + 1].text, None, None
+        i += 2
+        if i < len(tokens) and tokens[i].kind == "(":
+            names = set()
+            while i < len(tokens) and tokens[i].kind != ")":
+                if tokens[i].kind == "IDENT":
+                    names.add(tokens[i].text)
+                i += 1
+            i += 1
+        if i + 1 < len(tokens) and tokens[i].text == "from" and tokens[i + 1].kind == "STRING":
+            source = tokens[i + 1].text
+            i += 2
+        try:
+            text, _filename = load(name, source)
+        except LookupError:
+            continue
+        module = [t for t in tokenize(text, strict=False) if t.kind != "COMMENT"]
+        found += [g for g in outlines(module) if names is None or key(g.name) in names]
+    return found
+
+
+def existing(schema):
+    """Outlines of the node groups already in the file, from the schema when it has them."""
+    groups = getattr(schema, "groups", None)
+    if groups is None:
+        return []
+    return [Outline(kind, g.name, list(g.inputs), list(g.outputs), None)
+            for kind in TREE_KINDS for g in groups(kind).values() if not isinstance(g, list)]
+
+
 def typed_names(tokens, j):
     """`(name: Type, ...)` from the `(` at j: (index after `)`, [(name, type)])."""
     pairs = []
@@ -141,7 +180,7 @@ class Context:
         starts = [i for i, t in enumerate(tokens) if t.kind == "KEYWORD" and t.text == "graph"]
         self.g = None
         if starts:
-            self.g = next((g for g in graphs if g.name == tokens[starts[-1] + 1].text), None) \
+            self.g = next((g for g in reversed(graphs) if g.name == tokens[starts[-1] + 1].text), None) \
                 if starts[-1] + 1 < len(tokens) else None
         self.head = starts[-1] if starts else None
         self.kind = self.g.kind if self.g else "geometry"

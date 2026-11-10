@@ -57,11 +57,37 @@ class Parser:
 
     def file(self):
         f = ast.File()
+        while self.at_use():
+            f.uses.append(self.use())
         while not self.at("EOF"):
+            if self.at_use():
+                self.fail("les use vont en tête du fichier, avant le premier graph")
             f.graphs.append(self.graph())
         if not f.graphs:
             self.fail("fichier vide : aucun graph")
         return f
+
+    def at_use(self):
+        # `use` is a keyword only here, so that a socket or a name may still be called use
+        return self.at("IDENT", "use") and self.peek().kind == "IDENT"
+
+    def use(self):
+        t = self.advance()
+        name = self.advance()
+        names = None
+        if self.accept("("):
+            names = []
+            while not self.accept(")"):
+                names.append(self.expect("IDENT", what="nom de graph").text)
+                if not self.accept(","):
+                    self.expect(")")
+                    break
+            if not names:
+                self.fail("liste vide : écrire use " + name.text + " pour tout le module", t)
+        source = None
+        if self.accept("IDENT", "from"):
+            source = self.expect("STRING", what="source entre guillemets").text
+        return ast.Use(name.text, names, source, t.line, t.col)
 
     def graph(self):
         kind = self.expect("IDENT", what="type d'arbre (geometry, shader, compositor)")

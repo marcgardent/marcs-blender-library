@@ -55,6 +55,7 @@ class Graph:
     frames: list = field(default_factory=list)  # parents before their children
     # input name -> {"value", "min", "max", "implicit"}, each only when written
     defaults: dict = field(default_factory=dict)
+    module: tuple | None = None  # (name, source) of the module that brought it, for a `use`
 
     def node(self, node_id):
         return next(n for n in self.nodes if n.id == node_id)

@@ -19,10 +19,12 @@ ses points), sa description, ses valeurs par défaut et ses bornes, écrites dan
 (`force: Float = 0.25 in 0.001..0.999`). Une entrée `p = Position()` prend la position du
 point si elle n'est pas reliée, une entrée `id = ID()` son identifiant.
 
-**En texte** : coller `src/maths.bn` en tête d'un texte `.bn` et appeler les fonctions
-par leur nom, en snake_case :
+**En texte** : écrire `use maths` en tête d'un texte `.bn` et appeler les fonctions par
+leur nom, en snake_case :
 
 ```
+use maths
+
 geometry graph cratères(sol: Geometry) -> Geometry {
   p = Position()
   // La distance au centre, remise de 0 à 1 puis passée dans une bosse
@@ -31,8 +33,14 @@ geometry graph cratères(sol: Geometry) -> Geometry {
 }
 ```
 
-Le fichier `maths.blend` contient aussi `maths.bn` et `maths_demo.bn` dans son Text
-Editor : avec l'extension, Ctrl+Entrée les reconstruit.
+`use maths` prend le texte `maths.bn` du fichier. Il y arrive avec le premier asset
+Maths ajouté : chaque groupe garde le lien vers son texte. Sans asset, le texte peut
+rester à côté du `.blend` : `use maths from "//lib/maths.bn"`. `use maths (bosse)` ne
+construit que `bosse` et ce qu'elle appelle. Tree → Text écrit le `use` au lieu de
+recopier les fonctions.
+
+Le fichier `maths.blend` contient `maths.bn` et `maths_demo.bn` dans son Text Editor :
+avec l'extension, Ctrl+Entrée les reconstruit.
 
 ## Les fonctions
 

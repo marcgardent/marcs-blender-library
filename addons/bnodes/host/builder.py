@@ -14,6 +14,7 @@ from ..lang.errors import BnError, Diagnostic
 from ..lang.layout import layout
 from ..lang.schema import TYPES
 from ..lang.typecheck import REPEAT_ITEMS
+from . import modules
 from .schema import TREE_TYPES, BlenderSchema, fresh_item
 
 DATABLOCKS = {"OBJECT": "objects", "COLLECTION": "collections", "MATERIAL": "materials",
@@ -27,9 +28,12 @@ FIXED_NAMES = {ir.GROUP_INPUT: "Group Input", ir.GROUP_OUTPUT: "Group Output"}
 
 
 def build_source(source, filename="<text>"):
-    """Compile a .bn source and build its graphs. Returns the node groups, raises BnError."""
+    """Compile a .bn source and build its graphs, and those its `use` lines bring.
+
+    Returns the node groups of the source's own graphs, raises BnError.
+    """
     with BlenderSchema() as schema:
-        graphs = lang.compile_source(source, schema, filename)
+        graphs = lang.compile_source(source, schema, filename, modules.load)
     builder = Builder(filename, graphs)
     for g in graphs:
         if g.kind != "geometry":
@@ -47,8 +51,23 @@ def build_source(source, filename="<text>"):
 
     built = {}
     for g in graphs:
-        built[g.name] = builder.build(g, target(g), built)
-    return list(built.values())
+        tree = built[g.name] = builder.build(g, target(g), built)
+        mark(tree, g.module)
+    return [built[g.name] for g in graphs if g.module is None]
+
+
+def mark(tree, module):
+    """Say which module a group comes from, so that Tree → Text writes its use back."""
+    if module is None:
+        tree.pop(modules.MODULE, None)
+        tree.pop(modules.SOURCE, None)
+        return
+    name, source = module
+    tree[modules.MODULE] = name
+    tree[modules.SOURCE] = source or ""
+    if hasattr(tree, "bnodes_text"):
+        # A text module goes along with the group when it is appended elsewhere
+        tree.bnodes_text = bpy.data.texts.get(name + ".bn") if source is None else None
 
 
 def target(g):
@@ -145,7 +164,8 @@ class Builder:
             if n.frame:
                 node.parent = frames[n.frame]
             if n.group:
-                node.node_tree = built[n.group]
+                # A group of the file the text does not define is used as it is
+                node.node_tree = built[n.group] if n.group in self.graphs else bpy.data.node_groups[n.group]
             for prop, value in n.props.items():
                 try:
                     setattr(node, prop, value)
@@ -195,9 +215,13 @@ class Builder:
             names = g.inputs
         elif n.id == ir.GROUP_OUTPUT:
             names = g.outputs
-        elif n.group:
+        elif n.group in self.graphs:
             callee = self.graphs[n.group]
             names = callee.inputs if side == "inputs" else callee.outputs
+        elif n.group:
+            io = "INPUT" if side == "inputs" else "OUTPUT"
+            names = [(i.name, None) for i in node.node_tree.interface.items_tree
+                     if i.item_type == "SOCKET" and i.in_out == io]
         elif n.items is not None:
             # Zone items are numbered by Blender too; the input node has the count first
             names = n.items

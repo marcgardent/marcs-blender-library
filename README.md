@@ -152,6 +152,13 @@ geometry graph wave(geometry: Geometry, t: Float) -> Geometry {
     return (somme: somme + bruit * amplitude, amplitude: amplitude * 0.5, fréquence: fréquence * 2.0)
   }
   ```
+- `use maths` en tête du texte rend appelables les graphs du texte `maths.bn` du même
+  `.blend` ; `use maths from "//lib/maths.bn"` les prend dans un fichier, chemin relatif
+  au `.blend` comme partout dans Blender. `use maths (fbm, bosse)` n'importe que ces
+  graphs et ce qu'ils appellent. Construire le texte construit aussi les groupes du
+  module, et Tree → Text réécrit le `use` au lieu de recopier ses graphs. Les groupes
+  déjà dans le fichier (un asset ajouté, les Essentials de Blender) s'appellent aussi
+  par leur nom en snake_case : `smooth_by_angle(mesh, angle: 0.5)`.
 - `"Bruit" #orange { … }` met dans un frame les nœuds des instructions du bloc. Titre
   et couleur sont facultatifs (`#e07030 { … }`, `{ … }`). La couleur s'écrit en hexa
   (`#e07030`, `#e73`) ou par un des 148 noms CSS (`#orange`, `#teal`, `#tomato`…).
@@ -315,8 +322,10 @@ répétition, torsion, courbure), bruits fractals (fbm, fbm en crêtes, écrits 
 [docs/analyse-groupes-blender.md](docs/analyse-groupes-blender.md).
 
 - Une entrée `p` laissée libre prend la position du point, une entrée `id` son identifiant.
-- Dans un texte `.bn`, coller `src/maths.bn` en tête puis appeler les fonctions en
-  snake_case : `bosse(x, 0.5, 0.2)`, `sdf_tore(p, 1.0, 0.25)`.
+- Dans un texte `.bn`, écrire `use maths` en tête puis appeler les fonctions en
+  snake_case : `bosse(x, 0.5, 0.2)`, `sdf_tore(p, 1.0, 0.25)`. Le texte `maths.bn`
+  arrive dans le fichier avec le premier asset Maths ajouté ; sinon,
+  `use maths from "//chemin/vers/maths.bn"`.
 
 Ajout : Add (Maj+A) dans le Node Editor > Geometry Nodes > Maths, ou glisser depuis
 l'Asset Browser.

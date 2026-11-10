@@ -133,3 +133,23 @@ def test_names_from_a_frame_are_seen_after_it(schema):
 ])
 def test_product_words_swap_after_an_operand(typed, expected):
     assert product_sign(typed) == expected
+
+
+def test_graphs_of_a_use_and_groups_of_the_file(schema):
+    from lang.schema import GroupSpec
+    schema.existing = {"lift_up": GroupSpec("Lift Up", (("z", "Float"),), (("Vector", "Vector"),))}
+    maths = "geometry graph bosse(x: Float, centre: Float) -> Float {\n  return x\n}\n" \
+            "geometry graph pic(x: Float) -> Float {\n  return x\n}\n"
+
+    def load(name, source):
+        if name != "maths":
+            raise LookupError(name)
+        return maths, "maths.bn"
+    src = "use maths (bosse)\nuse absent\n\n" + HEAD + "  h = "
+    lines = src.split("\n")
+    _, items = complete(src, len(lines), len(lines[-1]) + 1, schema, load)
+    got = [i.label for i in items]
+    assert "bosse" in got and "lift_up" in got and "pic" not in got, got
+    src += "bosse("
+    _, items = complete(src, len(lines), len(lines[-1]) + len("bosse(") + 1, schema, load)
+    assert [i.label for i in items[:2]] == ["x", "centre"]

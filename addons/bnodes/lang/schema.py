@@ -106,6 +106,14 @@ class NodeSpec:
     props: dict = field(default_factory=dict, hash=False)
 
 
+@dataclass(frozen=True)
+class GroupSpec:
+    """A node group already in the file, called by its key like a graph of the text."""
+    name: str
+    inputs: tuple   # (name, type) of its interface
+    outputs: tuple
+
+
 class Schema(Protocol):
     def node(self, kind, name):
         """NodeSpec for a text name in a tree kind, or None."""
@@ -115,3 +123,8 @@ class Schema(Protocol):
 
     def sockets(self, kind, spec, props):
         """(inputs, outputs) available once `props` are set: lists of Socket."""
+
+    def groups(self, kind):
+        """{key: GroupSpec, or a list of them when the key repeats} for the groups of the file.
+
+        Optional: a schema without it has no group to offer."""

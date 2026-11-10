@@ -30,6 +30,8 @@ le modifier.
 | `< <= > >= == !=` | Compare |
 | `and`, `or`, `xor`, `not` | Boolean Math (`and` lie plus fort que `or` et `xor`) |
 | `rocher_brut(1.0, 4).mesh` | l'appel d'un autre graph du fichier |
+| `use maths`, `use maths (fbm) from "//lib/maths.bn"` | en tête : les graphs d'un autre texte, d'un fichier |
+| `smooth_by_angle(mesh, angle: 0.5)` | l'appel d'un groupe déjà dans le `.blend` |
 | `"Titre" #couleur { … }`, `#e07030 { … }`, `{ … }` | un frame autour des nœuds du bloc |
 | `"À régler" #tomato {}` | une note : un frame vide |
 | `// …` | un commentaire |

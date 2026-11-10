@@ -171,5 +171,19 @@ class Graph:
 
 
 @dataclass
+class Use:
+    """`use maths (fbm, bosse) from "//lib/maths.bn"`: the list and the source are optional.
+
+    With no source, the module is the text `maths.bn` of the same .blend.
+    """
+    name: str
+    names: list | None  # graph keys; None imports every graph of the module
+    source: str | None
+    line: int
+    col: int
+
+
+@dataclass
 class File:
     graphs: list = field(default_factory=list)
+    uses: list = field(default_factory=list)

@@ -20,6 +20,7 @@ import bpy
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "addons"))
 
+import bnodes  # noqa: E402
 from bnodes.host import build_source  # noqa: E402
 from bnodes.lang import parse  # noqa: E402
 
@@ -154,7 +155,7 @@ def probe(name, mesh, stores, vector=False):
                               for k, e in enumerate(stores.values()))
     text = (f"geometry graph sonde_{name}() -> Geometry {{\n  i = Index()\n  x = i / 511.0\n"
             f"  p = CombineXYZ(Position().x, 0.0, Position().y)\n  return {mesh}\n    |> {chain}\n}}\n")
-    (tree,) = [t for t in build_source(text_all() + text, "sonde.bn") if t.name == f"sonde_{name}"]
+    (tree,) = build_source("use maths\n\n" + text, "sonde.bn")
     obj = bpy.data.objects.new("sonde", bpy.data.meshes.new("sonde"))
     bpy.context.scene.collection.objects.link(obj)
     obj.modifiers.new("sonde", "NODES").node_group = tree
@@ -403,18 +404,23 @@ def set_material_group():
 
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    # Enregistrée, l'extension relie chaque groupe à son texte : il le suit quand on l'ajoute ailleurs
+    bnodes.register()
     source = text_all()
     with open(DEMO) as f:
         demo = f.read()
     info = sections(source)
+    # Le texte voyage avec le fichier : Ctrl+Entrée le reconstruit avec l'extension.
+    # La démo et les sondes y prennent les fonctions par « use maths ».
+    for name, text in (("maths.bn", source), ("maths_demo.bn", demo)):
+        bpy.data.texts.new(name).write(text)
     # Les démos nomment ces matériaux
     material("Courbe", (*ORANGE, 1.0))
     material("Cadre", (0.25, 0.25, 0.27, 1.0))
     material("Forme", (0.75, 0.72, 0.68, 1.0), roughness=0.35)
     material("Montagne", (0.32, 0.29, 0.25, 1.0), roughness=0.8)
-    trees = build_source(source, "maths.bn")
-    build_source(source + demo, "maths_demo.bn")
-    mark_assets(trees, info)
+    build_source(demo, "maths_demo.bn")
+    mark_assets([bpy.data.node_groups[name] for name in info], info)
     curve_previews()
     field_previews()
     scatter_previews()
@@ -429,10 +435,6 @@ def main():
     render(cam_b, os.path.join(IMAGES, "maths-bruits.png"), (1400, 700), bruits)
     for coll in bpy.data.collections:
         coll.hide_render = False
-
-    # Le texte voyage avec le fichier : Ctrl+Entrée le reconstruit avec l'extension
-    for name, text in (("maths.bn", source), ("maths_demo.bn", demo)):
-        bpy.data.texts.new(name).write(text)
 
     os.makedirs(os.path.dirname(BLEND_PATH), exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=BLEND_PATH, compress=True)

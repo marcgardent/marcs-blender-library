@@ -30,6 +30,12 @@ def format_source(source, filename="<text>"):
             else:
                 printed.extend((o, t, k == 0) for k, (o, t) in enumerate(printer.statement(s, pad)))
 
+    # Sorted, each use keeps its own line, and so its trailing comment
+    for u in printer.sorted_uses(file.uses):
+        printed.extend((o, t, k == 0) for k, (o, t) in enumerate(printer.use(u)))
+    if file.uses:
+        printed.append((max(u.line for u in file.uses), "", False))
+
     for i, g in enumerate(file.graphs):
         if i:
             printed.append((file.graphs[i - 1].end, "", False))
@@ -42,7 +48,9 @@ def format_source(source, filename="<text>"):
         text = c.text.rstrip()
         if c.line not in alone:
             # After code: at the end of the printed line that code went to
-            at = max(k for k, (o, t, _s) in enumerate(printed) if o <= c.line and t)
+            # (its own line first: sorted uses are printed out of order)
+            on = [k for k, (o, t, _s) in enumerate(printed) if o == c.line and t]
+            at = max(on or [k for k, (o, t, _s) in enumerate(printed) if o <= c.line and t])
             trailing.setdefault(at, []).append(text)
         else:
             own.append((c.line, text))
