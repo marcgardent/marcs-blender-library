@@ -333,8 +333,28 @@ _asset-library-meta.json  point d'entrée de l'endpoint distant (nom, contact)
 _v1/                      index de l'endpoint, généré par Blender
 addons/                   sources des extensions (un dossier + blender_manifest.toml chacune)
 extensions/               dépôt d'extensions publié : zips et index.json, générés par Blender
+tests/                    tests de Nodes as Text, et run.sh qui les lance tous
 .github/workflows/        publication de l'endpoint et des extensions sur GitHub Pages
 ```
+
+## Tester
+
+Avant un commit qui touche `addons/bnodes` ou `src/maths.bn`, et avant chaque version :
+
+```bash
+tests/run.sh
+```
+
+Le script lance les tests du langage (pytest, sans Blender), puis chaque
+`tests/bnodes/host/test_*.py` dans Blender. Il s'arrête au premier échec et affiche son
+journal. Pour un autre Blender :
+
+```bash
+BLENDER=/chemin/vers/blender tests/run.sh
+```
+
+Il demande `uv` et un `blender` dans le PATH. Pour l'instant la CI tourne en local
+seulement : la publication sur GitHub Pages ne lance pas les tests.
 
 ## Rebuilder les extensions
 
