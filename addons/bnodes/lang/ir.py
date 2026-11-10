@@ -44,6 +44,17 @@ class Frame:
 
 
 @dataclass
+class Panel:
+    """An interface panel. Blender puts in each panel its outputs, then its inputs, then its panels."""
+    id: str
+    name: str
+    parent: str | None = None  # id of the panel it sits in
+    options: dict = field(default_factory=dict)  # {Blender property: value}: description, default_closed
+    line: int = 0
+    col: int = 0
+
+
+@dataclass
 class Graph:
     kind: str
     name: str
@@ -53,12 +64,22 @@ class Graph:
     line: int = 0
     col: int = 0
     frames: list = field(default_factory=list)  # parents before their children
-    # input name -> {"value", "min", "max", "implicit"}, each only when written
+    # input key -> {"value", "min", "max", "implicit"}, each only when written
     defaults: dict = field(default_factory=dict)
     module: tuple | None = None  # (name, source) of the module that brought it, for a `use`
-    # ("INPUT" or "OUTPUT", socket name) -> {Blender property: value}: subtype, description…
+    # ("INPUT" or "OUTPUT", socket key) -> {Blender property: value}: subtype, description…
     options: dict = field(default_factory=dict)
     description: str | None = None  # the group's tooltip
+    # The text key of each input and output, in order: how links and calls name them.
+    # Its name's key, or the `as` one when two sockets share a name
+    input_keys: list = field(default_factory=list)
+    output_keys: list = field(default_factory=list)
+    panels: list = field(default_factory=list)  # parents before their children, siblings in order
+    panel_of: dict = field(default_factory=dict)  # ("INPUT" or "OUTPUT", socket key) -> panel id
+    settings: dict = field(default_factory=dict)  # the tree's own: {Blender property: value}
+
+    def keys(self, side):
+        return self.input_keys if side == "INPUT" else self.output_keys
 
     def node(self, node_id):
         return next(n for n in self.nodes if n.id == node_id)

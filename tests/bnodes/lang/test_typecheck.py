@@ -145,7 +145,9 @@ def test_quoted_names_are_used_by_their_key(schema):
     assert callee.inputs == [("Mesh", "Geometry"), ("Fur Density", "Float")]
     call = main.nodes[2]
     assert call.group == "Smooth by Angle"
-    assert call.values == {"Fur Density": 0.5}
+    # Group sockets are named in the ir by their key, as links to the group input are
+    assert call.values == {"fur_density": 0.5}
+    assert callee.input_keys == ["Mesh", "fur_density"]
 
 
 def test_outputs_may_stay_unlinked(schema):

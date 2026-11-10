@@ -12,10 +12,11 @@ from .. import lang
 from ..lang import ir
 from ..lang.errors import BnError, Diagnostic
 from ..lang.layout import layout
-from ..lang.schema import ITEM_NODES, ITEM_TYPES, TYPES
+from ..lang.schema import ITEM_NODES, ITEM_TYPES, TYPES, key
 from ..lang.typecheck import REPEAT_ITEMS
 from . import modules
-from .schema import TREE_TYPES, BlenderSchema, fresh_item, fresh_options, same_option
+from .schema import (ALIASES, PANEL_OPTIONS, TREE_FLAGS, TREE_TYPES, BlenderSchema, fresh_item, fresh_options,
+                     root_panel, same_option, socket_keys)
 
 DATABLOCKS = {"OBJECT": "objects", "COLLECTION": "collections", "MATERIAL": "materials",
               "IMAGE": "images", "TEXTURE": "textures"}
@@ -92,10 +93,13 @@ class Builder:
         # Named nodes keep their place across rebuilds
         kept = {n.name: n.location_absolute.copy() for n in tree.nodes}
         tree.nodes.clear()
-        sync_interface(tree, g)
+        self.ids = sync_interface(tree, g)
+        self.aliases(tree, g)
+        self.panels(tree, g)
         if (g.name not in self.called and g.inputs[:1] and g.outputs[:1]
                 and g.inputs[0][1] == g.outputs[0][1] == "Geometry"):
             tree.is_modifier = True
+        self.settings(tree, g)
         self.fill(tree, g, built, kept)
         tree.description = g.description or ""
         # The subtype first: it makes the socket again, with its own defaults
@@ -104,13 +108,55 @@ class Builder:
         self.defaults(tree, g)
         return tree
 
+    def aliases(self, tree, g):
+        """Keep on the group the keys the text gave with `as`, for Tree → Text to write them back."""
+        aliases = {self.ids[(io, k)]: {"name": name, "key": k} for io in ("INPUT", "OUTPUT")
+                   for (name, _type), k in zip(g.inputs if io == "INPUT" else g.outputs, g.keys(io))
+                   if k != key(name)}
+        if aliases:
+            tree[ALIASES] = aliases
+        else:
+            tree.pop(ALIASES, None)
+
+    def settings(self, tree, g):
+        """The tree's settings as written, else a new tree's; is_modifier only when written."""
+        unknown = [s for s in g.settings if s not in TREE_FLAGS or not hasattr(tree, s)]
+        if unknown:
+            self.fail(g, f"réglage {unknown[0]} inconnu ; réglages : {', '.join(TREE_FLAGS)}")
+        for flag, fresh in TREE_FLAGS.items():
+            if not hasattr(tree, flag) or flag == "is_modifier" and flag not in g.settings:
+                continue
+            value = g.settings.get(flag, fresh)
+            if not isinstance(value, bool):
+                self.fail(g, f"réglage {flag} : true ou false")
+            setattr(tree, flag, value)
+
+    def panels(self, tree, g):
+        """Each panel's settings as written, else a new panel's."""
+        made = {p.id: item for p, item in zip(g.panels, panel_items(tree, g))}
+        for p in g.panels:
+            unknown = [o for o in p.options if o not in PANEL_OPTIONS]
+            if unknown:
+                self.fail(p, f"panneau « {p.name} » : réglage {unknown[0]} inconnu ; réglages : "
+                             f"{', '.join(PANEL_OPTIONS)}")
+            for option, fresh in PANEL_OPTIONS.items():
+                try:
+                    setattr(made[p.id], option, p.options.get(option, fresh))
+                except (TypeError, ValueError) as e:
+                    self.fail(p, f"réglage {option} du panneau « {p.name} » : {e}")
+
+    def item(self, tree, io, k):
+        """The interface socket of a text key, found again: setting some options makes it anew."""
+        ident = self.ids[(io, k)]
+        return next(i for i in tree.interface.items_tree if i.item_type == "SOCKET" and i.identifier == ident)
+
     def options(self, tree, g):
         """Each socket's other settings as written (subtype, description…), else a new socket's."""
         for io, names in (("INPUT", g.inputs), ("OUTPUT", g.outputs)):
-            for name, _type in names:
-                item = interface_item(tree, io, name)
+            for (name, _type), k in zip(names, g.keys(io)):
+                item = self.item(tree, io, k)
                 fresh = fresh_options(item.socket_type, io)
-                wanted = g.options.get((io, name), {})
+                wanted = g.options.get((io, k), {})
                 unknown = [o for o in wanted if o not in fresh]
                 if unknown:
                     self.fail(g, f"« {name} » : option {unknown[0]} inconnue ; options : {', '.join(fresh)}")
@@ -122,14 +168,13 @@ class Builder:
                         setattr(item, option, value)
                     except (TypeError, ValueError) as e:
                         self.fail(g, f"option {option} de « {name} » : {e}")
-                    item = interface_item(tree, io, name)
+                    item = self.item(tree, io, k)
 
     def defaults(self, tree, g):
         """Each input's default, bounds and implicit field as written, else a new socket's."""
-        items = [i for i in tree.interface.items_tree if i.item_type == "SOCKET" and i.in_out == "INPUT"]
-        for name, _type in g.inputs:
-            item = next(i for i in items if i.name == name)
-            spec = g.defaults.get(name, {})
+        for (name, _type), k in zip(g.inputs, g.input_keys):
+            item = self.item(tree, "INPUT", k)
+            spec = g.defaults.get(k, {})
             fresh = fresh_item(item.socket_type)
             if "min_value" in fresh:
                 item.min_value = spec.get("min", fresh["min_value"])
@@ -148,10 +193,11 @@ class Builder:
                 if item.dimensions != len(value):
                     # The item changes type (Vector2D…): its default holds the new size once fetched again
                     item.dimensions = len(value)
-                    item = next(i for i in tree.interface.items_tree
-                                if i.item_type == "SOCKET" and i.in_out == "INPUT" and i.name == name)
+                    item = self.item(tree, "INPUT", k)
             elif isinstance(value, tuple) and len(value) == 3 and len(item.default_value) == 4:
                 value = (*value, 1.0)
+            elif item.socket_type == "NodeSocketMenu" and value == "":
+                continue  # no item chosen, which Blender refuses to be told once the menu has items
             try:
                 item.default_value = value
             except (TypeError, ValueError) as e:
@@ -248,17 +294,15 @@ class Builder:
         """
         sockets = getattr(node, side)
         names = None
+        io = "INPUT" if side == "inputs" else "OUTPUT"
         if n.id == ir.GROUP_INPUT:
-            names = g.inputs
+            names = [(k, None) for k in g.input_keys]
         elif n.id == ir.GROUP_OUTPUT:
-            names = g.outputs
+            names = [(k, None) for k in g.output_keys]
         elif n.group in self.graphs:
-            callee = self.graphs[n.group]
-            names = callee.inputs if side == "inputs" else callee.outputs
+            names = [(k, None) for k in self.graphs[n.group].keys(io)]
         elif n.group:
-            io = "INPUT" if side == "inputs" else "OUTPUT"
-            names = [(i.name, None) for i in node.node_tree.interface.items_tree
-                     if i.item_type == "SOCKET" and i.in_out == io]
+            names = [(k, None) for k in socket_keys(node.node_tree, io).values()]
         elif n.items is not None and n.bl_idname in ITEM_NODES:
             # The fixed sockets by identifier, then the items by position
             shape = ITEM_NODES[n.bl_idname]
@@ -301,25 +345,63 @@ def coerce(sock, value):
     return value
 
 
-def interface_item(tree, io, name):
-    return next(i for i in tree.interface.items_tree
-                if i.item_type == "SOCKET" and i.in_out == io and i.name == name)
-
-
 def sync_interface(tree, g):
-    """Make the interface match the signature, reusing the sockets that did not change."""
+    """Make the interface match the signature and its panels, reusing the sockets and panels
+    that did not change. Returns {(side, key): socket identifier}."""
     iface = tree.interface
     sockets = [i for i in iface.items_tree if i.item_type == "SOCKET"]
+    old = {}
+    for item in iface.items_tree:
+        if item.item_type == "PANEL":
+            old.setdefault(path(item), item)
+    panels = {}
+    for p in g.panels:
+        here = (panels[p.parent][1] if p.parent else ()) + (p.name,)
+        found = old.pop(here, None)
+        panels[p.id] = (found or iface.new_panel(p.name), here)
+    for item in old.values():
+        iface.remove(item)
     keep = []
     for io, names in (("OUTPUT", g.outputs), ("INPUT", g.inputs)):
-        for name, type in names:
-            found = next((i for i in sockets if i.name == name and i.in_out == io
-                          and i.socket_type == TYPES[type] and i not in keep), None)
-            keep.append(found or iface.new_socket(name, in_out=io, socket_type=TYPES[type]))
+        for (name, type), k in zip(names, g.keys(io)):
+            where = panels[g.panel_of[(io, k)]][1] if (io, k) in g.panel_of else ()
+            same = [i for i in sockets if i.name == name and i.in_out == io
+                    and i.socket_type == TYPES[type] and i not in keep]
+            # Two sockets of one name: the one already in that panel first
+            found = next((i for i in same if path(i.parent) == where), same[0] if same else None)
+            keep.append((io, k, found or iface.new_socket(name, in_out=io, socket_type=TYPES[type])))
     for item in sockets:
-        if item not in keep:
+        if item not in [i for _io, _k, i in keep]:
             iface.remove(item)
-    # Panels are the user's layout: kept as they are, and then order is theirs too
-    if not any(i.item_type == "PANEL" for i in iface.items_tree):
-        for position, item in enumerate(keep):
-            iface.move(item, position)
+    # Blender's order in each panel: its outputs, its inputs, then its panels
+    children = {None: []}
+    for p in g.panels:
+        children[p.id] = []
+    for io, k, item in keep:
+        children[g.panel_of.get((io, k))].append(item)
+    for p in g.panels:
+        children[p.parent].append(panels[p.id][0])
+    for parent in [None] + [p.id for p in g.panels]:
+        container = root_panel(tree) if parent is None else panels[parent][0]
+        # Each to the end in turn: a move to a given position counts the item itself
+        for item in children[parent]:
+            iface.move_to_parent(item, container, len(container.interface_items))
+    return {(io, k): item.identifier for io, k, item in keep}
+
+
+def path(item):
+    """Names of a panel and the panels around it, outermost first; () for the root."""
+    names = []
+    while item is not None and item.parent is not None:
+        names.insert(0, item.name)
+        item = item.parent
+    return tuple(names)
+
+
+def panel_items(tree, g):
+    """The interface panels of g's panels, in the same order."""
+    by_path = {path(i): i for i in tree.interface.items_tree if i.item_type == "PANEL"}
+    paths = {}
+    for p in g.panels:
+        paths[p.id] = (paths[p.parent] if p.parent else ()) + (p.name,)
+    return [by_path[paths[p.id]] for p in g.panels]

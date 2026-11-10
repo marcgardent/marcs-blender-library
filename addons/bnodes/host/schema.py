@@ -7,7 +7,7 @@ are read on demand with the properties set, and memoized.
 
 import bpy
 
-from ..lang.schema import TYPES, GroupSpec, NodeSpec, Prop, Socket, key
+from ..lang.schema import TYPES, GroupSpec, NodeSpec, Prop, Socket, interface_keys, key
 
 TREE_TYPES = {
     "geometry": "GeometryNodeTree",
@@ -157,7 +157,8 @@ class BlenderSchema:
             items = [i for i in tree.interface.items_tree if i.item_type == "SOCKET"]
             sig = [tuple((i.name, types.get(i.socket_type, i.socket_type.removeprefix("NodeSocket")))
                          for i in items if i.in_out == io) for io in ("INPUT", "OUTPUT")]
-            spec = GroupSpec(tree.name, *sig)
+            keys = [tuple(socket_keys(tree, io).values()) for io in ("INPUT", "OUTPUT")]
+            spec = GroupSpec(tree.name, *sig, *keys)
             k = key(tree.name)
             if k in found:
                 spec = (found[k] if isinstance(found[k], list) else [found[k]]) + [spec]
@@ -186,6 +187,44 @@ class BlenderSchema:
             finally:
                 tree.nodes.remove(node)
         return _sockets[key]
+
+
+def root_panel(tree):
+    """The panel around the whole interface, None when it is empty. Blender 5.2 has no
+    interface.root_panel, but every item at the top has it as parent."""
+    iface = tree.interface
+    if hasattr(iface, "root_panel"):
+        return iface.root_panel
+    return next((i.parent for i in iface.items_tree if i.parent.parent is None), None)
+
+
+# On a built group: {socket identifier: {"name", "key"}} for the sockets the text named with `as`
+ALIASES = "bnodes_aliases"
+
+
+def socket_keys(tree, io):
+    """{identifier: text key} of one side of a group's interface, in order: see interface_keys.
+
+    The keys the text gave with `as` stay, as long as the socket keeps its name."""
+    types = {v: k for k, v in TYPES.items()}
+    items = [i for i in tree.interface.items_tree if i.item_type == "SOCKET" and i.in_out == io]
+    stored = tree.get(ALIASES, {})
+    given = [stored[i.identifier]["key"] if i.identifier in stored and stored[i.identifier]["name"] == i.name
+             else None for i in items]
+    keys = interface_keys([(i.name, i.parent.name if i.parent.parent is not None else None,
+                            types.get(i.socket_type, i.socket_type.removeprefix("NodeSocket"))) for i in items], given)
+    return {i.identifier: k for i, k in zip(items, keys)}
+
+
+# Settings of a tree as a new one has them: the text writes those that differ, in this order.
+# is_modifier is the builder's to decide, unless the text says otherwise
+TREE_FLAGS = {"is_modifier": False, "is_tool": False, "is_mode_object": False, "is_mode_edit": False,
+              "is_mode_sculpt": False, "is_mode_paint": False, "is_type_mesh": False, "is_type_curve": False,
+              "is_type_pointcloud": False, "is_type_grease_pencil": False, "use_wait_for_click": False,
+              "show_modifier_manage_panel": True}
+
+# A panel's settings, as a new one has them; its name is written before its brace
+PANEL_OPTIONS = {"description": "", "default_closed": False}
 
 
 # What a new interface input of each socket type holds: the text writes only what differs

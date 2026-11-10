@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass, field
 
+from .schema import key
+
 
 @dataclass
 class Number:
@@ -157,13 +159,43 @@ class Param:
     range: tuple | None = None  # (lo, hi) literals, None for an open side
     # `x: Float(subtype: FACTOR, description: "…")`: other interface settings, by their Blender name
     options: list = field(default_factory=list)  # of Arg, all named
+    # `"Seed" as guide_seed: Int`: the name the text gives it, when two sockets share a name
+    alias: str | None = None
+
+    @property
+    def key(self):
+        """How the body and the callers name it."""
+        return self.alias or key(self.name)
+
+
+@dataclass
+class Panel:
+    """`"Title"(default_closed: true) { a: Float, … }` in a parameter or output list: an interface panel.
+
+    Its items are Params, then nested Panels. A panel holding inputs and outputs is
+    written in both lists, its settings in the first.
+    """
+    name: str
+    items: list
+    line: int
+    col: int
+    options: list = field(default_factory=list)  # of Arg, all named: description, default_closed
+    end: int = 0  # line of the closing brace
+
+
+def flatten(items):
+    """The Params of a parameter list, panels opened, in order."""
+    out = []
+    for i in items:
+        out += flatten(i.items) if isinstance(i, Panel) else [i]
+    return out
 
 
 @dataclass
 class Graph:
     kind: str
     name: str
-    params: list
+    params: list   # every input, panels opened: see `inputs` for the list as written
     outputs: list
     single_output: bool  # `-> Geometry` rather than `-> (name: Geometry)`
     body: list
@@ -172,6 +204,17 @@ class Graph:
     end: int = 0  # line of the closing brace
     description: str | None = None  # a string first in the body: the group's tooltip
     description_line: int = 0
+    # `geometry(is_tool: true) graph …`: the tree's own settings, by their Blender name
+    settings: list = field(default_factory=list)  # of Arg, all named
+    # The lists as written, with their Panels; None when they have none
+    param_tree: list | None = None
+    output_tree: list | None = None
+
+    def tree(self, side):
+        """The inputs ("INPUT") or outputs as written: Params and Panels."""
+        if side == "INPUT":
+            return self.param_tree if self.param_tree is not None else self.params
+        return self.output_tree if self.output_tree is not None else self.outputs
 
 
 @dataclass

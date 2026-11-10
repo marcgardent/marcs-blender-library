@@ -60,31 +60,53 @@ def graph(g):
 
 
 def header(g):
+    lead = f"{g.kind}{f'({args(g.settings)})' if g.settings else ''} graph {name(g.name)}"
     params = [param(p) for p in g.params]
     if g.single_output:
         outputs = g.outputs[0].type
     else:
         outputs = "(" + ", ".join(param(o) for o in g.outputs) + ")"
-    head = f"{g.kind} graph {name(g.name)}({', '.join(params)}) -> {outputs} {{"
-    if len(head) <= WIDTH:
+    head = f"{lead}({', '.join(params)}) -> {outputs} {{"
+    # Panels always take one line per item, their contents one step further in
+    paneled = g.param_tree is not None, g.output_tree is not None
+    if len(head) <= WIDTH and not any(paneled):
         return [(g.line, head)]
-    if params:
-        lines = [(g.line, f"{g.kind} graph {name(g.name)}(")] + one_per_line(g.params, params) + \
-            [(g.params[-1].line, f") -> {outputs} {{")]
+    if params or paneled[0]:
+        ins = g.tree("INPUT")
+        lines = [(g.line, f"{lead}(")] + one_per_line(ins) + [(last_line(ins), f") -> {outputs} {{")]
     else:
-        lines = [(g.line, f"{g.kind} graph {name(g.name)}() -> {outputs} {{")]
-    if len(lines[-1][1]) <= WIDTH or g.single_output:
+        lines = [(g.line, f"{lead}() -> {outputs} {{")]
+    if (len(lines[-1][1]) <= WIDTH and not paneled[1]) or g.single_output:
         return lines
     # Outputs too long for the closing line: one per line as well
-    close = ") -> (" if params else f"{g.kind} graph {name(g.name)}() -> ("
-    return lines[:-1] + [(lines[-1][0], close)] + one_per_line(g.outputs, [param(o) for o in g.outputs]) + \
-        [(g.outputs[-1].line, ") {")]
+    close = ") -> (" if len(lines) > 1 else f"{lead}() -> ("
+    outs = g.tree("OUTPUT")
+    return lines[:-1] + [(lines[-1][0], close)] + one_per_line(outs) + [(last_line(outs), ") {")]
 
 
-def one_per_line(items, texts):
-    lines = [(p.line, INDENT * 2 + text + ",") for p, text in zip(items, texts)]
-    lines[-1] = (lines[-1][0], lines[-1][1][:-1])
+def one_per_line(items, pad=INDENT * 2):
+    """Params and panels one per line, separated by commas."""
+    lines = []
+    for i in items:
+        if isinstance(i, ast.Panel):
+            head = f"{pad}{quote(i.name)}{f'({args(i.options)})' if i.options else ''} {{"
+            if not i.items:
+                lines.append((i.line, head + "},"))
+                continue
+            lines += [(i.line, head)] + one_per_line(i.items, pad + INDENT * 2) + [(i.end, pad + "},")]
+        else:
+            lines.append((i.line, pad + param(i) + ","))
+    if lines:
+        lines[-1] = (lines[-1][0], lines[-1][1][:-1])
     return lines
+
+
+def last_line(items):
+    """Source line of the end of a list: its last param, or the brace closing its last panel."""
+    if not items:
+        return 0
+    last = items[-1]
+    return last.end if isinstance(last, ast.Panel) else last.line
 
 
 def description(g):
@@ -92,7 +114,7 @@ def description(g):
 
 
 def param(p):
-    text = f"{name(p.name)}: {p.type}"
+    text = name(p.name) + (f" as {p.alias}" if p.alias is not None else "") + f": {p.type}"
     if p.options:
         text += f"({args(p.options)})"
     if p.default is not None:

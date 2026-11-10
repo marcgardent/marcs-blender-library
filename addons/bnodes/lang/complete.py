@@ -103,23 +103,43 @@ def outlines(tokens):
     for i, t in enumerate(tokens):
         if t.kind != "KEYWORD" or t.text != "graph" or i + 1 >= len(tokens):
             continue
-        kind = tokens[i - 1].text if i and tokens[i - 1].kind == "IDENT" else ""
+        kind = tree_kind(tokens, i)
         name = tokens[i + 1].text if tokens[i + 1].kind in ("IDENT", "STRING") else ""
-        params, outputs, body = [], [], None
-        j = i + 2
-        if j < len(tokens) and tokens[j].kind == "(":
-            j, params = typed_names(tokens, j)
-        if j < len(tokens) and tokens[j].kind == "->":
-            j += 1
-            if j < len(tokens) and tokens[j].kind == "(":
-                j, outputs = typed_names(tokens, j)
-            elif j < len(tokens) and tokens[j].kind == "IDENT":
-                outputs = [(tokens[j].text, tokens[j].text)]
-                j += 1
-        if j < len(tokens) and tokens[j].kind == "{":
-            body = j
+        params, outputs, body = header(tokens, i)
         found.append(Outline(kind, name, params, outputs, body))
     return found
+
+
+def tree_kind(tokens, i):
+    """The tree kind before the `graph` at i, its settings `geometry(is_tool: true)` passed over."""
+    j = i - 1
+    if j >= 0 and tokens[j].kind == ")":
+        depth = 0
+        while j >= 0:
+            depth += {")": 1, "(": -1}.get(tokens[j].kind, 0)
+            if depth == 0:
+                break
+            j -= 1
+        j -= 1
+    return tokens[j].text if j >= 0 and tokens[j].kind == "IDENT" else ""
+
+
+def header(tokens, i):
+    """(params, outputs, index of the body's `{` or None) of the graph whose `graph` is at i."""
+    params, outputs, body = [], [], None
+    j = i + 2
+    if j < len(tokens) and tokens[j].kind == "(":
+        j, params = typed_names(tokens, j)
+    if j < len(tokens) and tokens[j].kind == "->":
+        j += 1
+        if j < len(tokens) and tokens[j].kind == "(":
+            j, outputs = typed_names(tokens, j)
+        elif j < len(tokens) and tokens[j].kind == "IDENT":
+            outputs = [(tokens[j].text, tokens[j].text)]
+            j += 1
+    if j < len(tokens) and tokens[j].kind == "{":
+        body = j
+    return params, outputs, body
 
 
 def imported(tokens, load):
@@ -153,18 +173,44 @@ def existing(schema):
     groups = getattr(schema, "groups", None)
     if groups is None:
         return []
-    return [Outline(kind, g.name, list(g.inputs), list(g.outputs), None)
+    # By key: two sockets of one name are told apart as in a call
+    return [Outline(kind, g.name, [(k, t) for _n, k, t in g.keys("INPUT")],
+                    [(k, t) for _n, k, t in g.keys("OUTPUT")], None)
             for kind in TREE_KINDS for g in groups(kind).values() if not isinstance(g, list)]
 
 
 def typed_names(tokens, j):
-    """`(name: Type, ...)` from the `(` at j: (index after `)`, [(name, type)])."""
+    """`(name: Type, ...)` from the `(` at j: (index after `)`, [(name, type)]).
+
+    Panels are opened: `"Title" { … }` gives its sockets. A socket named with
+    `"Seed" as seed_2: Int` gives its key, seed_2."""
     pairs = []
     j += 1
-    while j < len(tokens) and tokens[j].kind not in (")", "{"):
-        if (tokens[j].kind in ("IDENT", "STRING") and j + 2 < len(tokens)
-                and tokens[j + 1].kind == ":" and tokens[j + 2].kind == "IDENT"):
-            pairs.append((tokens[j].text, tokens[j + 2].text))
+    braces = 0  # panels open
+    while j < len(tokens) and (braces or tokens[j].kind not in (")", "{")):
+        t = tokens[j]
+        if t.kind == "STRING" and j + 1 < len(tokens) and tokens[j + 1].kind in ("{", "("):
+            # A panel, its settings passed over
+            j += 1
+            if tokens[j].kind == "(":
+                while j < len(tokens) and tokens[j].kind not in (")", "{"):
+                    j += 1
+                j += tokens[j].kind == ")" if j < len(tokens) else 0
+            if j < len(tokens) and tokens[j].kind == "{":
+                braces += 1
+                j += 1
+            continue
+        if t.kind == "}":
+            braces -= 1
+            j += 1
+            continue
+        named = t.kind in ("IDENT", "STRING") and j + 2 < len(tokens)
+        if named and tokens[j + 1].text == "as" and j + 4 < len(tokens) and tokens[j + 2].kind == "IDENT" \
+                and tokens[j + 3].kind == ":" and tokens[j + 4].kind == "IDENT":
+            pairs.append((tokens[j + 2].text, tokens[j + 4].text))
+            j += 5
+        elif named and tokens[j + 1].kind == ":" and tokens[j + 2].kind == "IDENT":
+            pairs.append((t.text, tokens[j + 2].text))
             j += 3
         else:
             j += 1
@@ -191,7 +237,7 @@ class Context:
         t = self.t
         if self.head is None:
             return self.top_level()
-        body = next((i for i in range(self.head, len(t)) if t[i].kind == "{"), None)
+        _params, _outputs, body = header(t, self.head)
         if body is None:
             # In the header: only types are ours to suggest
             return self.types() if t[-1].kind in (":", "->") else []

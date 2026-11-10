@@ -10,7 +10,7 @@ from . import ast, colors, ir, sugar
 from .errors import BnError, Diagnostic
 from .parser import parse
 from .schema import (DATABLOCKS, FIELD_TYPES, IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_DEFAULT, NO_VALUE, RANGED, STRICT,
-                     TREE_KINDS, TYPES, Socket, can_link, key)
+                     TREE_KINDS, TYPES, Socket, can_link, key, snake)
 
 GROUP_NODES = {
     "geometry": "GeometryNodeGroup",
@@ -240,10 +240,15 @@ class GraphChecker:
         gout = ir.Node(ir.GROUP_OUTPUT, "NodeGroupOutput", n_inputs=len(g.outputs), line=g.line, col=g.col)
         self.nodes += [gin, gout]
         for p in g.params:
-            if key(p.name) in self.env:
-                self.error(p, f"paramètre « {key(p.name)} » défini deux fois")
-            sock = Socket(p.name, p.name, p.type)
-            self.env[key(p.name)] = Out(ir.GROUP_INPUT, [sock], sock, key(p.name))
+            if p.key in self.env:
+                self.error(p, f"paramètre « {p.key} » défini deux fois" + twice_hint(p))
+            sock = Socket(p.name, p.key, p.type)
+            self.env[p.key] = Out(ir.GROUP_INPUT, [sock], sock, p.key)
+        keys = set()
+        for o in g.outputs:
+            if o.key in keys:
+                self.error(o, f"sortie « {o.key} » définie deux fois" + twice_hint(o))
+            keys.add(o.key)
 
         self.statements(g.body, gout, None)
         if not self.returned:
@@ -253,12 +258,87 @@ class GraphChecker:
                          [(o.name, o.type) for o in g.outputs], self.nodes, g.line, g.col, self.frames, defaults)
         graph.options = self.options()
         graph.description = g.description
+        graph.input_keys = [p.key for p in g.params]
+        graph.output_keys = [o.key for o in g.outputs]
+        graph.panels, graph.panel_of = self.panels()
+        graph.settings = self.literal_options(g.settings, "réglage")
         return graph
+
+    def panels(self):
+        """(ir panels, {(side, key): panel id}) from the panels of both lists, one per path of names."""
+        found = {}  # path of names -> (ir.Panel, whether its settings were given)
+        panel_of = {}
+
+        def walk(items, side, path, parent):
+            seen_panel = None
+            names = set()
+            for n, item in enumerate(items):
+                if isinstance(item, ast.Param):
+                    if seen_panel is not None:
+                        self.error(item, f"« {item.name} » vient après le panneau « {seen_panel.name} » : "
+                                         "Blender range les sockets d'un niveau avant ses panneaux")
+                    if parent is not None:
+                        panel_of[(side, item.key)] = parent.id
+                    self.toggle(item, side, parent, n)
+                    continue
+                seen_panel = item
+                if item.name in names:
+                    self.error(item, f"panneau « {item.name} » écrit deux fois dans la même liste")
+                    continue
+                names.add(item.name)
+                here = path + (item.name,)
+                if here not in found:
+                    panel = ir.Panel(f"p{len(found)}", item.name, parent.id if parent else None,
+                                     line=item.line, col=item.col)
+                    found[here] = (panel, False)
+                panel, given = found[here]
+                if item.options:
+                    if given:
+                        self.error(item, f"réglages du panneau « {item.name} » donnés deux fois : "
+                                         "une seule fois, dans la première liste où il paraît")
+                    else:
+                        panel.options = self.literal_options(item.options, "réglage")
+                        found[here] = (panel, True)
+                walk(item.items, side, here, panel)
+
+        walk(self.g.tree("INPUT"), "INPUT", (), None)
+        if not self.g.single_output:
+            walk(self.g.tree("OUTPUT"), "OUTPUT", (), None)
+        return [p for p, _given in found.values()], panel_of
+
+    def toggle(self, p, side, panel, position):
+        """`"Réglages": Bool(is_panel_toggle: true)` turns its panel on and off, as Blender has it."""
+        flag = next((a for a in p.options if a.name == "is_panel_toggle"), None)
+        if flag is None or not (isinstance(flag.value, ast.Bool) and flag.value.value):
+            return
+        if side != "INPUT" or panel is None or p.type != "Bool":
+            self.error(flag, "is_panel_toggle : une entrée Bool, la première d'un panneau")
+        elif position != 0:
+            self.error(flag, f"is_panel_toggle : l'interrupteur vient en premier dans le panneau « {panel.name} »")
+        elif p.name != panel.name:
+            self.error(flag, f"is_panel_toggle : l'interrupteur porte le nom de son panneau, "
+                             f"« {panel.name} » (Blender le renomme ainsi)")
+
+    def literal_options(self, items, what):
+        """{name: value} of `(name: value, …)` settings, each a plain value: Blender checks the names."""
+        found = {}
+        for a in items:
+            if a.name in found:
+                self.error(a, f"{what} « {a.name} » donné deux fois")
+                continue
+            v = a.value
+            if isinstance(v, ast.Ref):
+                found[a.name] = v.name
+            elif isinstance(v, (ast.Number, ast.String, ast.Bool, ast.Neg)) and isinstance(self.eval(v), Lit):
+                found[a.name] = self.eval(v).value
+            else:
+                self.error(a, f"{what} « {a.name} » : un nombre, true/false, un texte ou une valeur comme FACTOR")
+        return found
 
     # Interface
 
     def defaults(self):
-        """{input name: {"value", "min", "max", "implicit"}} from `name: Type = default in lo..hi`."""
+        """{input key: {"value", "min", "max", "implicit"}} from `name: Type = default in lo..hi`."""
         for o in self.g.outputs:
             if o.default is not None or o.range is not None:
                 self.error(o, f"la sortie « {o.name} » n'a ni valeur par défaut ni bornes")
@@ -283,7 +363,7 @@ class GraphChecker:
                 if bounds is not None:
                     spec.update((k, v) for k, v in zip(("min", "max"), bounds) if v is not None)
             if spec:
-                out[p.name] = spec
+                out[p.key] = spec
         return out
 
     def options(self):
@@ -310,7 +390,7 @@ class GraphChecker:
                     else:
                         self.error(a, f"option « {a.name} » : un nombre, true/false, un texte ou une valeur comme FACTOR")
                 if found:
-                    out[(side, p.name)] = found
+                    out[(side, p.key)] = found
         return out
 
     def default_value(self, p, d):
@@ -420,19 +500,22 @@ class GraphChecker:
 
     def return_stmt(self, stmt, gout):
         gout.line, gout.col = stmt.line, stmt.col
-        outs = [Socket(o.name, o.name, o.type) for o in self.g.outputs]
+        outs = [Socket(o.name, o.key, o.type) for o in self.g.outputs]
         if isinstance(stmt.value, ast.Record):
             # Outputs left out stay unlinked, as Blender allows
             given = {}
             for f in stmt.value.fields:
-                sock = next((s for s in outs if f.name in (s.name, key(s.name))), None)
+                sock = find_socket(outs, f.name)
+                if isinstance(sock, list):
+                    self.error(f, f"« {f.name} » est ambigu ; sorties : {', '.join(s.identifier for s in sock)}")
+                    continue
                 if sock is None:
                     self.error(f, f"« {f.name} » n'est pas une sortie ; sorties : {', '.join(s.name for s in outs)}")
                     continue
-                if f.name in given:
+                if sock.identifier in given:
                     self.error(f, f"sortie « {f.name} » donnée deux fois")
                     continue
-                given[f.name] = f
+                given[sock.identifier] = f
                 value = self.eval(f.value)
                 if value is not None:
                     self.connect(gout, sock, value, f, "return")
@@ -742,8 +825,8 @@ class GraphChecker:
                 return None
             node.bl_idname = GROUP_NODES[self.g.kind]
             node.group = group.name
-            inputs = [Socket(n, n, t) for n, t in group.inputs]
-            outputs = [Socket(n, n, t) for n, t in group.outputs]
+            inputs = [Socket(n, k, t) for n, k, t in group.keys("INPUT")]
+            outputs = [Socket(n, k, t) for n, k, t in group.keys("OUTPUT")]
         else:
             if spec is None:
                 if self.unsure:
@@ -870,8 +953,8 @@ class GraphChecker:
         self.calls.add(c.name)
         node.bl_idname = GROUP_NODES[self.g.kind]
         node.group = callee.name
-        return ([Socket(p.name, p.name, p.type) for p in callee.params],
-                [Socket(o.name, o.name, o.type) for o in callee.outputs])
+        return ([Socket(p.name, p.key, p.type) for p in callee.params],
+                [Socket(o.name, o.key, o.type) for o in callee.outputs])
 
     def prop(self, node, prop, v, a):
         if prop.kind == "ENUM":
@@ -943,6 +1026,11 @@ WRITTEN_ELSEWHERE = {
 # Text type -> the socket type of a Repeat zone item
 REPEAT_ITEMS = {t: v for t, v in ITEM_TYPES.items() if t != "Shader"}
 DATA_TYPES = {v: t for t, v in ITEM_TYPES.items()}
+
+
+def twice_hint(p):
+    """How to keep two sockets of the same name: give one a key of its own."""
+    return f' ; pour garder les deux, nommer l\'autre avec as : "{p.name}" as {snake(p.name)}_2: {p.type}'
 
 
 def plus_terms(e):

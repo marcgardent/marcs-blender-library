@@ -1,0 +1,32 @@
+geometry(show_modifier_manage_panel: false) graph semis(
+    geometry: Geometry,
+    densité: Float = 10.0,
+    "Taille"(description: "La taille de chaque copie") {
+        échelle: Float = 1.0,
+        "Aléa"(default_closed: true) {
+            Aléa: Bool(is_panel_toggle: true),
+            échelle as aléa_échelle: Float(description: "Part tirée au hasard") = 0.2 in 0.0..1.0,
+            graine: Int
+        }
+    },
+    "Rotation" {
+        graine as rotation_graine: Int,
+        angle: Float(subtype: ANGLE)
+    }
+) -> (
+    Geometry: Geometry,
+    "Rotation" {
+        Angle: Float
+    }
+) {
+  "Sème des points, à une taille tirée au hasard"
+  points = DistributePointsOnFaces(geometry, density: densité, seed: graine)
+  hasard = RandomValue(max: aléa_échelle, seed: rotation_graine)
+  return (
+    Geometry: SetPosition(points.points, offset: CombineXYZ(z: échelle + hasard)),
+    Angle: angle)
+}
+
+geometry graph appel(geometry: Geometry) -> Geometry {
+  return semis(geometry, 5.0, 2.0, aléa_échelle: 0.5, rotation_graine: 3).geometry
+}

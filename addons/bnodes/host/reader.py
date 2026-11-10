@@ -17,8 +17,8 @@ from ..lang.printer import to_source
 from ..lang.ir import REPEAT_INPUT, REPEAT_OUTPUT
 from ..lang.schema import IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_VALUE, RESERVED, TYPES, key, snake
 from .modules import module_of
-from .schema import (SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, fresh_options, option_names, same_option,
-                     snapshot, text_name)
+from .schema import (PANEL_OPTIONS, SOCKET_TYPES, TREE_FLAGS, TREE_TYPES, BlenderSchema, fresh_item, fresh_options,
+                     option_names, root_panel, same_option, snapshot, socket_keys, text_name)
 
 KINDS = {v: k for k, v in TREE_TYPES.items()}
 IMPLICIT_CALLS = {mode: name for name, (mode, _type) in IMPLICIT.items()}
@@ -29,12 +29,7 @@ SKIP = {"NodeFrame", "NodeReroute"}
 # Read, but written wrong: a gizmo's links point at the value it moves, not at what feeds it
 NOT_YET = {"GeometryNodeGizmoLinear", "GeometryNodeGizmoDial", "GeometryNodeGizmoTransform"}
 
-FIRST_OPTIONS = {"subtype": 0, "description": 1}
-
-# Settings of a tree as a new one has them: the text writes none of them
-TREE_FLAGS = {"is_tool": False, "is_mode_object": False, "is_mode_edit": False, "is_mode_sculpt": False,
-              "is_mode_paint": False, "is_type_mesh": False, "is_type_curve": False, "is_type_pointcloud": False,
-              "is_type_grease_pencil": False, "use_wait_for_click": False, "show_modifier_manage_panel": True}
+FIRST_OPTIONS = {"is_panel_toggle": 0, "subtype": 1, "description": 2}
 
 # Kept for statements even when they hold their default
 ALWAYS = {"operation"}
@@ -64,6 +59,8 @@ def read_tree(tree, schema):
         if t in graphs or t in seen:
             return
         reader = GraphReader(t, schema, warnings)
+        # The builder makes a modifier of a graph that no other one of the text calls
+        reader.called = t is not tree
         graph = reader.read()
         # Only the groups that reach the output are exported with it
         for callee in sorted(reader.callees, key=lambda c: c.name):
@@ -90,6 +87,7 @@ class GraphReader:
         self.exprs = {}
         self.chain_heads = set()  # ids of calls whose first argument is a geometry name
         self.opened = set()  # frames written as blocks so far
+        self.called = False  # another graph of the text calls it
 
     def warn(self, message):
         self.warnings.append(f"{self.tree.name} : {message}")
@@ -98,17 +96,20 @@ class GraphReader:
         tree = self.tree
         if self.kind is None:
             raise ValueError(f"{tree.name} n'est pas un arbre de nœuds lisible")
-        items = [i for i in tree.interface.items_tree if i.item_type == "SOCKET"]
-        params = [self.defaults(self.param(i), i) for i in items if i.in_out == "INPUT"]
-        outputs = [self.param(i) for i in items if i.in_out == "OUTPUT"]
-        for side, ps in (("entrées", params), ("sorties", outputs)):
-            seen = set()
-            for k in [key(p.name) for p in ps]:
-                if k in seen:
-                    self.warn(f"deux {side} « {k} » (dans deux panneaux ?), pas encore pris en charge par le texte")
-                seen.add(k)
-        self.param_keys = [key(p.name) for p in params]
-        single = len(outputs) == 1 and outputs[0].name == outputs[0].type and not outputs[0].options
+        written = {}  # interface socket identifier -> its Param
+        for io in ("INPUT", "OUTPUT"):
+            for item in tree.interface.items_tree:
+                if item.item_type == "SOCKET" and item.in_out == io:
+                    p = self.param(item)
+                    written[item.identifier] = self.defaults(p, item) if io == "INPUT" else p
+            for ident, k in socket_keys(tree, io).items():
+                if k != key(written[ident].name):
+                    written[ident].alias = k
+        param_tree, output_tree = self.interface(written)
+        params, outputs = ast.flatten(param_tree), ast.flatten(output_tree)
+        self.param_keys = [p.key for p in params]
+        paneled = any(isinstance(i, ast.Panel) for i in output_tree)
+        single = len(outputs) == 1 and outputs[0].name == outputs[0].type and not outputs[0].options and not paneled
 
         outs = [n for n in tree.nodes if n.bl_idname == "NodeGroupOutput"]
         out = next((n for n in outs if n.is_active_output), outs[0] if outs else None)
@@ -166,10 +167,11 @@ class GraphReader:
         fields = []
         if out is not None:
             out_inputs = [s for s in out.inputs if s.type != "CUSTOM"]
-            for sock, (o_name, _o_type) in zip(out_inputs, [(o.name, o.type) for o in outputs]):
+            # A name two outputs share is no name: the second one goes by its key
+            for sock, o in zip(out_inputs, outputs):
                 links = self.incoming.get(out.name, {}).get(sock.identifier)
                 if links:
-                    fields.append((o_name, self.use(*links[0])))
+                    fields.append((o.alias or o.name, self.use(*links[0])))
         for name in self.statement_order(None):
             node = self.tree.nodes[name]
             body.append((node, ast.Assign(self.bound[name], self.expr(node), 0, 0)))
@@ -179,27 +181,73 @@ class GraphReader:
             value = ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0)
         body.append((out, ast.Return(value, 0, 0)))
         graph = ast.Graph(self.kind, tree.name, params, outputs, single, self.framed(body), 0, 0)
+        if any(isinstance(i, ast.Panel) for i in param_tree):
+            graph.param_tree = param_tree
+        if paneled:
+            graph.output_tree = output_tree
+        graph.settings = self.settings()
         if tree.description:
             graph.description = tree.description.replace('"', "'").replace("\n", " ")
         self.unwritten()
         return graph
 
-    def unwritten(self):
-        """Say what the text leaves out: panels, and how the nodes look."""
-        panels = [i.name for i in self.tree.interface.items_tree if i.item_type == "PANEL"]
-        if panels:
-            self.warn(f"panneaux de l'interface ({', '.join(panels)}) non exportés ; "
-                      "reconstruit à sa place, l'arbre les garde")
+    def settings(self):
+        """`geometry(is_tool: true) graph …`: the tree's settings that differ from a new tree's.
+
+        is_modifier only when the builder would decide otherwise: it makes a modifier of a
+        graph nobody calls whose first input and output are geometries."""
         tree = self.tree
-        # What makes a tool or a modifier: the builder decides is_modifier from the interface alone
-        flags = [f for f in TREE_FLAGS if hasattr(tree, f) and getattr(tree, f) != TREE_FLAGS[f]]
         sockets = [i for i in tree.interface.items_tree if i.item_type == "SOCKET"]
         geometry_first = all(next((i.socket_type for i in sockets if i.in_out == io), None) == "NodeSocketGeometry"
                              for io in ("INPUT", "OUTPUT"))
-        if getattr(tree, "is_modifier", False) and not geometry_first:
-            flags.insert(0, "is_modifier")
-        if flags:
-            self.warn(f"réglages de l'arbre non exportés : {', '.join(flags)}")
+        fresh = dict(TREE_FLAGS, is_modifier=geometry_first and not self.called)
+        return [ast.Arg(f, ast.Bool(getattr(tree, f), 0, 0), 0, 0) for f in TREE_FLAGS
+                if hasattr(tree, f) and getattr(tree, f) != fresh[f]]
+
+    def interface(self, written):
+        """(inputs, outputs) as the header writes them: Params, and Panels around them.
+
+        A panel goes in the inputs when it holds inputs, or holds nothing, or when a panel
+        after it there does: the order of the panels is the inputs', then the outputs'.
+        Its settings go where it is written first."""
+        given = set()
+
+        def holds(panel, io):
+            return any(c.item_type == "SOCKET" and c.in_out == io or c.item_type == "PANEL" and holds(c, io)
+                       for c in panel.interface_items)
+
+        def items(panel, io):
+            out = [written[c.identifier] for c in panel.interface_items
+                   if c.item_type == "SOCKET" and c.in_out == io]
+            subs = [c for c in panel.interface_items if c.item_type == "PANEL"]
+            if io == "INPUT":
+                wanted = [c for c in subs if holds(c, "INPUT") or not holds(c, "OUTPUT")]
+                last = subs.index(wanted[-1]) if wanted else -1
+                subs = subs[:last + 1]
+            else:
+                subs = [c for c in subs if holds(c, "OUTPUT")]
+            for c in subs:
+                out.append(ast.Panel(c.name.replace('"', "'"), items(c, io), 0, 0, self.panel_options(c, given)))
+            return out
+
+        root = root_panel(self.tree)
+        if root is None:
+            return [], []
+        return items(root, "INPUT"), items(root, "OUTPUT")
+
+    def panel_options(self, panel, given):
+        if panel.identifier in given:
+            return []
+        given.add(panel.identifier)
+        out = []
+        for option, fresh in PANEL_OPTIONS.items():
+            value = getattr(panel, option)
+            if value != fresh:
+                out.append(ast.Arg(option, option_literal(panel, option, value), 0, 0))
+        return out
+
+    def unwritten(self):
+        """Say what the text leaves out: how the nodes look."""
         looks = Counter()
         for n in self.tree.nodes:
             if n.bl_idname in SKIP:
@@ -395,7 +443,7 @@ class GraphReader:
             return target
         # Group sockets and items are named in text, not numbered: Item_1 means nothing there
         named = node.bl_idname in GROUP_NODES or node.bl_idname in ITEM_NODES
-        return member(target, socket_name(sock, outputs, named))
+        return member(target, socket_name(sock, outputs, named, group_keys(node, "OUTPUT")))
 
     def expr(self, node):
         if node.name not in self.exprs:
@@ -412,10 +460,9 @@ class GraphReader:
             links = incoming.get(sock.identifier)
             if links:
                 values.append(self.use(*links[0]))
-            elif sock.type == "GEOMETRY":
-                # Nothing linked: an empty geometry
-                values.append(ast.Call("JoinGeometry", [], 0, 0))
             else:
+                # A geometry with nothing linked has no literal: written JoinGeometry(), it would
+                # come back with one node more
                 values.append(self.literal(rin, sock, {}))
         for sock, v in zip(sockets, values):
             if v is None:
@@ -500,6 +547,13 @@ class GraphReader:
         shape = ITEM_NODES.get(node.bl_idname)
         if shape is not None:
             self.item_types(node, shape, inputs[shape.inputs:], incoming, props)
+            # By name, an item called like a fixed input would be read back as that input
+            fixed = {snake(s.name) for s in inputs[:shape.inputs]} | {s.identifier for s in inputs[:shape.inputs]}
+            clash = [s.name for s in inputs[shape.inputs:]
+                     if shape.named and (snake(s.name) in fixed or s.name in fixed)]
+            if clash:
+                self.warn(f"{name} (« {node.name} ») : l'item « {clash[0]} » porte le nom d'une entrée du nœud, "
+                          "pas encore pris en charge par le texte")
         positional = True
         geometry_first = False
         for i, sock in enumerate(inputs):
@@ -521,7 +575,8 @@ class GraphReader:
                 continue
             if item and shape.named:
                 positional = False
-            label = None if positional else sock.name if item else socket_name(sock, inputs, group)
+            label = None if positional else sock.name if item else \
+                socket_name(sock, inputs, group, group_keys(node, "INPUT"))
             if i == 0 and sock.type == "GEOMETRY" and not sock.is_multi_input and links:
                 geometry_first = True
             for v in values:
@@ -851,12 +906,22 @@ def unique(name, taken):
     return name
 
 
-def socket_name(sock, sockets, group):
-    """How text names this socket: its key when unique, else what tells it apart."""
-    keys = [snake(s.name) for s in sockets]
-    if keys.count(snake(sock.name)) == 1:
+def socket_name(sock, sockets, group, keys=None):
+    """How text names this socket: its key when unique, else what tells it apart:
+    for a group's socket, the key its graph gives it (see interface_keys)."""
+    snakes = [snake(s.name) for s in sockets]
+    if snakes.count(snake(sock.name)) == 1:
         return snake(sock.name)
+    if keys and sock.identifier in keys:
+        return keys[sock.identifier]
     return sock.name if group else sock.identifier
+
+
+def group_keys(node, io):
+    """{socket identifier: text key} of a group node's inputs or outputs; None for another node."""
+    if node.bl_idname not in GROUP_NODES or node.node_tree is None:
+        return None
+    return socket_keys(node.node_tree, io)
 
 
 def same(a, b):

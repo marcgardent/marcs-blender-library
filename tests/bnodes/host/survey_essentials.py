@@ -22,6 +22,8 @@ SKIP = {"NodeFrame", "NodeReroute", "NodeGroupInput", "NodeGroupOutput"}
 
 
 def cause(warning):
+    if "porte le nom d'une entrée du nœud" in warning:
+        return "item nommé comme une entrée du nœud"
     m = re.search(r": (\w+) \(«", warning)
     if m:
         return m.group(1)
@@ -31,16 +33,10 @@ def cause(warning):
         return "nœuds sans effet"
     if "description des items" in warning:
         return "description d'items de Menu Switch"
-    if "(dans deux panneaux ?)" in warning:
-        return "nom répété dans l'interface"
     if "désactivé (mute)" in warning:
         return "nœud désactivé"
     if "présentation non exportée" in warning:
         return "présentation (libellés, couleurs, nœuds repliés)"
-    if "panneaux de l'interface" in warning:
-        return "panneaux de l'interface"
-    if "réglages de l'arbre" in warning:
-        return "réglages de l'arbre (outil, modifier)"
     if "part sans valeur" in warning:
         return "état de repeat sans valeur"
     return warning

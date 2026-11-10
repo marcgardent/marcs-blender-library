@@ -63,6 +63,14 @@ geometry graph nom(entrée: Type, …) -> (Sortie: Type, …) { … }
   infobulle, et celle de son asset.
 - Un graph dont la première entrée et la première sortie sont des `Geometry`, et que
   personne n'appelle, est proposé comme modifier.
+- **Les réglages de l'arbre** s'écrivent entre parenthèses après son type, sous leur nom
+  Blender : `geometry(is_tool: true, is_mode_edit: true, is_type_mesh: true) graph …`.
+  Réglages : `is_modifier`, `is_tool`, `is_mode_object`, `is_mode_edit`,
+  `is_mode_sculpt`, `is_mode_paint`, `is_type_mesh`, `is_type_curve`,
+  `is_type_pointcloud`, `is_type_grease_pencil`, `use_wait_for_click`,
+  `show_modifier_manage_panel`. Un réglage absent garde celui d'un arbre neuf ;
+  `is_modifier` absent suit la règle du point précédent, et ne s'écrit que pour la
+  contredire (`is_modifier: false`, ou `true` pour un groupe appelé).
 
 ### Types
 
@@ -101,6 +109,60 @@ Tout est facultatif après le type :
   `max_value`, `default_input`) ne s'écrivent pas en option.
 
 Les sorties prennent des options, mais ni défaut ni bornes.
+
+### Panneaux
+
+```
+geometry(show_modifier_manage_panel: false) graph semis(
+    geometry: Geometry,
+    densité: Float = 10.0,
+    "Taille"(description: "La taille de chaque copie") {
+        échelle: Float = 1.0,
+        "Aléa"(default_closed: true) {
+            Aléa: Bool(is_panel_toggle: true),
+            échelle as aléa_échelle: Float = 0.2 in 0.0..1.0,
+            graine: Int
+        }
+    },
+    "Rotation" {
+        graine as rotation_graine: Int,
+        angle: Float(subtype: ANGLE)
+    }
+) -> (
+    Geometry: Geometry,
+    "Rotation" {
+        Angle: Float
+    }
+) { … }
+```
+
+- **`"Titre" { … }`** dans la liste des entrées ou des sorties : un panneau de
+  l'interface, qui regroupe les entrées écrites entre ses accolades. Les panneaux
+  s'emboîtent ; un panneau vide s'écrit `"Titre" {}`. Les entrées y gardent tout ce
+  qu'elles prennent ailleurs (type, options, défaut, bornes).
+- **`"Titre"(description: "…", default_closed: true)`** : les réglages du panneau, son
+  infobulle et s'il est fermé au départ. Ils s'écrivent une fois, là où le panneau paraît
+  en premier.
+- Un panneau qui tient des entrées et des sorties s'écrit dans les deux listes, sous le
+  même titre : c'est le même panneau. Les panneaux d'un niveau se suivent dans l'ordre des
+  entrées, puis dans celui des sorties pour ceux qui n'ont que des sorties.
+- Comme Blender les range, à chaque niveau les sockets viennent avant les panneaux : une
+  entrée écrite après un panneau de son niveau est une erreur.
+- **L'interrupteur** d'un panneau est une entrée `Bool` en tête du panneau, qui porte son
+  nom et l'option `is_panel_toggle: true` : `Aléa: Bool(is_panel_toggle: true)`.
+- **`nom as clé`** : deux entrées (ou deux sorties) peuvent porter le même nom, dans deux
+  panneaux ou dans un seul, si l'une prend une clé à elle : `échelle as aléa_échelle`.
+  Le corps les dit `échelle` et `aléa_échelle` ; Blender les nomme toutes les deux
+  « échelle ». Sans `as`, un nom en double est une erreur.
+- Un autre graph les appelle par position, ou par clé :
+  `semis(geometry, 5.0, 2.0, aléa_échelle: 0.5, rotation_graine: 3)`. Le nom Blender
+  partagé (`"Fur Density": …`) est ambigu, et refusé.
+- Relu d'un arbre, un nom en double garde sa clé pour le premier socket ; les suivants
+  prennent celle de leur panneau (`guide_map_seed`), sinon de leur type (`seed_vector`),
+  sinon un numéro (`seed_2`). Une clé donnée par `as` se relit telle quelle tant que le
+  socket garde son nom.
+- Un graph sans panneau s'écrit comme avant ; un graph qui en a prend une entrée par
+  ligne, le contenu d'un panneau un cran plus loin.
 
 ## Corps
 
@@ -264,15 +326,17 @@ avertissement :
 
 - la présentation des nœuds : libellé, couleur, nœud replié ; un nœud désactivé (mute)
   s'écrit actif ;
-- les panneaux de l'interface, et deux entrées du même nom dans deux panneaux ;
-- les réglages d'outil de l'arbre (`is_tool`…), et le bouton de gestion du modifier ;
+- un item de Capture Attribute ou de Menu Switch qui porte le nom d'une entrée du nœud
+  (`Selection`) ;
+- un état de repeat sans valeur, une géométrie non reliée comprise ;
 - la description des items d'un Menu Switch ;
 - les zones Simulation et For Each, les bundles et closures, Format String, Bake, Field
   to List et les gizmos ;
 - les nœuds qui n'influencent aucune sortie.
 
-Reconstruit à sa place, un groupe garde ses panneaux, et ses modifiers et appels gardent
-leurs réglages tant que leurs entrées existent encore.
+Reconstruit à sa place, un groupe prend les panneaux du texte ; ses modifiers et appels
+gardent leurs réglages tant que leurs entrées existent encore, même passées d'un panneau
+à l'autre.
 
 ## Compatibilité de la LTS 1
 

@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "addons"))
 
 from bnodes.host import build_source, export_tree  # noqa: E402
-from bnodes.host.schema import INTERFACE_FIELDS, fresh_options, option_names, same_option, snapshot  # noqa: E402
+from bnodes.host.schema import (INTERFACE_FIELDS, TREE_FLAGS, fresh_options, option_names, same_option,  # noqa: E402
+                                snapshot)
 from bnodes.lang import parse, sugar  # noqa: E402
 from bnodes.lang.format import format_source  # noqa: E402
 from bnodes.lang.printer import to_source  # noqa: E402
@@ -279,14 +280,69 @@ def test_interface_options_come_back_identical():
     assert t.subtype in ("NONE", "DEFAULT") and t.description == "La part à garder" and tree.description == ""
 
 
-def test_panels_and_looks_are_reported():
+def test_looks_are_reported():
     (tree,) = build_source(fixture("wave.bn"), "wave.bn")
-    tree.interface.new_panel("Réglages")
     node = next(n for n in tree.nodes if n.bl_idname == "ShaderNodeMath")
     node.label, node.hide = "Hauteur", True
     _text, warnings = export_tree(tree)
-    assert any("panneaux de l'interface (Réglages)" in w for w in warnings), warnings
-    assert any("présentation non exportée : libellé (1), replié (1)" in w for w in warnings), warnings
+    assert warnings == ["wave : présentation non exportée : libellé (1), replié (1)"], warnings
+
+
+def test_panels_come_back_identical():
+    src = fixture("panels.bn")
+    semis, appel = build_source(src, "panels.bn")
+    layout = panels(semis)
+    assert layout == [
+        ("SOCKET", (), "OUTPUT", "Geometry", False),
+        ("SOCKET", (), "INPUT", "geometry", False),
+        ("SOCKET", (), "INPUT", "densité", False),
+        ("PANEL", (), "Taille", "La taille de chaque copie", False),
+        ("SOCKET", ("Taille",), "INPUT", "échelle", False),
+        ("PANEL", ("Taille",), "Aléa", "", True),
+        ("SOCKET", ("Taille", "Aléa"), "INPUT", "Aléa", True),
+        ("SOCKET", ("Taille", "Aléa"), "INPUT", "échelle", False),
+        ("SOCKET", ("Taille", "Aléa"), "INPUT", "graine", False),
+        ("PANEL", (), "Rotation", "", False),
+        ("SOCKET", ("Rotation",), "OUTPUT", "Angle", False),
+        ("SOCKET", ("Rotation",), "INPUT", "graine", False),
+        ("SOCKET", ("Rotation",), "INPUT", "angle", False),
+    ], layout
+    assert not semis.show_modifier_manage_panel and not semis.is_modifier and appel.is_modifier
+    # The two « échelle » and the two « graine » each get their own value, from the body and the caller
+    items = [i for i in semis.interface.items_tree if i.item_type == "SOCKET" and i.in_out == "INPUT"]
+    assert [round(i.default_value, 3) for i in items if i.name == "échelle"] == [1.0, 0.2]
+    call = next(n for n in appel.nodes if n.bl_idname == "GeometryNodeGroup")
+    values = [(s.name, s.default_value) for s in call.inputs if s.name in ("échelle", "graine")]
+    assert values == [("échelle", 2.0), ("échelle", 0.5), ("graine", 0), ("graine", 3)], values
+    random = next(n for n in semis.nodes if n.bl_idname == "FunctionNodeRandomValue")
+    linked = {s.name: l.from_socket.identifier for s in random.inputs for l in s.links}
+    gin = semis.nodes["Group Input"]
+    assert linked["Max"] == gin.outputs[4].identifier and linked["Seed"] == gin.outputs[6].identifier, linked
+    text, warnings = export_tree(appel)
+    assert (text, warnings) == (src, []), (text, warnings)
+
+
+def test_rebuilding_with_panels_keeps_the_sockets():
+    # The group alone: moving its inputs would move the caller's positional values too
+    src = fixture("panels.bn").split("\ngeometry graph appel")[0]
+    (semis,) = build_source(src, "panels.bn")
+    before ={(i.in_out, i.name, path(i.parent)): i.identifier
+              for i in semis.interface.items_tree if i.item_type == "SOCKET"}
+    # The two « graine » change panels; « Rotation » goes first
+    moved = src.replace('    "Rotation" {\n        graine as rotation_graine: Int,\n        angle: Float(subtype: ANGLE)\n    }\n', "")
+    moved = moved.replace('    "Taille"(', '    "Rotation" {\n        graine as rotation_graine: Int,\n'
+                          '        angle: Float(subtype: ANGLE)\n    },\n    "Taille"(')
+    (semis,) = build_source(moved, "panels.bn")
+    after = {(i.in_out, i.name, path(i.parent)): i.identifier
+             for i in semis.interface.items_tree if i.item_type == "SOCKET"}
+    assert after == before, (after, before)
+    assert [i.name for i in semis.interface.items_tree if i.item_type == "PANEL"] == ["Rotation", "Taille", "Aléa"]
+    assert export_tree(semis) == (to_source(parse(moved)), []), export_tree(semis)
+    # Panels taken out of the text go, their sockets stay
+    plain = "geometry graph semis(geometry: Geometry, densité: Float = 10.0) -> Geometry {\n  return geometry\n}\n"
+    (semis,) = build_source(plain, "panels.bn")
+    assert [i.item_type for i in semis.interface.items_tree] == ["SOCKET"] * 3
+    assert export_tree(semis) == (plain, [])
 
 
 ITEMS_CALLER = """geometry graph essai_items(geometry: Geometry) -> Geometry {
@@ -341,6 +397,30 @@ def options(tree):
     return out
 
 
+def panels(tree):
+    """The interface in Blender's order: each socket and panel, where it sits, and the panels' settings."""
+    out = []
+    for i in tree.interface.items_tree:
+        where = path(i.parent)
+        if i.item_type == "PANEL":
+            out.append(("PANEL", where, i.name, i.description.replace('"', "'"), i.default_closed))
+        else:
+            out.append(("SOCKET", where, i.in_out, i.name, i.is_panel_toggle))
+    return out
+
+
+def path(item):
+    names = []
+    while item is not None and item.parent is not None:
+        names.insert(0, item.name)
+        item = item.parent
+    return tuple(names)
+
+
+def tree_settings(tree):
+    return {f: getattr(tree, f) for f in TREE_FLAGS if hasattr(tree, f)}
+
+
 def test_bundled_assets_export_and_come_back_stable():
     root = bpy.utils.system_resource("DATAFILES", path="assets/nodes")
     ours = {g.name for g in bpy.data.node_groups}
@@ -355,6 +435,8 @@ def test_bundled_assets_export_and_come_back_stable():
         before = node_kinds(tree)
         settings = interface(tree)
         written = options(tree)
+        layout = panels(tree)
+        flags = tree_settings(tree)
         text, warnings = export_tree(tree)
         stats["exported"] += 1
         stats["compare as symbol"] += sum(text.count(f" {op} ") for op in sugar.COMPARE)
@@ -373,9 +455,11 @@ def test_bundled_assets_export_and_come_back_stable():
         assert all(close(a, b) for a, b in zip(interface(rebuilt), settings)), name
         assert options(rebuilt) == [d.replace('"', "'").replace("\n", " ") if isinstance(d, str) else d
                                     for d in written], name
+        assert panels(rebuilt) == layout, name
+        assert tree_settings(rebuilt) == flags, name
         stats["stable"] += 1
     print("   bundled trees:", dict(stats))
-    assert stats["exported"] == len(names) and stats["stable"] >= 75
+    assert stats["exported"] == len(names) and stats["stable"] >= 82
 
 
 def node_kinds(tree):

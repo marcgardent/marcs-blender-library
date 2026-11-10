@@ -91,16 +91,18 @@ class Parser:
 
     def graph(self):
         kind = self.expect("IDENT", what="type d'arbre (geometry, shader, compositor)")
+        settings = self.args(named_only=True) if self.accept("(") else []
         self.expect("KEYWORD", "graph")
         name = self.accept("STRING") or self.expect("IDENT", what="nom du graph")
         self.expect("(")
-        params = self.typed_list(")")
+        param_tree = self.typed_list(")")
         self.expect("->")
         if self.accept("("):
-            outputs, single = self.typed_list(")"), False
+            output_tree, single = self.typed_list(")"), False
         else:
             t = self.expect("IDENT", what="type de retour")
-            outputs, single = [ast.Param(t.text, t.text, t.line, t.col)], True
+            output_tree, single = [ast.Param(t.text, t.text, t.line, t.col)], True
+        params, outputs = ast.flatten(param_tree), ast.flatten(output_tree)
         self.expect("{")
         description = None
         if self.at_description():
@@ -114,6 +116,11 @@ class Parser:
             body.append(self.statement())
         end = self.advance()
         g = ast.Graph(kind.text, name.text, params, outputs, single, body, kind.line, kind.col, end.line)
+        g.settings = settings
+        if any(isinstance(i, ast.Panel) for i in param_tree):
+            g.param_tree = param_tree
+        if any(isinstance(i, ast.Panel) for i in output_tree):
+            g.output_tree = output_tree
         if description is not None:
             g.description, g.description_line = description.text, description.line
         return g
@@ -123,13 +130,25 @@ class Parser:
         return self.at("STRING") and self.peek().kind not in ("{", "COLOR")
 
     def typed_list(self, close):
-        """`name: Type = default in lo..hi, ...` up to `close`, which is consumed."""
+        """`name: Type = default in lo..hi, ...` up to `close`, which is consumed.
+
+        A `"Title" { … }` among them is a panel, its own list inside."""
         items = []
         while not self.accept(close):
+            if self.at("STRING") and self.peek().kind in ("{", "("):
+                items.append(self.panel())
+                if not self.accept(","):
+                    self.expect(close)
+                    break
+                continue
             name = self.accept("STRING") or self.expect("IDENT", what="nom")
+            alias = None
+            if self.at("IDENT", "as") and self.peek().kind == "IDENT":
+                self.advance()
+                alias = self.advance().text
             self.expect(":")
             t = self.expect("IDENT", what="type")
-            p = ast.Param(name.text, t.text, name.line, name.col)
+            p = ast.Param(name.text, t.text, name.line, name.col, alias=alias)
             if self.accept("("):
                 p.options = self.args(named_only=True)
             if self.accept("="):
@@ -148,6 +167,14 @@ class Parser:
                 self.expect(close)
                 break
         return items
+
+    def panel(self):
+        t = self.advance()
+        options = self.args(named_only=True) if self.accept("(") else []
+        self.expect("{", what="« { » après le nom du panneau")
+        items = self.typed_list("}")
+        # typed_list took the closing brace
+        return ast.Panel(t.text, items, t.line, t.col, options, self.tokens[self.i - 1].line)
 
     def statement(self):
         t = self.tok

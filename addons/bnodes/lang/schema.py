@@ -120,6 +120,47 @@ def key(name):
     return name if name.isidentifier() and name not in RESERVED else snake(name)
 
 
+def interface_keys(sockets, given=()):
+    """The text key of each socket of one side of an interface, from [(name, panel, type)] in order.
+
+    Each one's key, but a name that repeats (two « Seed », in two panels or in one) keeps it
+    for its first socket only; the next ones are told apart by their panel, then by their
+    type, then by a number: `guide_map_seed`, `seed_vector`, `seed_2`. The reader writes
+    these as `"Seed" as guide_map_seed: Int`; `panel` is the innermost panel's name, or None.
+    `given` holds, per socket, the key a text gave it with `as`, or None: kept when it is free.
+    """
+    given = list(given) + [None] * (len(sockets) - len(given))
+    out = [None] * len(sockets)
+    taken = set()
+    for i, k in enumerate(given):
+        if k is not None and k not in taken:
+            out[i] = k
+            taken.add(k)
+    # An alias of the rule never takes the key a socket has by its own name
+    natural = taken | {key(name) for name, _panel, _type in sockets}
+    first = {}
+    for i, (name, panel, type) in enumerate(sockets):
+        k = key(name)
+        if out[i] is not None:
+            continue
+        if k not in taken:
+            first.setdefault(k, panel)
+            out[i] = k
+            taken.add(k)
+            continue
+        tries = ([f"{snake(panel)}_{snake(name)}"] if panel is not None and panel != first.get(k) else []) + \
+            [f"{snake(name)}_{snake(type)}"]
+        pick = next((t for t in tries if t not in natural), None)
+        n = 2
+        while pick is None:
+            pick = f"{snake(name)}_{n}" if f"{snake(name)}_{n}" not in natural else None
+            n += 1
+        natural.add(pick)
+        taken.add(pick)
+        out[i] = pick
+    return out
+
+
 @dataclass(frozen=True)
 class Socket:
     name: str        # UI name, e.g. "Base Color"
@@ -152,6 +193,14 @@ class GroupSpec:
     name: str
     inputs: tuple   # (name, type) of its interface
     outputs: tuple
+    # The text key of each input and output, when one differs from key(name): see interface_keys
+    input_keys: tuple = ()
+    output_keys: tuple = ()
+
+    def keys(self, side):
+        """(name, key, type) of its inputs ("INPUT") or outputs."""
+        sockets, keys = (self.inputs, self.input_keys) if side == "INPUT" else (self.outputs, self.output_keys)
+        return [(n, keys[i] if keys else key(n), t) for i, (n, t) in enumerate(sockets)]
 
 
 class Schema(Protocol):
