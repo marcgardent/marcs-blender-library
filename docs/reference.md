@@ -113,6 +113,7 @@ Le corps d'un graph est une suite d'instructions :
 | `return (Sortie: e, …)` | Les sorties d'un graph ; une sortie omise reste non reliée. |
 | `"Titre" #couleur { … }` | Un frame autour des nœuds des instructions du bloc. Titre et couleur sont facultatifs. |
 | `"Note" #couleur {}` | Un frame vide : une note. |
+| `"Titre" .. { … }` | La suite du dernier frame de ce titre ouvert dans le même bloc (`.. { … }` pour un frame sans titre) : le même frame, pas un second. |
 | `nom = repeat(…) { … }` | Une [zone Repeat](#zone-repeat). |
 
 `return` est la dernière instruction. Un nom que rien ne lit fait quand même son nœud :
@@ -121,6 +122,23 @@ n'alimentent aucune sortie (`alerte = Warning(taille < 0.0, "Taille négative")`
 frame n'est pas une portée : les noms qu'il
 définit restent utilisables après lui. Les frames s'imbriquent. La couleur s'écrit en
 hexadécimal (`#e07030`, `#e73`) ou par un des 148 noms CSS (`#orange`, `#teal`…).
+
+Les instructions d'un frame ne se suivent pas toujours : un nœud du frame peut dépendre
+d'un nœud d'ailleurs, qui dépend lui-même du frame. Le texte rouvre alors le frame par
+`..`, sans répéter sa couleur :
+
+```
+"Bouts" #teal {
+  p = Position()
+}
+h = sin(p.x + t) * 0.2
+"Bouts" .. {
+  return SetPosition(geometry, offset: CombineXYZ(z: h))
+}
+```
+
+Deux blocs `"Bouts" { … }` sans `..` font deux frames du même titre. Une note ne se
+continue pas.
 
 ### Présentation d'un nœud
 

@@ -67,7 +67,7 @@ def test_a_node_in_another_frame_than_its_user_gets_a_name():
     assert tree.nodes["math_2"].parent.label == "Wave" and tree.nodes["math"].parent is None
 
 
-def test_a_frame_split_by_its_links_is_reported():
+def test_a_frame_split_by_its_links_goes_on_in_a_second_block():
     (tree,) = build_source(fixture("wave.bn"), "wave.bn")
     frame = tree.nodes.new("NodeFrame")
     frame.label = "Ends"
@@ -75,8 +75,23 @@ def test_a_frame_split_by_its_links_is_reported():
         tree.nodes[name].parent = frame
     tree.nodes["h"].parent = None
     text, warnings = export_tree(tree)
-    assert text.count('"Ends" {') == 2, text
-    assert any("coupé en deux" in w for w in warnings), warnings
+    assert text.count('"Ends" {') == 1 and text.count('"Ends" .. {') == 1, text
+    assert warnings == [], warnings
+    (tree,) = build_source(text, "wave.bn")
+    assert [f.label for f in tree.nodes if f.bl_idname == "NodeFrame"] == ["Ends"]
+    assert tree.nodes["p"].parent == tree.nodes["Group Output"].parent == tree.nodes["Ends"]
+    assert export_tree(tree) == (text, [])
+
+
+def test_two_frames_of_one_title_stay_two():
+    (tree,) = build_source(fixture("wave.bn"), "wave.bn")
+    for names in (("p",), ("Group Output",)):
+        frame = tree.nodes.new("NodeFrame")
+        frame.label = "Bout"
+        for name in names:
+            tree.nodes[name].parent = frame
+    text, warnings = export_tree(tree)
+    assert text.count('"Bout" {') == 2 and ".." not in text and warnings == [], (text, warnings)
 
 
 def test_products_come_back_as_signs():

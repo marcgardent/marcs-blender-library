@@ -89,6 +89,7 @@ class GraphReader:
         self.chain_heads = set()  # ids of calls whose first argument is a geometry name
         self.opened = set()  # frames written as blocks so far
         self.shown = set()  # nodes whose look the text holds
+        self.last_block = {}  # (enclosing frame name, title) -> the frame its last block was
 
     def warn(self, message):
         self.warnings.append(f"{self.tree.name} : {message}")
@@ -767,6 +768,7 @@ class GraphReader:
         stack = [(None, body)]
         # Shared with the repeat bodies, framed first: a frame opened there is no note
         opened = self.opened
+        outer = base[-1].name if base else None
         blocks = {}
         for node, stmt in statements:
             path = frame_path(node) if node is not None else []
@@ -775,11 +777,17 @@ class GraphReader:
             while len(stack) > 1 and stack[-1][0].name not in names:
                 stack.pop()
             for f in path[len(stack) - 1:]:
-                if f.name in opened:
+                block = self.frame(f)
+                # As the checker finds the frame a `"Title" .. {` goes on with
+                where = (stack[-1][0].name if len(stack) > 1 else outer, block.label)
+                if f.name in opened and self.last_block.get(where) == f.name:
+                    block = ast.Frame(block.label, None, [], 0, 0, continued=True)
+                elif f.name in opened:
                     self.warn(f"le frame « {f.label or f.name} » est coupé en deux : ses nœuds dépendent "
                               "de nœuds d'un autre frame qui dépendent d'eux")
                 opened.add(f.name)
-                block = blocks[f.name] = self.frame(f)
+                self.last_block[where] = f.name
+                blocks.setdefault(f.name, block)
                 stack[-1][1].append(block)
                 stack.append((f, block.body))
             stack[-1][1].append(stmt)

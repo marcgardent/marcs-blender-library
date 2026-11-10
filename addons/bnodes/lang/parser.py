@@ -124,7 +124,7 @@ class Parser:
 
     def at_description(self):
         # A string alone: `"Titre" {` and `"Titre" #couleur {` are frames
-        return self.at("STRING") and self.peek().kind not in ("{", "COLOR")
+        return self.at("STRING") and self.peek().kind not in ("{", "COLOR", "..")
 
     def typed_list(self, close):
         """`name: Type = default in lo..hi, ...` up to `close`, which is consumed."""
@@ -155,7 +155,8 @@ class Parser:
 
     def statement(self):
         t = self.tok
-        if self.at("{") or self.at("COLOR") or self.at("STRING") and self.peek().kind in ("{", "COLOR"):
+        if self.at("{") or self.at("COLOR") or self.at("..") or \
+                self.at("STRING") and self.peek().kind in ("{", "COLOR", ".."):
             return self.frame()
         if self.accept("KEYWORD", "return"):
             if self.at("(") and (self.peek().kind == ")" or
@@ -193,7 +194,10 @@ class Parser:
     def frame(self):
         t = self.tok
         label = self.accept("STRING")
-        color = self.accept("COLOR")
+        continued = self.accept("..") is not None
+        color = None if continued else self.accept("COLOR")
+        if continued and self.at("COLOR"):
+            self.fail("un frame continué garde sa couleur : écrire seulement \"titre\" .. {")
         self.expect("{")
         body = []
         while not self.at("}"):
@@ -201,7 +205,7 @@ class Parser:
                 self.fail("« } » attendu avant la fin du fichier")
             body.append(self.statement())
         end = self.advance()
-        return ast.Frame(label and label.text, color and color.text, body, t.line, t.col, end.line)
+        return ast.Frame(label and label.text, color and color.text, body, t.line, t.col, end.line, continued)
 
     def repeat(self):
         t = self.advance()

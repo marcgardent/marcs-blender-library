@@ -153,8 +153,10 @@ def repeat_head(s, pad):
 
 
 def frame_head(f):
-    """`"Title" #color {`, each part only when there is one."""
+    """`"Title" #color {`, each part only when there is one; `"Title" .. {` for more of a frame."""
     color = f.color if f.color is None or isinstance(f.color, str) else "#" + colors.spell(f.color)
+    if f.continued:
+        color = ".."
     return "".join(part + " " for part in (f.label is not None and quote(f.label), color) if part) + "{"
 
 

@@ -209,6 +209,7 @@ class GraphChecker:
         self.calls = set()
         self.separated = {}  # (node id, output identifier) -> SeparateXYZ node id, for p.x
         self.frames = []
+        self.last_frame = {}  # (parent frame id, title) -> id of the last frame opened so
         self.returned = None
         self.zone = None  # inside a repeat body: (output node, its item sockets, input node, its outputs)
         self.given = set()  # states the current repeat body returns
@@ -397,8 +398,20 @@ class GraphChecker:
             color = colors.rgb(f.color[1:])
             if color is None:
                 self.error(f, f"couleur « {f.color} » inconnue : #rrggbb, #rgb ou un nom CSS (#orange, #teal…)")
+        if f.continued:
+            # The statements go on in the last frame of that title opened in the same block
+            known = self.last_frame.get((parent, f.label))
+            if known is None:
+                title = f"« {f.label} »" if f.label is not None else "sans titre"
+                self.error(f, f"pas de frame {title} plus haut dans ce bloc à continuer")
+                return
+            self.statements(f.body, gout, known)
+            return
         frame = ir.Frame(f"f{len(self.frames)}", f.label, color, parent, f.line, f.col)
         self.frames.append(frame)
+        if f.body:
+            # A note is not continued: the frames around statements are
+            self.last_frame[(parent, f.label)] = frame.id
         self.statements(f.body, gout, frame.id)
 
     def assign_stmt(self, stmt):

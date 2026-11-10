@@ -139,6 +139,8 @@ class Frame:
     line: int
     col: int
     end: int = 0  # line of the closing brace
+    # `"Title" .. { … }`: more of the last frame of that title in the same block, not a new one
+    continued: bool = False
 
 
 @dataclass
