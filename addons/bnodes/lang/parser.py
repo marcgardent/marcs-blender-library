@@ -11,6 +11,10 @@ from .lexer import tokenize
 from .sugar import COMPARE, WORDS
 
 
+# What may follow `@`: the words of a node's look
+LOOK_FLAGS = ("mute",)
+
+
 def parse(source, filename="<text>"):
     return Parser(tokenize(source, filename), filename).file()
 
@@ -158,17 +162,33 @@ class Parser:
                                  self.peek().kind in ("IDENT", "STRING") and self.peek(2).kind == ":"):
                 self.advance()
                 fields = self.args(named_only=True)
-                return ast.Return(ast.Record(fields, t.line, t.col), t.line, t.col)
-            return ast.Return(self.expr(), t.line, t.col)
+                return ast.Return(ast.Record(fields, t.line, t.col), t.line, t.col, self.look())
+            return ast.Return(self.expr(), t.line, t.col, self.look())
         if self.at("IDENT") and self.peek().kind == "=":
             if t.text in WORDS:
                 self.fail(f"« {t.text} » est réservé au produit {'scalaire' if t.text == 'dot' else 'vectoriel'} : "
                           "choisir un autre nom")
             self.advance()
             self.advance()
-            value = self.repeat() if self.at("KEYWORD", "repeat") else self.expr()
-            return ast.Assign(t.text, value, t.line, t.col)
+            if self.at("KEYWORD", "repeat"):
+                return ast.Assign(t.text, self.repeat(), t.line, t.col)
+            return ast.Assign(t.text, self.expr(), t.line, t.col, self.look())
         self.fail(f"instruction attendue (nom = …, return, ou un frame \"titre\" {{ … }}), trouvé {describe(t)}")
+
+    def look(self):
+        """`@ mute` at the end of a statement, or None."""
+        at = self.accept("@")
+        if at is None:
+            return None
+        flags = []
+        # A word the next statement starts with is no flag: `mute = …`
+        while self.at("IDENT") and self.tok.text in LOOK_FLAGS and self.peek().kind not in ("=", ":"):
+            if self.tok.text in flags:
+                self.fail(f"« {self.tok.text} » donné deux fois")
+            flags.append(self.advance().text)
+        if not flags:
+            self.fail(f"après @ : {', '.join(LOOK_FLAGS)}")
+        return ast.Look(flags, at.line, at.col)
 
     def frame(self):
         t = self.tok

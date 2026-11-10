@@ -27,12 +27,14 @@ def cause(warning):
         return m.group(1)
     if "coupé en deux" in warning:
         return "frame coupé"
-    if "sans effet" in warning:
-        return "nœuds sans effet"
+    if "sortie(s) de groupe inactive(s)" in warning:
+        return "sorties de groupe inactives"
     if "description des items" in warning:
         return "description d'items de Menu Switch"
     if "(dans deux panneaux ?)" in warning:
         return "nom répété dans l'interface"
+    if "guillemets et retours à la ligne" in warning:
+        return "guillemets et retours à la ligne dans un texte"
     if "désactivé (mute)" in warning:
         return "nœud désactivé"
     if "présentation non exportée" in warning:

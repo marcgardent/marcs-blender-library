@@ -380,10 +380,12 @@ class GraphChecker:
                 self.zone_return(stmt)
                 self.returned = stmt
                 self.zone[0].frame = frame
+                self.look(self.zone[0], stmt.look)
             else:
                 self.return_stmt(stmt, gout)
                 self.returned = stmt
                 gout.frame = frame
+                self.look(gout, stmt.look)
             for n in self.nodes[created:]:
                 # A repeat body has placed its own nodes, frames included
                 if n.frame is None:
@@ -412,11 +414,20 @@ class GraphChecker:
             # Keep the name known, so later uses do not report it again
             self.env[stmt.name] = None
             return
-        if isinstance(value, Out) and value.node in {n.id for n in self.nodes[created:]}:
+        made = isinstance(value, Out) and value.node in {n.id for n in self.nodes[created:]}
+        if made:
             node = next(n for n in self.nodes if n.id == value.node)
             if node.name is None:
                 node.name = stmt.name
+            self.look(node, stmt.look)
+        elif stmt.look is not None:
+            self.error(stmt.look, f"@ : « {stmt.name} » ne fait pas de nœud à lui")
         self.env[stmt.name] = value
+
+    def look(self, node, look):
+        """`@ mute`: the Blender properties of how a node is shown."""
+        if look is not None:
+            node.look.update((flag, True) for flag in look.flags)
 
     def return_stmt(self, stmt, gout):
         gout.line, gout.col = stmt.line, stmt.col

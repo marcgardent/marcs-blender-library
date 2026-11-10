@@ -98,11 +98,20 @@ class Not:
 
 
 @dataclass
+class Look:
+    """`@ mute` after a statement: how the node it makes is shown in the editor."""
+    flags: list  # of words: mute
+    line: int
+    col: int
+
+
+@dataclass
 class Assign:
     name: str
     value: object
     line: int
     col: int
+    look: Look | None = None
 
 
 @dataclass
@@ -118,6 +127,7 @@ class Return:
     value: object
     line: int
     col: int
+    look: Look | None = None  # of the group output, or of a repeat's output
 
 
 @dataclass

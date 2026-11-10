@@ -1,8 +1,9 @@
 """Node group -> AST, the other way round from builder.py.
 
 A node becomes a named statement when several links use it, when its
-name was given by hand, or when it sits in another frame than its user;
-otherwise it is written inline where it is used. Frames become blocks
+name was given by hand, when it sits in another frame than its user, when
+nothing uses it (a viewer, a gizmo, a warning) or when it is shown otherwise
+than a new node (`@ mute`); otherwise it is written inline where it is used. Frames become blocks
 around their statements, reroutes are followed. What text cannot hold
 yet is reported as warnings, never as a failed export.
 """
@@ -62,7 +63,7 @@ def read_tree(tree, schema):
             return
         reader = GraphReader(t, schema, warnings)
         graph = reader.read()
-        # Only the groups that reach the output are exported with it
+        # The groups its nodes call are exported with it
         for callee in sorted(reader.callees, key=lambda c: c.name):
             module = module_of(callee)
             if module is not None and module != home:
@@ -87,6 +88,7 @@ class GraphReader:
         self.exprs = {}
         self.chain_heads = set()  # ids of calls whose first argument is a geometry name
         self.opened = set()  # frames written as blocks so far
+        self.shown = set()  # nodes whose look the text holds
 
     def warn(self, message):
         self.warnings.append(f"{self.tree.name} : {message}")
@@ -114,15 +116,13 @@ class GraphReader:
         # A Repeat output reaches its input even when no link joins them
         self.pairs = {n.paired_output.name: n for n in tree.nodes
                       if n.bl_idname == REPEAT_INPUT and n.paired_output is not None}
-        reached = self.reach(out)
+        others = [n for n in outs if n != out]
+        if others:
+            self.warn(f"{len(others)} sortie(s) de groupe inactive(s) non exportée(s) ; "
+                      "ce qui les alimente est écrit")
+        self.roots = self.dead_roots(self.reach([out]))
+        reached = self.reach([out] + self.roots)
         self.zone_of = self.zones(reached)
-        dead = [n for n in tree.nodes if n.bl_idname not in SKIP and n not in reached
-                and n.bl_idname != "NodeGroupInput"]
-        if dead:
-            self.warn(f"{len(dead)} nœud(s) sans effet sur la sortie, non exportés")
-        for n in reached:
-            if n.mute:
-                self.warn(f"« {n.name} » est désactivé (mute) ; le texte l'exporte actif")
 
         self.callees = {n.node_tree for n in reached if n.bl_idname in GROUP_NODES and n.node_tree is not None}
         uses, user = {}, {}
@@ -135,7 +135,7 @@ class GraphReader:
         self.separates = {}
         for n in reached:
             vector = self.incoming.get(n.name, {}).get("Vector")
-            if n.bl_idname == "ShaderNodeSeparateXYZ" and vector and not self.hand_named(n):
+            if n.bl_idname == "ShaderNodeSeparateXYZ" and vector and not self.hand_named(n) and not self.look(n):
                 self.separates[n.name] = vector[0]
                 src = vector[0][0].name
                 uses[src] = uses.get(src, 0) + uses.get(n.name, 0) - 1
@@ -156,7 +156,8 @@ class GraphReader:
             while used_by is not None and used_by.name in self.separates:
                 used_by = user.get(used_by.name)
             framed_apart = used_by is not None and frame_name(n) != frame_name(used_by)
-            if uses.get(n.name, 0) > 1 or self.hand_named(n) or framed_apart:
+            # A node shown otherwise than a new one carries its look on a statement
+            if uses.get(n.name, 0) > 1 or self.hand_named(n) or framed_apart or n in self.roots or self.look(n):
                 self.bound[n.name] = unique(self.binding_name(n), taken)
 
         body = []
@@ -169,12 +170,12 @@ class GraphReader:
                     fields.append((o_name, self.use(*links[0])))
         for name in self.statement_order(None):
             node = self.tree.nodes[name]
-            body.append((node, ast.Assign(self.bound[name], self.expr(node), 0, 0)))
+            body.append((node, self.assign(node)))
         if single and fields:
             value = fields[0][1]
         else:
             value = ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0)
-        body.append((out, ast.Return(value, 0, 0)))
+        body.append((out, ast.Return(value, 0, 0, self.looked(out))))
         graph = ast.Graph(self.kind, tree.name, params, outputs, single, self.framed(body), 0, 0)
         if tree.description:
             graph.description = tree.description.replace('"', "'").replace("\n", " ")
@@ -199,13 +200,36 @@ class GraphReader:
             self.warn(f"réglages de l'arbre non exportés : {', '.join(flags)}")
         looks = Counter()
         for n in self.tree.nodes:
-            if n.bl_idname in SKIP:
+            if n.bl_idname in SKIP or n.name in self.shown:
                 continue
+            if n.mute:
+                self.warn(f"« {n.name} » est désactivé (mute) ; le texte l'exporte actif")
             looks["libellé"] += bool(n.label)
             looks["couleur"] += n.use_custom_color
             looks["replié"] += n.hide
         if +looks:
             self.warn("présentation non exportée : " + ", ".join(f"{k} ({v})" for k, v in looks.items() if v))
+
+    # Looks
+
+    def look(self, node):
+        """`@ mute` for a node shown otherwise than a new one, else None."""
+        if node.bl_idname in ("NodeGroupInput", REPEAT_INPUT):
+            return None  # not a statement of the text
+        flags = ["mute"] if node.mute else []
+        return ast.Look(flags, 0, 0) if flags else None
+
+    def looked(self, node):
+        """The look of a node as it is written, which the text then holds."""
+        look = self.look(node)
+        if look is not None:
+            self.shown.add(node.name)
+        return look
+
+    def assign(self, node):
+        # A zone's output shows its look on the return of its body
+        look = None if node.bl_idname == REPEAT_OUTPUT else self.looked(node)
+        return ast.Assign(self.bound[node.name], self.expr(node), 0, 0, look)
 
     def param(self, item):
         type = INTERFACE_TYPES.get(item.socket_type)
@@ -291,9 +315,9 @@ class GraphReader:
             return None
         return node, sock
 
-    def reach(self, out):
+    def reach(self, starts):
         reached = []
-        stack = [out] if out is not None else []
+        stack = [n for n in starts if n is not None]
         seen = set()
         while stack:
             n = stack.pop()
@@ -306,6 +330,20 @@ class GraphReader:
             if n.name in self.pairs:
                 stack.append(self.pairs[n.name])
         return reached
+
+    def dead_roots(self, live):
+        """The nodes that reach no output and that no other such node uses, in tree order.
+
+        A viewer, a gizmo, a warning act by being there: each is written as a statement
+        that nothing reads, and what feeds it inline or by name as anywhere else.
+        """
+        names = {n.name for n in live}
+        dead = [n for n in self.tree.nodes if n.name not in names and n.bl_idname not in SKIP
+                and n.bl_idname not in ("NodeGroupInput", "NodeGroupOutput")]
+        used = {src.name for n in dead for links in self.incoming.get(n.name, {}).values() for src, _s in links}
+        # A zone's input belongs to its output's statement
+        used |= {self.pairs[n.name].name for n in dead if n.name in self.pairs}
+        return [n for n in dead if n.name not in used]
 
     def zones(self, reached):
         """{node name: name of the Repeat output whose body holds it}, the innermost zone.
@@ -433,7 +471,7 @@ class GraphReader:
                           "pas encore pris en charge par le texte")
                 hidden.discard(k)
 
-        statements = [(self.tree.nodes[n], ast.Assign(self.bound[n], self.expr(self.tree.nodes[n]), 0, 0))
+        statements = [(self.tree.nodes[n], self.assign(self.tree.nodes[n]))
                       for n in self.statement_order(rout.name)]
         fields = []
         outgoing = self.incoming.get(rout.name, {})
@@ -445,9 +483,9 @@ class GraphReader:
             if value is not None:
                 fields.append((sock.name, value))
         if len(sockets) == 2 and fields:
-            ret = ast.Return(fields[0][1], 0, 0)
+            ret = ast.Return(fields[0][1], 0, 0, self.looked(rout))
         else:
-            ret = ast.Return(ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0), 0, 0)
+            ret = ast.Return(ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0), 0, 0, self.looked(rout))
         body = self.framed(statements + [(rout, ret)], base=frame_path(rout), notes=False)
         return ast.Repeat(count, states, body, 0, 0)
 
@@ -528,6 +566,9 @@ class GraphReader:
                 # Every positional value goes to a multi-input: the inputs after it are named
                 positional = False
         for pname, value in props.items():
+            if isinstance(value, str) and ('"' in value or "\n" in value):
+                self.warn(f"« {node.name}.{pname} » : guillemets et retours à la ligne remplacés")
+                value = value.replace('"', "'").replace("\n", " ")
             args.append(ast.Arg(pname, prop_literal(spec.props[pname], value), 0, 0))
 
         call = ast.Call(name, args, 0, 0)

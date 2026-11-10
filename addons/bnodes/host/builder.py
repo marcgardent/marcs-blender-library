@@ -186,6 +186,8 @@ class Builder:
             node[LINE] = n.line
             if n.frame:
                 node.parent = frames[n.frame]
+            for prop, value in n.look.items():
+                setattr(node, prop, value)
             if n.group:
                 # A group of the file the text does not define is used as it is
                 node.node_tree = built[n.group] if n.group in self.graphs else bpy.data.node_groups[n.group]

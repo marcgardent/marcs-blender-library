@@ -115,9 +115,28 @@ Le corps d'un graph est une suite d'instructions :
 | `"Note" #couleur {}` | Un frame vide : une note. |
 | `nom = repeat(…) { … }` | Une [zone Repeat](#zone-repeat). |
 
-`return` est la dernière instruction. Un frame n'est pas une portée : les noms qu'il
+`return` est la dernière instruction. Un nom que rien ne lit fait quand même son nœud :
+c'est ainsi que s'écrivent un Warning, un gizmo ou un nœud mis de côté, qui
+n'alimentent aucune sortie (`alerte = Warning(taille < 0.0, "Taille négative")`). Un
+frame n'est pas une portée : les noms qu'il
 définit restent utilisables après lui. Les frames s'imbriquent. La couleur s'écrit en
 hexadécimal (`#e07030`, `#e73`) ou par un des 148 noms CSS (`#orange`, `#teal`…).
+
+### Présentation d'un nœud
+
+Une instruction peut finir par `@` suivi de la présentation du nœud qu'elle fait, celui
+que son nom désigne (le dernier d'un `|>`) :
+
+```
+plus = SetPosition(geometry, offset: centre) @ mute
+return h @ mute
+```
+
+- `mute` : le nœud est désactivé ; il laisse passer sa première entrée.
+
+Après `return`, la présentation est celle du Group Output (ou, dans une zone Repeat,
+celle de sa sortie). Une instruction qui ne fait pas de nœud à elle (`a = b`) n'en prend
+pas.
 
 ## Expressions
 
@@ -267,14 +286,13 @@ Formater garde les commentaires et les lignes vides entre instructions.
 Tree → Text écrit tout l'arbre, sauf ce qui suit, qu'il signale chaque fois par un
 avertissement :
 
-- la présentation des nœuds : libellé, couleur, nœud replié ; un nœud désactivé (mute)
-  s'écrit actif ;
+- la présentation des nœuds : libellé, couleur, nœud replié ; un Group Input désactivé ;
 - les panneaux de l'interface, et deux entrées du même nom dans deux panneaux ;
 - les réglages d'outil de l'arbre (`is_tool`…), et le bouton de gestion du modifier ;
 - la description des items d'un Menu Switch ;
 - les zones Simulation et For Each, les bundles et closures, Format String, Bake, Field
   to List ;
-- les nœuds qui n'influencent aucune sortie.
+- les Group Output inactifs (ce qui les alimente est écrit).
 
 Reconstruit à sa place, un groupe garde ses panneaux, et ses modifiers et appels gardent
 leurs réglages tant que leurs entrées existent encore.

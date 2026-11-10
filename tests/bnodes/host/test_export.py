@@ -303,6 +303,28 @@ def test_inputs_after_a_multi_input_are_named():
     assert (text, warnings) == (src, []), (text, warnings)
 
 
+def test_nodes_nothing_reads_come_back_identical():
+    src = fixture("dead.bn")
+    (tree,) = build_source(src, "dead.bn")
+    assert not tree.nodes["alerte"].outputs[0].is_linked and tree.nodes["repère"].parent.label == "Poignée"
+    assert tree.nodes["plus"].mute and not tree.nodes["repère"].mute
+    text, warnings = export_tree(tree)
+    assert (text, warnings) == (src, []), (text, warnings)
+
+
+def test_a_node_left_aside_by_hand_is_written():
+    (tree,) = build_source(fixture("wave.bn"), "wave.bn")
+    extra = tree.nodes.new("ShaderNodeMath")
+    tree.links.new(tree.nodes["p"].outputs[0], extra.inputs[0])
+    extra.inputs[1].default_value = 3.0
+    tree.nodes["h"].mute = True
+    text, warnings = export_tree(tree)
+    assert "  math = Math(p, 3.0, operation: ADD)\n" in text, text
+    assert " @ mute\n" in text and warnings == [], (text, warnings)
+    (tree,) = build_source(text, "wave.bn")
+    assert tree.nodes["h"].mute and export_tree(tree) == (text, [])
+
+
 def test_panels_and_looks_are_reported():
     (tree,) = build_source(fixture("wave.bn"), "wave.bn")
     tree.interface.new_panel("Réglages")
@@ -403,21 +425,9 @@ def test_bundled_assets_export_and_come_back_stable():
 
 
 def node_kinds(tree):
-    """Node types that reach the output, reroutes, frames and dead nodes aside."""
-    out = next((n for n in tree.nodes if n.bl_idname == "NodeGroupOutput" and n.is_active_output), None)
-    seen, stack = set(), [out] if out else []
-    while stack:
-        n = stack.pop()
-        if n.name in seen:
-            continue
-        seen.add(n.name)
-        for s in n.inputs:
-            for link in s.links:
-                if not link.is_muted:
-                    stack.append(link.from_node)
-    nodes = [tree.nodes[n] for n in seen]
-    return Counter(n.bl_idname for n in nodes
-                   if n.bl_idname not in ("NodeReroute", "NodeGroupInput", "NodeGroupOutput"))
+    """Node types, and which are muted: every node, reroutes, frames and group inputs aside."""
+    return Counter((n.bl_idname, n.mute) for n in tree.nodes
+                   if n.bl_idname not in ("NodeReroute", "NodeFrame", "NodeGroupInput"))
 
 
 def main():

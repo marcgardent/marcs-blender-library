@@ -119,13 +119,25 @@ def statement(s, pad=INDENT):
             lines += statement(inner, pad + INDENT)
         return lines + [(s.value.end, pad + "}")]
     if isinstance(s, ast.Assign):
-        return block(f"{pad}{s.name} = ", s.value, s.line, pad)
+        return looked(block(f"{pad}{s.name} = ", s.value, s.line, pad), s.look)
     if isinstance(s.value, ast.Record):
         line = f"{pad}return ({args(s.value.fields)})"
         if len(line) <= WIDTH:
-            return [(s.line, line)]
-        return spread(f"{pad}return (", s.value.fields, s.line, pad)
-    return block(f"{pad}return ", s.value, s.line, pad)
+            return looked([(s.line, line)], s.look)
+        return looked(spread(f"{pad}return (", s.value.fields, s.line, pad), s.look)
+    return looked(block(f"{pad}return ", s.value, s.line, pad), s.look)
+
+
+def looked(lines, look):
+    """A statement's lines, its look (`@ mute`) at the end of the last one."""
+    if look is None:
+        return lines
+    origin, text = lines[-1]
+    return lines[:-1] + [(origin, f"{text} {look_text(look)}")]
+
+
+def look_text(look):
+    return "@ " + " ".join(look.flags)
 
 
 def repeat_head(s, pad):
