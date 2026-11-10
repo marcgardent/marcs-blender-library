@@ -178,3 +178,11 @@ def test_completion_reads_headers_with_panels_settings_and_keys(schema):
     got = [i.label for i in items]
     assert got[:3] == ["geometry", "x", "p_x"], got
     assert "b_t" in got and "t" in got  # the graph's own inputs, by key
+
+
+def test_panels_and_keys_belong_to_a_graph_header():
+    head = "geometry graph g(geometry: Geometry) -> Geometry {\n"
+    with pytest.raises(BnError, match="un panneau ne s'écrit que dans l'en-tête d'un graph"):
+        parse(head + '  f = closure("P" { x: Float }) -> Float {\n    return x\n  }\n  return geometry\n}\n')
+    with pytest.raises(BnError, match="« as » ne s'écrit que dans l'en-tête d'un graph"):
+        parse(head + "  f = closure(x as y: Float) -> Float {\n    return y\n  }\n  return geometry\n}\n")

@@ -1,0 +1,12 @@
+geometry graph poignées(
+    geometry: Geometry,
+    hauteur: Float = 1.0,
+    centre: Vector,
+    angle: Float
+) -> Geometry {
+  flèche = GizmoLinear(hauteur, position: centre, draw_style: BOX)
+  cadran = GizmoDial(angle, radius: 0.8)
+  repère = GizmoTransform(CombineTransform(centre), position: centre)
+  choix = IndexSwitch(0, GizmoLinear(2.0), _)
+  return SetPosition(geometry, offset: CombineXYZ(z: hauteur)) + flèche + cadran + repère + choix
+}

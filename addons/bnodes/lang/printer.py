@@ -135,36 +135,77 @@ def statement(s, pad=INDENT):
         for inner in s.body:
             lines += statement(inner, pad + INDENT)
         return lines + [(s.end, pad + "}")]
-    if isinstance(s, ast.Assign) and isinstance(s.value, ast.Repeat):
-        lines = repeat_head(s, pad)
+    if isinstance(s, ast.Assign) and isinstance(s.value, ast.ZONES):
+        lines = zone_head(s, pad)
         for inner in s.value.body:
             lines += statement(inner, pad + INDENT)
         return lines + [(s.value.end, pad + "}")]
     if isinstance(s, ast.Assign):
-        return block(f"{pad}{s.name} = ", s.value, s.line, pad)
+        return looked(block(f"{pad}{s.name} = ", s.value, s.line, pad), s.look)
     if isinstance(s.value, ast.Record):
         line = f"{pad}return ({args(s.value.fields)})"
         if len(line) <= WIDTH:
-            return [(s.line, line)]
-        return spread(f"{pad}return (", s.value.fields, s.line, pad)
-    return block(f"{pad}return ", s.value, s.line, pad)
+            return looked([(s.line, line)], s.look)
+        return looked(spread(f"{pad}return (", s.value.fields, s.line, pad), s.look)
+    return looked(block(f"{pad}return ", s.value, s.line, pad), s.look)
 
 
-def repeat_head(s, pad):
+def looked(lines, look):
+    """A statement's lines, its look (`@ mute`) at the end of the last one."""
+    if look is None:
+        return lines
+    origin, text = lines[-1]
+    return lines[:-1] + [(origin, f"{text} {look_text(look)}")]
+
+
+def look_text(look):
+    """`@ "Label" #color hide mute`, each part only when there is one."""
+    color = look.color if look.color is None or isinstance(look.color, str) else "#" + colors.spell(look.color)
+    return " ".join(["@"] + [part for part in (look.label is not None and quote(look.label), color) if part]
+                    + look.flags)
+
+
+def zone_head(s, pad):
     """`name = repeat(count, state: start, …) {`, one argument per line when too long."""
-    r = s.value
-    items = [ast.Arg(None, r.count, r.line, r.col)] + r.states
-    line = f"{pad}{s.name} = repeat({args(items)}) {{"
-    if len(line) <= WIDTH:
+    z = s.value
+    if isinstance(z, ast.Closure):
+        return closure_head(s, pad)
+    if isinstance(z, ast.Repeat):
+        word, items = "repeat", [ast.Arg(None, z.count, z.line, z.col)] + z.states
+    elif isinstance(z, ast.Simulate):
+        word, items = "simulate", z.states
+    else:
+        word, items = "foreach", [ast.Arg(None, z.geometry, z.line, z.col)] + z.args
+    line = f"{pad}{s.name} = {word}({args(items)}) {{"
+    if len(line) <= WIDTH or not items:
         return [(s.line, line)]
-    lines = spread(f"{pad}{s.name} = repeat(", items, s.line, pad)
+    lines = spread(f"{pad}{s.name} = {word}(", items, s.line, pad)
     lines[-1] = (lines[-1][0], lines[-1][1] + " {")
     return lines
 
 
+def closure_head(s, pad):
+    """`name = closure(x: Float, …) -> Float {`, one input per line when too long."""
+    c = s.value
+    outs = signature_outputs(c.outputs, c.single_output)
+    line = f"{pad}{s.name} = closure({', '.join(param(p) for p in c.params)}) -> {outs} {{"
+    if len(line) <= WIDTH or not c.params:
+        return [(s.line, line)]
+    lines = [(s.line, f"{pad}{s.name} = closure(")]
+    lines += [(p.line, pad + INDENT + param(p) + ",") for p in c.params]
+    lines[-1] = (lines[-1][0], lines[-1][1][:-1])
+    return lines + [(c.params[-1].line, f"{pad}) -> {outs} {{")]
+
+
+def signature_outputs(outputs, single):
+    return outputs[0].type if single else "(" + ", ".join(param(o) for o in outputs) + ")"
+
+
 def frame_head(f):
-    """`"Title" #color {`, each part only when there is one."""
+    """`"Title" #color {`, each part only when there is one; `"Title" .. {` for more of a frame."""
     color = f.color if f.color is None or isinstance(f.color, str) else "#" + colors.spell(f.color)
+    if f.continued:
+        color = ".."
     return "".join(part + " " for part in (f.label is not None and quote(f.label), color) if part) + "{"
 
 
@@ -180,7 +221,10 @@ def block(lead, e, origin, pad):
             [(p.line, f"{pad}{INDENT}|> {expr(p.call)}") for p in rest]
     line = lead + expr(e)
     if len(line) > WIDTH and isinstance(e, ast.Call) and e.args:
-        return spread(f"{lead}{e.name}(", e.args, origin, pad)
+        lines = spread(f"{lead}{e.name}(", e.args, origin, pad)
+        if e.outputs is not None:
+            lines[-1] = (lines[-1][0], lines[-1][1] + " -> " + signature_outputs(e.outputs, e.single_output))
+        return lines
     return [(origin, line)]
 
 
@@ -196,7 +240,12 @@ def args(items):
 
 
 def arg(a):
-    return expr(a.value) if a.name is None else f"{label(a.name)}: {expr(a.value)}"
+    if a.name is None:
+        return expr(a.value)
+    options = f"({args(a.options)})" if a.options else ""
+    if a.type is not None:
+        return f"{label(a.name)}{options}: {a.type.type} = {expr(a.value)}"
+    return f"{label(a.name)}{options}: {expr(a.value)}"
 
 
 def expr(e, outer=0):
@@ -213,7 +262,11 @@ def expr(e, outer=0):
     if isinstance(e, ast.Member):
         return f"{expr(e.target, 9)}.{label(e.socket)}"
     if isinstance(e, ast.Call):
-        return f"{e.name}({args(e.args)})"
+        if e.outputs is None:
+            return f"{e.name}({args(e.args)})"
+        text = f"{e.name}({args(e.args)}) -> {signature_outputs(e.outputs, e.single_output)}"
+        # Declared outputs end a call: picking one of them takes parentheses
+        return f"({text})" if outer >= 9 else text
     if isinstance(e, ast.Neg):
         text = "-" + expr(e.value, 9)
         return f"({text})" if outer > 8 else text

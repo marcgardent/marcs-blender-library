@@ -1,0 +1,8 @@
+geometry graph sélection(geometry: Geometry, centre: Vector, taille: Float = 1.0) -> Geometry {
+  alerte = Warning(taille < 0.0, "La taille est négative")
+  "Poignée" {
+    repère = GizmoTransform(CombineTransform(centre), position: centre)
+  }
+  plus = SetPosition(geometry, offset: centre) @ mute
+  return SubdivideMesh(plus, 2)
+}

@@ -22,23 +22,43 @@ SKIP = {"NodeFrame", "NodeReroute", "NodeGroupInput", "NodeGroupOutput"}
 
 
 def cause(warning):
-    if "porte le nom d'une entrée du nœud" in warning:
-        return "item nommé comme une entrée du nœud"
     m = re.search(r": (\w+) \(«", warning)
     if m:
         return m.group(1)
     if "coupé en deux" in warning:
         return "frame coupé"
-    if "sans effet" in warning:
-        return "nœuds sans effet"
-    if "description des items" in warning:
-        return "description d'items de Menu Switch"
+    if "sortie(s) de groupe inactive(s)" in warning:
+        return "sorties de groupe inactives"
+    if "porte le nom d'une entrée ou d'un réglage" in warning:
+        return "item au nom d'une entrée du nœud"
+    if "de l'item" in warning and "non exporté" in warning:
+        return "option d'un item donné par position"
+    if "guillemets et retours à la ligne" in warning:
+        return "guillemets et retours à la ligne dans un texte"
     if "désactivé (mute)" in warning:
         return "nœud désactivé"
+    if "présentation des Group Input" in warning:
+        return "présentation des Group Input"
+    if "présentation des entrées de zone" in warning:
+        return "présentation des entrées de zone"
     if "présentation non exportée" in warning:
         return "présentation (libellés, couleurs, nœuds repliés)"
+    if "define_signature non exporté" in warning:
+        return "define_signature d'une closure"
+    if re.search(r"item « .* » de type \w+, pas encore", warning):
+        return "type d'item de bundle ou closure"
     if "part sans valeur" in warning:
-        return "état de repeat sans valeur"
+        return "état de zone sans valeur"
+    if "qui reçoit un" in warning and "relu comme" in warning:
+        return "item relu d'un autre type"
+    if re.search(r"domaine \w+ de l", warning):
+        return "domaine d'un item de zone"
+    if "valeur de menu de" in warning:
+        return "item de zone : valeur de menu"
+    if "cachée par l'état" in warning or "un nom de la zone" in warning or "deux items du même nom" in warning:
+        return "nom d'item de zone"
+    if "ne suit aucune géométrie" in warning:
+        return "attribut généré sans géométrie"
     return warning
 
 

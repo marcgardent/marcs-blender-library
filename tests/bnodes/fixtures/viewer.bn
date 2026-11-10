@@ -1,0 +1,5 @@
+geometry graph vue(geometry: Geometry, t: Float) -> Geometry {
+  h = sin(Position().x + t)
+  regard = Viewer(geometry: geometry, hauteur(auto_remove: true): h, domain: POINT)
+  return SetPosition(geometry, offset: CombineXYZ(z: h))
+}

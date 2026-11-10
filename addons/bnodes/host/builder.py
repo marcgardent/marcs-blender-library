@@ -12,20 +12,26 @@ from .. import lang
 from ..lang import ir
 from ..lang.errors import BnError, Diagnostic
 from ..lang.layout import layout
-from ..lang.schema import ITEM_NODES, ITEM_TYPES, TYPES, key
+from ..lang.schema import ITEM_NODES, SIGNATURE_NODES, TYPES, key, option_key, signature_items
 from ..lang.typecheck import REPEAT_ITEMS
 from . import modules
 from .schema import (ALIASES, PANEL_OPTIONS, TREE_FLAGS, TREE_TYPES, BlenderSchema, fresh_item, fresh_options,
-                     root_panel, same_option, socket_keys)
+                     item_option_names, new_item, root_panel, same_option, socket_keys)
 
 DATABLOCKS = {"OBJECT": "objects", "COLLECTION": "collections", "MATERIAL": "materials",
               "IMAGE": "images", "TEXTURE": "textures"}
+
+# Item options set after the links: a Viewer's auto_remove drops an item nothing feeds yet
+LATE_OPTIONS = {"auto_remove"}
 
 # Source line of each node, for the text and node editors to follow each other
 LINE = "bnodes_line"
 
 # Set rather than left to Blender, which translates new names when asked to
 FIXED_NAMES = {ir.GROUP_INPUT: "Group Input", ir.GROUP_OUTPUT: "Group Output"}
+
+# Zone output -> its item collection, the input node's following it
+ZONE_ITEMS = {ir.REPEAT_OUTPUT: "repeat_items", ir.SIMULATION_OUTPUT: "state_items"}
 
 
 def build_source(source, filename="<text>"):
@@ -85,6 +91,7 @@ class Builder:
         self.graphs = {g.name: g for g in graphs}
         # Only the graphs nobody calls are offered as modifiers
         self.called = {n.group for g in graphs for n in g.nodes if n.group}
+        self.late = []  # (item, option, value) to set once the links are made
 
     def fail(self, node, message):
         raise BnError([Diagnostic(self.filename, node.line, node.col, message)])
@@ -96,9 +103,6 @@ class Builder:
         self.ids = sync_interface(tree, g)
         self.aliases(tree, g)
         self.panels(tree, g)
-        if (g.name not in self.called and g.inputs[:1] and g.outputs[:1]
-                and g.inputs[0][1] == g.outputs[0][1] == "Geometry"):
-            tree.is_modifier = True
         self.settings(tree, g)
         self.fill(tree, g, built, kept)
         tree.description = g.description or ""
@@ -119,12 +123,15 @@ class Builder:
             tree.pop(ALIASES, None)
 
     def settings(self, tree, g):
-        """The tree's settings as written, else a new tree's; is_modifier only when written."""
+        """The tree's settings as written, else a new tree's. Unless written, a graph nobody
+        calls whose first input and output are geometries is a modifier, and another is not."""
         unknown = [s for s in g.settings if s not in TREE_FLAGS or not hasattr(tree, s)]
         if unknown:
             self.fail(g, f"réglage {unknown[0]} inconnu ; réglages : {', '.join(TREE_FLAGS)}")
-        for flag, fresh in TREE_FLAGS.items():
-            if not hasattr(tree, flag) or flag == "is_modifier" and flag not in g.settings:
+        modifier = bool(g.name not in self.called and g.inputs[:1] and g.outputs[:1]
+                        and g.inputs[0][1] == g.outputs[0][1] == "Geometry")
+        for flag, fresh in dict(TREE_FLAGS, is_modifier=modifier).items():
+            if not hasattr(tree, flag):
                 continue
             value = g.settings.get(flag, fresh)
             if not isinstance(value, bool):
@@ -206,11 +213,15 @@ class Builder:
     def fill(self, tree, g, built, kept):
         pos = layout(g)
         frames = {}
+        # A frame is named after its title, unless a node of the text takes that name
+        names = {n.name or FIXED_NAMES.get(n.id) for n in g.nodes}
         for f in g.frames:
             frame = tree.nodes.new("NodeFrame")
             frames[f.id] = frame
             if f.label:
-                frame.name = frame.label = f.label
+                frame.label = f.label
+                if f.label not in names:
+                    frame.name = f.label
             if f.color:
                 frame.use_custom_color = True
                 frame.color = f.color
@@ -232,6 +243,8 @@ class Builder:
             node[LINE] = n.line
             if n.frame:
                 node.parent = frames[n.frame]
+            for prop, value in n.look.items():
+                setattr(node, prop, value)
             if n.group:
                 # A group of the file the text does not define is used as it is
                 node.node_tree = built[n.group] if n.group in self.graphs else bpy.data.node_groups[n.group]
@@ -246,13 +259,18 @@ class Builder:
             if n.pair:
                 nodes[n.id].pair_with_output(nodes[n.pair])
         for n in g.nodes:
-            if n.items is not None and n.bl_idname == ir.REPEAT_OUTPUT:
-                items = nodes[n.id].repeat_items
-                items.clear()
-                for name, type in n.items:
-                    items.new(REPEAT_ITEMS[type], name)
+            if n.items is not None and n.bl_idname in ZONE_ITEMS:
+                fill_items(getattr(nodes[n.id], ZONE_ITEMS[n.bl_idname]), n.items)
+            elif n.items is not None and n.bl_idname == ir.FOREACH_OUTPUT:
+                fill_items(nodes[n.id].main_items, n.items[:n.main])
+                fill_items(nodes[n.id].generation_items, n.items[n.main:])
+            elif n.items is not None and n.bl_idname == ir.FOREACH_INPUT:
+                fill_items(nodes[n.pair].input_items, n.items)
             elif n.items is not None and n.bl_idname in ITEM_NODES:
                 self.items(nodes[n.id], n)
+            elif signature_items(n.bl_idname):
+                for attr, shape in signature_items(n.bl_idname):
+                    self.item_list(nodes[n.id], n, shape, getattr(n, attr) or [], attr)
 
         for n in g.nodes:
             node = nodes[n.id]
@@ -266,25 +284,56 @@ class Builder:
                 except (TypeError, ValueError) as e:
                     self.fail(n, f"{ident}: {e}")
 
+        refused = []
         for n in g.nodes:
             for ident, link in n.links:
                 src = self.socket(g, g.node(link.node), nodes[link.node], link.output, "outputs")
                 dst = self.socket(g, n, nodes[n.id], ident, "inputs")
                 made = tree.links.new(src, dst)
                 if not made.is_valid:
-                    self.fail(n, f"Blender refuse le lien {src.name} ({src.type}) → {dst.name} ({dst.type})")
+                    refused.append((n, made, src, dst))
+        if refused:
+            # A link into a zone made before the zone knows its body (a closure in a repeat) is
+            # only valid once Blender has updated the tree
+            tree.update_tag()
+            bpy.context.view_layer.update()
+        for n, made, src, dst in refused:
+            if not made.is_valid:
+                self.fail(n, f"Blender refuse le lien {src.name} ({src.type}) → {dst.name} ({dst.type})")
+        # Once linked: an item set to remove itself goes at once while nothing feeds it
+        for item, option, value in self.late:
+            setattr(item, option, value)
+        self.late.clear()
 
     def items(self, node, n):
-        """The items of a Capture Attribute or a switch, in the order of the text."""
-        items = getattr(node, ITEM_NODES[n.bl_idname].collection)
-        items.clear()
-        for name, type in n.items:
-            if n.bl_idname == "GeometryNodeCaptureAttribute":
-                items.new(ITEM_TYPES[type], name)
-            elif n.bl_idname == "GeometryNodeMenuSwitch":
-                items.new(name)
-            else:
-                items.new()
+        """The items of a node of ITEM_NODES, in the order of the text, with their options."""
+        self.item_list(node, n, ITEM_NODES[n.bl_idname], n.items, "items")
+
+    def item_list(self, node, n, shape, items, attr):
+        """One item collection of a node, as the text lists it, with each item's options."""
+        getattr(node, shape.collection).clear()
+        for name, type in items:
+            new_item(node, shape, name, type)
+        # Options once every item is there: a new item may change those before it.
+        # Fetched again, as adding items may move the earlier ones in memory
+        for (name, _type), item in zip(items, getattr(node, shape.collection)):
+            if shape.named and item.name != name:
+                self.fail(n, f"Blender renomme l'item « {name} » en « {item.name} » : "
+                             "un nom d'item n'est pas un chemin (ni « / », ni « . », ni « - », ni « : »)")
+            wanted = n.item_options.get(option_key(attr, name), {})
+            known = item_option_names(item, shape)
+            unknown = [o for o in wanted if o not in known]
+            if unknown:
+                self.fail(n, f"item « {name} » : option {unknown[0]} inconnue ; "
+                             f"options : {', '.join(known) or 'aucune'}")
+            for option, value in wanted.items():
+                if option in LATE_OPTIONS:
+                    self.late.append((item, option, value))
+                    continue
+                try:
+                    setattr(item, option, value)
+                except (TypeError, ValueError) as e:
+                    self.fail(n, f"option {option} de l'item « {name} » : {e}")
 
     def socket(self, g, n, node, ident, side):
         """A Blender socket from its text identifier.
@@ -303,6 +352,16 @@ class Builder:
             names = [(k, None) for k in self.graphs[n.group].keys(io)]
         elif n.group:
             names = [(k, None) for k in socket_keys(node.node_tree, io).values()]
+        elif n.bl_idname in SIGNATURE_NODES:
+            # The fixed sockets by identifier, then the items by their number: #0, #1…
+            fixed = SIGNATURE_NODES[n.bl_idname][side][0]
+            sockets = [s for s in sockets if s.type != "CUSTOM"]
+            if ident.startswith("#"):
+                return sockets[fixed + int(ident[1:])]
+            found = next((s for s in sockets[:fixed] if s.identifier == ident), None)
+            if found is None:
+                self.fail(n, f"socket « {ident} » introuvable dans Blender")
+            return found
         elif n.items is not None and n.bl_idname in ITEM_NODES:
             # The fixed sockets by identifier, then the items by position
             shape = ITEM_NODES[n.bl_idname]
@@ -313,10 +372,9 @@ class Builder:
                 return found
             return sockets[fixed + [name for name, _t in n.items].index(ident)]
         elif n.items is not None:
-            # Zone items are numbered by Blender too; the input node has the count first
-            names = n.items
-            if n.bl_idname == ir.REPEAT_INPUT:
-                names = [("Iterations" if side == "inputs" else "Iteration", "Int")] + names
+            # Zone items are numbered by Blender too, after the zone node's fixed sockets
+            fixed = ir.ZONE_SOCKETS[n.bl_idname][side == "outputs"]
+            names = [(name, None) for name in fixed] + n.items
             sockets = [s for s in sockets if s.type != "CUSTOM"]
         if names is not None:
             return sockets[[name for name, _t in names].index(ident)]
@@ -332,6 +390,13 @@ class Builder:
                 self.fail(n, f"{sock.type.title()} « {value} » introuvable dans le fichier")
             return found
         return coerce(sock, value)
+
+
+def fill_items(items, wanted):
+    """A zone's item collection, as the text lists it."""
+    items.clear()
+    for name, type in wanted:
+        items.new(REPEAT_ITEMS[type], name)
 
 
 def coerce(sock, value):

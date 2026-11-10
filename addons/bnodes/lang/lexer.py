@@ -6,7 +6,7 @@ KEYWORDS = {"graph", "return", "true", "false", "and", "or", "xor", "not", "repe
 
 # Longest first, so "->" wins over "-", "==" over "=" and ".." over "."
 PUNCT = ("|>", "->", "<=", ">=", "==", "!=", "<", ">", "(", ")", "{", "}", ",", ":", "..", ".", "=", "+", "-", "*", "/",
-         "⋅", "·", "×")
+         "⋅", "·", "×", "@")
 
 
 @dataclass(frozen=True)

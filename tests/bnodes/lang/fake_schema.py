@@ -64,12 +64,37 @@ NODES = {
     "CaptureAttribute": (NodeSpec("CaptureAttribute", "GeometryNodeCaptureAttribute", {
         "domain": Prop("domain", "ENUM", ("POINT", "EDGE", "FACE", "CORNER", "CURVE", "INSTANCE", "LAYER")),
     }), [S("Geometry", "Geometry"), S("Selection", "Bool")], [S("Geometry", "Geometry"), S("Selection", "Bool")]),
+    "FormatString": (NodeSpec("FormatString", "FunctionNodeFormatString"),
+                     [S("Format", "String")], [S("String", "String")]),
+    "Bake": (NodeSpec("Bake", "GeometryNodeBake"), [], []),
+    "FieldToList": (NodeSpec("FieldToList", "GeometryNodeFieldToList"), [S("Count", "Int")], []),
     "IndexSwitch": (NodeSpec("IndexSwitch", "GeometryNodeIndexSwitch", {
         "data_type": Prop("data_type", "ENUM", tuple(DATA_TYPES)),
     }), None, None),
+    # Like Blender: the value a gizmo moves comes by a multi-input, which a number may fill
+    "GizmoLinear": (NodeSpec("GizmoLinear", "GeometryNodeGizmoLinear", {
+        "draw_style": Prop("draw_style", "ENUM", ("ARROW", "CROSS", "BOX")),
+    }), [S("Value", "Float", multi=True), S("Position", "Vector"), S("Direction", "Vector")],
+        [S("Transform", "Geometry")]),
+    "GizmoTransform": (NodeSpec("GizmoTransform", "GeometryNodeGizmoTransform"),
+                       [S("Value", "Matrix", multi=True), S("Position", "Vector"), S("Rotation", "Rotation")],
+                       [S("Transform", "Geometry")]),
+    "CombineTransform": (NodeSpec("CombineTransform", "FunctionNodeCombineTransform"),
+                         [S("Translation", "Vector"), S("Rotation", "Rotation"), S("Scale", "Vector")],
+                         [S("Transform", "Matrix")]),
     "MenuSwitch": (NodeSpec("MenuSwitch", "GeometryNodeMenuSwitch", {
         "data_type": Prop("data_type", "ENUM", tuple(DATA_TYPES)),
     }), None, None),
+    # Like Blender: a new one has no item, only its fixed socket
+    "CombineBundle": (NodeSpec("CombineBundle", "NodeCombineBundle", {
+        "define_signature": Prop("define_signature", "BOOLEAN"),
+    }), [], [S("Bundle", "Bundle")]),
+    "SeparateBundle": (NodeSpec("SeparateBundle", "NodeSeparateBundle", {
+        "define_signature": Prop("define_signature", "BOOLEAN"),
+    }), [S("Bundle", "Bundle")], []),
+    "EvaluateClosure": (NodeSpec("EvaluateClosure", "NodeEvaluateClosure", {
+        "define_signature": Prop("define_signature", "BOOLEAN"),
+    }), [S("Closure", "Closure")], []),
 }
 
 

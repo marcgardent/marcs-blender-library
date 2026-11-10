@@ -1,0 +1,31 @@
+geometry graph ressort(force: Float) -> (f: Closure, b: Bundle) {
+  f = closure(x: Float, "Point Count": Int(structure_type: SINGLE)) -> (r: Float) {
+    return x * force + point_count
+  }
+  b = CombineBundle(
+    hauteur: force * 2.0,
+    "Pin Positions": Rotation = (0.0, 0.0, 0.0),
+    f: f,
+    nid: CombineBundle(n: 3))
+  return (f: f, b: b)
+}
+
+geometry graph appliquer(geometry: Geometry, f: Closure, b: Bundle) -> Geometry {
+  s = SeparateBundle(b) -> (hauteur: Float, nid: Bundle)
+  h = EvaluateClosure(
+    f,
+    x: Position().z,
+    "Point Count"(structure_type: SINGLE): SeparateBundle(s.nid) -> (n: Int),
+    define_signature: true) -> (r: Float)
+  return SetPosition(geometry, offset: CombineXYZ(z: h + s.hauteur))
+}
+
+geometry graph cumul(n: Int) -> Float {
+  double = closure(v: Float) -> Float {
+    return v * 2.0
+  }
+  w = repeat(n, total: 0.0, dernier: Bundle) {
+    return (total: double(v: total + 1.0), dernier: CombineBundle(total: total))
+  }
+  return w.total
+}
