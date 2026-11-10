@@ -4,7 +4,7 @@ Every error is collected with its position, so one pass reports them all.
 """
 
 import difflib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from . import ast, colors, ir, sugar
 from .errors import BnError, Diagnostic
@@ -36,6 +36,23 @@ class Out:
 class Lit:
     value: object
     type: str
+
+
+@dataclass
+class Empty:
+    """A zone item with no value, written by its type alone: `cache: Bundle`."""
+    type: str
+
+
+@dataclass
+class Zone:
+    """The zone whose body is being checked."""
+    word: str        # repeat, simulate or foreach
+    out: object      # its output node
+    states: list     # of Socket: what its return may give (repeat, simulate)
+    skip: object     # the Skip socket of a simulation
+    given: set = field(default_factory=set)  # what the return gave
+    outputs: list = field(default_factory=list)  # a foreach's output sockets, once returned
 
 
 @dataclass
@@ -210,8 +227,7 @@ class GraphChecker:
         self.separated = {}  # (node id, output identifier) -> SeparateXYZ node id, for p.x
         self.frames = []
         self.returned = None
-        self.zone = None  # inside a repeat body: (output node, its item sockets, input node, its outputs)
-        self.given = set()  # states the current repeat body returns
+        self.zone = None  # inside a zone's body: the Zone
         self.frame_now = None
         self.unsure = False  # a module failed to load: an unknown call may be one of its graphs
 
@@ -379,7 +395,7 @@ class GraphChecker:
             elif self.zone is not None:
                 self.zone_return(stmt)
                 self.returned = stmt
-                self.zone[0].frame = frame
+                self.zone.out.frame = frame
             else:
                 self.return_stmt(stmt, gout)
                 self.returned = stmt
@@ -405,7 +421,11 @@ class GraphChecker:
             return
         created = len(self.nodes)
         if isinstance(stmt.value, ast.Repeat):
-            value = self.repeat(stmt.value, stmt.name)
+            value = self.state_zone(stmt.value, stmt.name, "repeat")
+        elif isinstance(stmt.value, ast.Simulate):
+            value = self.state_zone(stmt.value, stmt.name, "simulate")
+        elif isinstance(stmt.value, ast.Foreach):
+            value = self.foreach(stmt.value, stmt.name)
         else:
             value = self.eval(stmt.value)
         if value is None:
@@ -444,91 +464,243 @@ class GraphChecker:
         if value is not None:
             self.connect(gout, outs[0], value, stmt.value, "return")
 
-    # Repeat zones
+    # Zones
 
-    def repeat(self, e, name):
-        """A Repeat zone: its input node takes the count and the starting states, its body
-        computes the next states from the current ones, its output node gives the last."""
-        rin = ir.Node(f"n{len(self.nodes)}", ir.REPEAT_INPUT, line=e.line, col=e.col)
-        rout = ir.Node(f"n{len(self.nodes) + 1}", ir.REPEAT_OUTPUT, line=e.line, col=e.col)
-        rin.pair = rout.id
-        self.nodes += [rin, rout]
-        count = self.eval(e.count)
+    def state_zone(self, e, name, word):
+        """A Repeat or a Simulation zone: its input node takes the starting states (and a
+        Repeat its count), its body computes the next states from the current ones, its
+        output node gives the last."""
+        repeat = word == "repeat"
+        zin = ir.Node(f"n{len(self.nodes)}", ir.REPEAT_INPUT if repeat else ir.SIMULATION_INPUT,
+                      line=e.line, col=e.col)
+        zout = ir.Node(f"n{len(self.nodes) + 1}", ir.REPEAT_OUTPUT if repeat else ir.SIMULATION_OUTPUT,
+                       line=e.line, col=e.col)
+        zin.pair = zout.id
+        self.nodes += [zin, zout]
+        count = self.eval(e.count) if repeat else None
+        allowed = REPEAT_ITEMS if repeat else SIMULATION_ITEMS
         starts, items = [], []
         for a in e.states:
-            v = self.eval(a.value)
-            t = value_type(v)
+            v = self.zone_value(a.value)
             if key(a.name) in {key(n) for n, _t in items}:
                 self.error(a, f"état « {a.name} » déclaré deux fois")
                 continue
-            if key(a.name) == "iteration":
-                self.error(a, "« iteration » est le numéro du tour : choisir un autre nom d'état")
+            if key(a.name) in STATE_NAMES[word]:
+                self.error(a, STATE_NAMES[word][key(a.name)])
                 continue
             if v is None:
                 continue
-            if t not in REPEAT_ITEMS:
-                self.error(a, f"un état de repeat ne peut pas être de type {t}")
+            if isinstance(v, Sym):
+                self.error(a, f"nom inconnu « {v.name} »")
+                continue
+            t = value_type(v)
+            if t not in allowed:
+                self.error(a, f"un état de {word} ne peut pas être de type {t}")
                 continue
             items.append((a.name, t))
             starts.append((a, v))
-        rin.items = rout.items = items
+        zin.items = zout.items = items
         states = [Socket(n, n, t) for n, t in items]
-        rin_inputs = [Socket("Iterations", "Iterations", "Int")] + states
-        rin_outputs = [Socket("Iteration", "Iteration", "Int")] + states
-        rin.n_inputs, rin.n_outputs = len(rin_inputs), len(rin_outputs)
-        rout.n_inputs = rout.n_outputs = len(states)
+        if repeat:
+            zin_inputs = [Socket("Iterations", "Iterations", "Int")] + states
+            zin_outputs = [Socket("Iteration", "Iteration", "Int")] + states
+            skip = None
+        else:
+            zin_inputs = states
+            zin_outputs = [Socket("Delta Time", "Delta Time", "Float")] + states
+            skip = Socket("Skip", "Skip", "Bool")
+        zin.n_inputs, zin.n_outputs = len(zin_inputs), len(zin_outputs)
+        zout.n_inputs, zout.n_outputs = len(states) + (skip is not None), len(states)
         if count is not None:
-            self.connect(rin, rin_inputs[0], count, e.count, "repeat")
+            self.connect(zin, zin_inputs[0], count, e.count, word)
         for (a, v), sock in zip(starts, states):
-            self.connect(rin, sock, v, a, "repeat")
+            if not isinstance(v, Empty):
+                self.connect(zin, sock, v, a, word)
 
-        # The body sees the outer names, the states and `iteration`; its own names stay inside
-        saved = self.env, self.returned, self.zone, self.given
-        self.env = dict(self.env)
+        # The body sees the outer names, the states and the input's own output; its names stay inside
+        zone = Zone(word, zout, states, skip)
+        names = {key(s.name): s for s in states}
+        names["iteration" if repeat else "delta_time"] = zin_outputs[0]
+        self.body(e, name, zone, zin, zin_outputs, names)
+        # A state the body does not return goes on unchanged
         for sock in states:
-            self.env[key(sock.name)] = Out(rin.id, rin_outputs, sock, key(sock.name))
-        self.env["iteration"] = Out(rin.id, rin_outputs, rin_outputs[0], "iteration")
+            if sock.name not in zone.given:
+                zout.links.append((sock.identifier, ir.Link(zin.id, sock.identifier)))
+        # With no state left, uses of the name would only repeat the error
+        return Out(zout.id, states, None, name) if states else None
+
+    def foreach(self, e, name):
+        """A For Each Geometry Element zone: its input node takes the geometry, the selection
+        and the input items, its body runs once per element, and the items its return gives
+        make the output node's main and generation items."""
+        zin = ir.Node(f"n{len(self.nodes)}", ir.FOREACH_INPUT, line=e.line, col=e.col)
+        zout = ir.Node(f"n{len(self.nodes) + 1}", ir.FOREACH_OUTPUT, line=e.line, col=e.col)
+        zin.pair = zout.id
+        zout.items = []
+        self.nodes += [zin, zout]
+        geometry = self.zone_value(e.geometry)
+        selection, given, values, items = None, set(), [], []
+        for a in e.args:
+            k = key(a.name)
+            if k in given:
+                self.error(a, f"« {a.name} » donné deux fois")
+                continue
+            given.add(k)
+            if k == "domain":
+                if isinstance(a.value, ast.Ref) and a.value.name in FOREACH_DOMAINS:
+                    zout.props["domain"] = a.value.name
+                else:
+                    self.error(a, f"domain attend une valeur parmi {', '.join(FOREACH_DOMAINS)}")
+                continue
+            if k == "selection":
+                selection = (self.eval(a.value), a)
+                continue
+            if k in ("index", "element"):
+                self.error(a, f"« {k} » est {'le numéro' if k == 'index' else 'la géométrie'} de l'élément : "
+                              "choisir un autre nom d'item")
+                continue
+            v = self.zone_value(a.value)
+            if v is None:
+                continue
+            if isinstance(v, Sym):
+                self.error(a, f"nom inconnu « {v.name} »")
+                continue
+            t = value_type(v)
+            if t not in FOREACH_INPUT_ITEMS:
+                self.error(a, f"un item d'entrée de foreach ne peut pas être de type {t}")
+                continue
+            items.append((a.name, t))
+            values.append((a, v))
+        zin.items = items
+        sockets = [Socket(n, n, t) for n, t in items]
+        zin_inputs = [Socket("Geometry", "Geometry", "Geometry"), Socket("Selection", "Selection", "Bool")] + sockets
+        zin_outputs = [Socket("Index", "Index", "Int"), Socket("Element", "Element", "Geometry")] + sockets
+        zin.n_inputs, zin.n_outputs = len(zin_inputs), len(zin_outputs)
+        if isinstance(geometry, Sym):
+            self.error(e.geometry, f"nom inconnu « {geometry.name} »")
+        elif isinstance(geometry, Empty) and geometry.type != "Geometry":
+            self.error(e.geometry, f"foreach.geometry attend Geometry, reçoit {geometry.type}")
+        elif geometry is not None and not isinstance(geometry, Empty):
+            self.connect(zin, zin_inputs[0], geometry, e.geometry, "foreach")
+        if selection is not None and selection[0] is not None:
+            self.connect(zin, zin_inputs[1], *selection, "foreach")
+        for (a, v), sock in zip(values, sockets):
+            if not isinstance(v, Empty):
+                self.connect(zin, sock, v, a, "foreach")
+
+        zone = Zone("foreach", zout, [], None)
+        zone.outputs = [Socket("Geometry", ir.FOREACH_GEOMETRY, "Geometry")]
+        names = {key(s.name): s for s in sockets}
+        names.update(index=zin_outputs[0], element=zin_outputs[1])
+        self.body(e, name, zone, zin, zin_outputs, names)
+        zout.n_outputs = len(zone.outputs)
+        return Out(zout.id, zone.outputs, None, name)
+
+    def body(self, e, name, zone, zin, zin_outputs, names):
+        """Check a zone's body, which sees the outer names and `names`, outputs of the zone's input."""
+        saved = self.env, self.returned, self.zone
+        self.env = dict(self.env)
+        for k, sock in names.items():
+            self.env[k] = Out(zin.id, zin_outputs, sock, k)
         self.returned = None
-        self.zone = (rout, states, rin, rin_outputs)
-        self.given = set()
+        self.zone = zone
         frame = self.frame_now
         self.statements(e.body, None, frame)
         if not self.returned:
-            self.error(e, f"return manquant dans le repeat de « {name} »")
-        # A state the body does not return goes on unchanged
-        for sock in states:
-            if sock.name not in self.given:
-                rout.links.append((sock.identifier, ir.Link(rin.id, sock.identifier)))
-        rin.frame = rout.frame = frame
-        self.env, self.returned, self.zone, self.given = saved
+            self.error(e, f"return manquant dans le {zone.word} de « {name} »")
+        zin.frame = zone.out.frame = frame
+        self.env, self.returned, self.zone = saved
         self.frame_now = frame
-        # With no state left, uses of the name would only repeat the error
-        return Out(rout.id, states, None, name) if states else None
+
+    def zone_value(self, e):
+        """The value of a zone item; a type alone is an item with no value: `cache: Bundle`."""
+        v = self.eval(e)
+        if isinstance(v, Sym) and v.name in TYPES:
+            return Empty(v.name)
+        return v
 
     def zone_return(self, stmt):
-        rout, states, _rin, _outs = self.zone
+        if self.zone.word == "foreach":
+            self.foreach_return(stmt)
+            return
+        zone, word = self.zone, self.zone.word
+        states = zone.states
         if isinstance(stmt.value, ast.Record):
             for f in stmt.value.fields:
+                if zone.skip is not None and key(f.name) == "skip":
+                    if "skip" in zone.given:
+                        self.error(f, "skip rendu deux fois")
+                        continue
+                    zone.given.add("skip")
+                    value = self.eval(f.value)
+                    if value is not None:
+                        self.connect(zone.out, zone.skip, value, f, word)
+                    continue
                 sock = next((s for s in states if key(f.name) == key(s.name)), None)
                 if sock is None:
-                    self.error(f, f"« {f.name} » n'est pas un état du repeat ; états : "
+                    self.error(f, f"« {f.name} » n'est pas un état du {word} ; états : "
                                   f"{', '.join(s.name for s in states)}")
                     continue
-                if sock.name in self.given:
+                if sock.name in zone.given:
                     self.error(f, f"état « {f.name} » rendu deux fois")
                     continue
-                self.given.add(sock.name)
-                value = self.eval(f.value)
-                if value is not None:
-                    self.connect(rout, sock, value, f, "repeat")
+                zone.given.add(sock.name)
+                self.state(sock, self.zone_value(f.value), f)
             return
         if len(states) != 1:
-            self.error(stmt, f"ce repeat a plusieurs états : return ({', '.join(s.name + ': …' for s in states)})")
+            self.error(stmt, f"ce {word} a plusieurs états : return ({', '.join(s.name + ': …' for s in states)})")
             return
-        self.given.add(states[0].name)
-        value = self.eval(stmt.value)
-        if value is not None:
-            self.connect(rout, states[0], value, stmt.value, "repeat")
+        zone.given.add(states[0].name)
+        self.state(states[0], self.zone_value(stmt.value), stmt.value)
+
+    def state(self, sock, value, at):
+        """The next value of a state: linked, set, or left empty by its type alone."""
+        if isinstance(value, Empty):
+            if value.type != sock.type:
+                self.error(at, f"{self.zone.word}.{sock.key} attend {sock.type}, reçoit {value.type}")
+        elif value is not None:
+            self.connect(self.zone.out, sock, value, at, self.zone.word)
+
+    def foreach_return(self, stmt):
+        """The items of a For Each output: main items, then each Geometry with its attributes."""
+        zone = self.zone
+        if not isinstance(stmt.value, ast.Record):
+            self.error(stmt, "un foreach rend ses items par nom : return (valeur: v, mesh: g, …)")
+            return
+        main, generation, seen = [], [], set()
+        for f in stmt.value.fields:
+            if key(f.name) in seen:
+                self.error(f, f"item « {f.name} » rendu deux fois")
+                continue
+            seen.add(key(f.name))
+            v = self.zone_value(f.value)
+            if v is None:
+                continue
+            if isinstance(v, Sym):
+                self.error(f, f"nom inconnu « {v.name} »")
+                continue
+            t = value_type(v)
+            if t == "Geometry" or generation:
+                if t not in FOREACH_ITEMS and t != "Geometry":
+                    self.error(f, f"un attribut généré par foreach ne peut pas être de type {t}")
+                    continue
+                generation.append((f, v, t))
+            elif t not in FOREACH_ITEMS:
+                self.error(f, f"un item de foreach ne peut pas être de type {t}")
+                continue
+            else:
+                main.append((f, v, t))
+        zone.out.items = [(f.name, t) for f, _v, t in main + generation]
+        zone.out.main = len(main)
+        zone.out.n_inputs = len(zone.out.items)
+        sockets = [Socket(n, n, t) for n, t in zone.out.items]
+        if any(s.key == "geometry" for s in sockets):
+            # Then only the zone's name alone gives it
+            zone.outputs = [Socket(ir.FOREACH_GEOMETRY, ir.FOREACH_GEOMETRY, "Geometry")]
+        zone.outputs += sockets
+        for (f, v, _t), sock in zip(main + generation, sockets):
+            if not isinstance(v, Empty):
+                self.connect(zone.out, sock, v, f, "foreach")
 
     # Expressions
 
@@ -940,8 +1112,20 @@ WRITTEN_ELSEWHERE = {
     "default_input": "après = : p: Vector = Position()", "dimensions": "par la taille du défaut : (0.5, 0.5)",
 }
 
-# Text type -> the socket type of a Repeat zone item
+# Text type -> the socket type of a zone item, for each kind of item Blender takes
 REPEAT_ITEMS = {t: v for t, v in ITEM_TYPES.items() if t != "Shader"}
+SIMULATION_ITEMS = {t: ITEM_TYPES[t] for t in FIELD_TYPES + ("String", "Geometry", "Bundle")}
+FOREACH_INPUT_ITEMS = {t: ITEM_TYPES[t] for t in FIELD_TYPES + ("Menu",)}
+FOREACH_ITEMS = {t: ITEM_TYPES[t] for t in FIELD_TYPES}  # main items, and generated attributes
+FOREACH_DOMAINS = ("POINT", "EDGE", "FACE", "CORNER", "CURVE", "INSTANCE", "LAYER")
+
+# Names a zone's body gives itself, which no state may take
+STATE_NAMES = {
+    "repeat": {"iteration": "« iteration » est le numéro du tour : choisir un autre nom d'état"},
+    "simulate": {"delta_time": "« delta_time » est le temps écoulé depuis le pas précédent : "
+                               "choisir un autre nom d'état",
+                 "skip": "« skip » se rend par return (…, skip: …) : choisir un autre nom d'état"},
+}
 DATA_TYPES = {v: t for t, v in ITEM_TYPES.items()}
 
 
@@ -955,7 +1139,7 @@ def plus_terms(e):
 def value_type(v):
     if isinstance(v, Out):
         return v.socket.type if v.socket else None
-    if isinstance(v, Lit):
+    if isinstance(v, (Lit, Empty)):
         return v.type
     return None
 

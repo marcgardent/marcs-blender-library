@@ -42,6 +42,8 @@ geometry graph relief(geometry: Geometry, hauteur: Float = 0.4) -> Geometry {
   `repeat`, `dot`, `cross`. Un socket qui porte un de ces noms prend un `_` à la fin
   (`not_`).
 - `use` et `from` ne sont des mots-clés qu'en tête de fichier ; ailleurs, ce sont des noms.
+  De même `simulate` et `foreach` ne le sont que dans `nom = simulate(…) {` et
+  `nom = foreach(…) {`.
 - `_` seul veut dire « pas de valeur », pour un [item vide](#nœuds-à-items).
 - Un nom qui n'est ni une entrée ni un nom défini est une **valeur** : d'une propriété
   (`domain: FACE`, `operation: POWER`) ou d'un menu (`Lisse`).
@@ -114,6 +116,8 @@ Le corps d'un graph est une suite d'instructions :
 | `"Titre" #couleur { … }` | Un frame autour des nœuds des instructions du bloc. Titre et couleur sont facultatifs. |
 | `"Note" #couleur {}` | Un frame vide : une note. |
 | `nom = repeat(…) { … }` | Une [zone Repeat](#zone-repeat). |
+| `nom = simulate(…) { … }` | Une [zone Simulation](#zone-simulation). |
+| `nom = foreach(…) { … }` | Une [zone For Each](#zone-for-each). |
 
 `return` est la dernière instruction. Un frame n'est pas une portée : les noms qu'il
 définit restent utilisables après lui. Les frames s'imbriquent. La couleur s'écrit en
@@ -214,6 +218,76 @@ chaque état est un nom, et `iteration` le numéro du tour (0, 1, 2…). `return
 dernière valeur (`r` seul quand il n'y a qu'un état). Les noms du bloc y restent ; les
 zones s'imbriquent.
 
+Un état sans valeur de départ s'écrit par son type seul : `repeat(n, mesh: Geometry)`
+part d'une géométrie vide, `cache: Bundle` d'un bundle vide. De même dans `return`.
+
+### Zone Simulation
+
+```
+s = simulate(état: départ, …) {
+  …
+  return (état: suivant, …, skip: condition)
+}
+```
+
+Comme `repeat`, sans nombre de tours : le bloc fait un pas par image. Dans le bloc,
+chaque état est un nom, et `delta_time` le temps écoulé depuis le pas précédent, en
+secondes. `return` donne les états du pas suivant ; un état non rendu passe tel quel ;
+`skip: condition` (facultatif) saute le pas tant que la condition est vraie. Après le
+bloc, `s.état` est la valeur du pas courant (`s` seul quand il n'y a qu'un état). Les
+états peuvent être `Float`, `Int`, `Bool`, `Vector`, `Color`, `Rotation`, `Matrix`,
+`String`, `Geometry` et `Bundle` ; ils ne s'appellent ni `delta_time` ni `skip`.
+
+```
+geometry graph chute(geometry: Geometry, gravité: Float = -9.8) -> Geometry {
+  s = simulate(points: geometry, vitesse: 0.0) {
+    v = vitesse + gravité * delta_time
+    return (points: SetPosition(points, offset: CombineXYZ(z: v * delta_time)), vitesse: v)
+  }
+  return s.points
+}
+```
+
+### Zone For Each
+
+```
+e = foreach(géométrie, domain: FACE, selection: masque, item: champ, …) {
+  …
+  return (principal: v, …, mesh: g, attribut: a, …)
+}
+```
+
+Le bloc s'exécute une fois par élément du domaine (`POINT` par défaut ; `EDGE`, `FACE`,
+`CORNER`, `CURVE`, `INSTANCE`, `LAYER`), pour les éléments de la sélection (tous par
+défaut). Chaque autre valeur nommée est un **item d'entrée** : un champ, évalué sur le
+domaine, dont le bloc lit la valeur de l'élément sous son nom. Le bloc lit aussi `index`,
+le numéro de l'élément, et `element`, sa géométrie seule (sauf pour `CORNER`).
+
+`return` donne les items de sortie, tous par nom, et leur ordre a un sens :
+
+- les valeurs avant la première `Geometry` sont les **items principaux** : un champ sur
+  la géométrie d'entrée, une valeur par élément ;
+- chaque `Geometry` est un **item généré** : les géométries de tous les éléments, jointes ;
+  les valeurs qui la suivent sont ses attributs.
+
+Après le bloc, `e` seul est la géométrie d'entrée, sur laquelle se lisent les items
+principaux ; `e.nom` est un item (`e.geometry` est la géométrie d'entrée tant qu'aucun
+item ne s'appelle `geometry`).
+
+```
+geometry graph semis(mesh: Geometry) -> (Geometry: Geometry, Double: Float, Points: Geometry) {
+  e = foreach(mesh, domain: FACE, centre: Position()) {
+    return (double: index * 2.0, points: Points(position: centre), rang: index)
+  }
+  return (Geometry: e, Double: e.double, Points: e.points)
+}
+```
+
+Ici `double` est un item principal, `points` une géométrie générée (un point par face)
+et `rang` son attribut. Les items d'entrée sont `Float`, `Int`, `Bool`, `Vector`,
+`Color`, `Rotation`, `Matrix` ou `Menu` ; les items principaux et les attributs, les
+mêmes sauf `Menu`.
+
 ## Modules
 
 Un graph appelle un autre graph par sa clé : `relief(sol, 0.5)`, `r.hauteur` pour une
@@ -267,8 +341,9 @@ avertissement :
 - les panneaux de l'interface, et deux entrées du même nom dans deux panneaux ;
 - les réglages d'outil de l'arbre (`is_tool`…), et le bouton de gestion du modifier ;
 - la description des items d'un Menu Switch ;
-- les zones Simulation et For Each, les bundles et closures, Format String, Bake, Field
-  to List et les gizmos ;
+- le domaine d'un état de simulation ou d'un attribut généré par For Each, quand il
+  n'est pas `POINT` ; la valeur d'un item de menu non relié ;
+- les bundles et closures, Format String, Bake, Field to List et les gizmos ;
 - les nœuds qui n'influencent aucune sortie.
 
 Reconstruit à sa place, un groupe garde ses panneaux, et ses modifiers et appels gardent

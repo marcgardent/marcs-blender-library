@@ -14,7 +14,8 @@ import bpy
 
 from ..lang import ast, sugar
 from ..lang.printer import to_source
-from ..lang.ir import REPEAT_INPUT, REPEAT_OUTPUT
+from ..lang.ir import (FOREACH_INPUT, FOREACH_OUTPUT, REPEAT_INPUT, REPEAT_OUTPUT, SIMULATION_INPUT, ZONE_INPUTS,
+                       ZONE_OUTPUTS)
 from ..lang.schema import IMPLICIT, ITEM_NODES, ITEM_TYPES, NO_VALUE, RESERVED, TYPES, key, snake
 from .modules import module_of
 from .schema import (SOCKET_TYPES, TREE_TYPES, BlenderSchema, fresh_item, fresh_options, option_names, same_option,
@@ -40,6 +41,14 @@ TREE_FLAGS = {"is_tool": False, "is_mode_object": False, "is_mode_edit": False, 
 ALWAYS = {"operation"}
 
 JOIN = "GeometryNodeJoinGeometry"
+
+# Outputs of a zone's input node that its body reads by a name of their own
+BODY_NAMES = {REPEAT_INPUT: {"Iteration": "iteration"}, SIMULATION_INPUT: {"Delta Time": "delta_time"},
+              FOREACH_INPUT: {"Index": "index", "Element": "element"}}
+# Names the text gives the zone itself, or its items, otherwise
+HEAD_NAMES = {REPEAT_INPUT: (), SIMULATION_INPUT: ("skip",), FOREACH_INPUT: ("domain", "selection")}
+# Sockets written to a zone item have no literal: an empty item is written by its type alone
+NO_LITERAL = {"GEOMETRY", "MATRIX", "BUNDLE", "CLOSURE", "SHADER"}
 FORMULA_NODES = {"ShaderNodeMath": "Math", "ShaderNodeVectorMath": "VectorMath", "FunctionNodeCompare": "Compare",
                  "FunctionNodeBooleanMath": "BooleanMath"}
 COMPONENT = {"X": "x", "Y": "y", "Z": "z"}
@@ -114,9 +123,9 @@ class GraphReader:
         out = next((n for n in outs if n.is_active_output), outs[0] if outs else None)
 
         self.incoming = self.resolve_links()
-        # A Repeat output reaches its input even when no link joins them
+        # A zone's output reaches its input even when no link joins them
         self.pairs = {n.paired_output.name: n for n in tree.nodes
-                      if n.bl_idname == REPEAT_INPUT and n.paired_output is not None}
+                      if n.bl_idname in ZONE_INPUTS and n.paired_output is not None}
         reached = self.reach(out)
         self.zone_of = self.zones(reached)
         dead = [n for n in tree.nodes if n.bl_idname not in SKIP and n not in reached
@@ -145,12 +154,12 @@ class GraphReader:
         taken = set(self.param_keys)
         for rout, rin in self.pairs.items():
             if rout in self.zone_of or any(n.name == rout for n in reached):
-                taken.update([key(s.name) for s in self.items(rin.outputs)[1:]] + ["iteration"])
+                taken.update(self.body_names(rin))
         self.bound = {}
         for n in sorted(reached, key=lambda n: self.index[n.name]):
-            if n.bl_idname in ("NodeGroupInput", "NodeGroupOutput", REPEAT_INPUT) or n.name in self.separates:
+            if n.bl_idname in ("NodeGroupInput", "NodeGroupOutput", *ZONE_INPUTS) or n.name in self.separates:
                 continue
-            if n.bl_idname == REPEAT_OUTPUT:
+            if n.bl_idname in ZONE_OUTPUTS:
                 # A zone is a block: always a statement of its own
                 self.bound[n.name] = unique(self.binding_name(n), taken)
                 continue
@@ -356,6 +365,11 @@ class GraphReader:
     def items(self, sockets):
         return [s for s in sockets if s.type != "CUSTOM"]
 
+    def body_names(self, zin):
+        """The names a zone's body sees from its input node: its own, then its items'."""
+        fixed = BODY_NAMES[zin.bl_idname]
+        return list(fixed.values()) + [key(s.name) for s in self.items(zin.outputs)[len(fixed):]]
+
     # Names
 
     def hand_named(self, node):
@@ -367,6 +381,8 @@ class GraphReader:
     def binding_name(self, node):
         if self.hand_named(node):
             return node.name
+        if node.bl_idname == FOREACH_OUTPUT:
+            return "foreach_output"
         spec = self.spec(node)
         base = spec.name if spec else text_name(node.bl_idname)
         return snake(re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", base))
@@ -378,8 +394,8 @@ class GraphReader:
 
     def use(self, node, sock):
         """The expression for one output of a node, at the place it is used."""
-        if node.bl_idname == REPEAT_INPUT:
-            return ast.Ref("iteration" if sock.identifier == "Iteration" else key(sock.name), 0, 0)
+        if node.bl_idname in BODY_NAMES:
+            return ast.Ref(BODY_NAMES[node.bl_idname].get(sock.identifier, key(sock.name)), 0, 0)
         if node.bl_idname == "NodeGroupInput":
             i = [s for s in node.outputs if s.type != "CUSTOM"].index(sock)
             return ast.Ref(self.param_keys[i], 0, 0)
@@ -391,68 +407,153 @@ class GraphReader:
         else:
             target = self.expr(node)
         # With one output there is nothing to pick; with several, say which
-        if len(outputs) == 1 and sock == outputs[0]:
+        if len(outputs) == 1 and sock == outputs[0] or node.bl_idname == FOREACH_OUTPUT and sock == outputs[0]:
             return target
+        if node.bl_idname in ZONE_OUTPUTS:
+            return member(target, snake(sock.name))
         # Group sockets and items are named in text, not numbered: Item_1 means nothing there
         named = node.bl_idname in GROUP_NODES or node.bl_idname in ITEM_NODES
         return member(target, socket_name(sock, outputs, named))
 
     def expr(self, node):
         if node.name not in self.exprs:
-            self.exprs[node.name] = self.repeat(node) if node.bl_idname == REPEAT_OUTPUT else self.call(node)
+            if node.bl_idname == FOREACH_OUTPUT:
+                self.exprs[node.name] = self.foreach(node)
+            elif node.bl_idname in ZONE_OUTPUTS:
+                self.exprs[node.name] = self.state_zone(node)
+            else:
+                self.exprs[node.name] = self.call(node)
         return self.exprs[node.name]
 
-    def repeat(self, rout):
-        """`repeat(count, state: start, …) { … return (state: next, …) }` for a Repeat zone."""
-        rin = self.pairs[rout.name]
-        incoming = self.incoming.get(rin.name, {})
-        sockets = self.items(rin.inputs)
-        values = []
-        for sock in sockets:
-            links = incoming.get(sock.identifier)
-            if links:
-                values.append(self.use(*links[0]))
-            elif sock.type == "GEOMETRY":
-                # Nothing linked: an empty geometry
-                values.append(ast.Call("JoinGeometry", [], 0, 0))
-            else:
-                values.append(self.literal(rin, sock, {}))
+    def state_zone(self, zout):
+        """`repeat(count, state: start, …) { … return (state: next, …) }` for a Repeat zone,
+        `simulate(state: start, …) { … return (state: next, …, skip: c) }` for a Simulation zone."""
+        zin = self.pairs[zout.name]
+        repeat = zout.bl_idname == REPEAT_OUTPUT
+        word = "repeat" if repeat else "simulate"
+        incoming = self.incoming.get(zin.name, {})
+        sockets = self.items(zin.inputs)
+        heads = sockets[1:] if repeat else sockets
+        values = [self.item_value(word, zout, zin, s, incoming, check=s in heads) for s in sockets]
         for sock, v in zip(sockets, values):
             if v is None:
-                self.warn(f"repeat « {rout.name} » : « {sock.name} » ({sock.type}) part sans valeur, "
+                self.warn(f"{word} « {zout.name} » : « {sock.name} » ({sock.type}) part sans valeur, "
                           "pas encore pris en charge par le texte")
         values = [v if v is not None else ast.Ref("aucun", 0, 0) for v in values]
-        count, starts = values[0], values[1:]
-        states = [ast.Arg(s.name, v, 0, 0) for s, v in zip(sockets[1:], starts)]
-        # In the body a state hides the group input of the same name
-        hidden = {key(s.name) for s in sockets[1:]} & set(self.param_keys)
-        inside = [n for n, z in self.zone_of.items() if z == rout.name] + [rout.name]
+        states = [ast.Arg(s.name, v, 0, 0) for s, v in zip(heads, values[len(sockets) - len(heads):])]
+        if not repeat:
+            lost = [(i.name, i.attribute_domain) for i in zout.state_items if i.attribute_domain != "POINT"]
+            for item, domain in lost:
+                self.warn(f"simulate « {zout.name} » : domaine {domain} de l'état « {item} », "
+                          "pas encore pris en charge par le texte")
+        self.zone_names(word, zout, zin, [s.name for s in heads])
+
+        statements = [(self.tree.nodes[n], ast.Assign(self.bound[n], self.expr(self.tree.nodes[n]), 0, 0))
+                      for n in self.statement_order(zout.name)]
+        fields = []
+        outgoing = self.incoming.get(zout.name, {})
+        returned = self.items(zout.inputs)
+        skip = None
+        if not repeat:
+            sock, returned = returned[0], returned[1:]
+            links = outgoing.get(sock.identifier)
+            skip = self.use(*links[0]) if links else ast.Bool(True, 0, 0) if snapshot(sock) else None
+        for sock in returned:
+            links = outgoing.get(sock.identifier)
+            if links and links[0][0] == zin and links[0][1].identifier == sock.identifier:
+                continue  # unchanged: the text leaves it out
+            value = self.item_value(word, zout, zout, sock, outgoing)
+            if value is not None:
+                fields.append((sock.name, value))
+        if skip is not None:
+            fields.append(("skip", skip))
+        if len(heads) == 1 and fields and skip is None:
+            ret = ast.Return(fields[0][1], 0, 0)
+        else:
+            ret = ast.Return(ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0), 0, 0)
+        body = self.framed(statements + [(zout, ret)], base=frame_path(zout), notes=False)
+        if repeat:
+            return ast.Repeat(values[0], states, body, 0, 0)
+        return ast.Simulate(states, body, 0, 0)
+
+    def foreach(self, zout):
+        """`foreach(geometry, domain: FACE, item: field, …) { … return (main: v, …, mesh: g, attribute: a) }`."""
+        zin = self.pairs[zout.name]
+        incoming = self.incoming.get(zin.name, {})
+        sockets = self.items(zin.inputs)
+        geometry = self.item_value("foreach", zout, zin, sockets[0], incoming, check=False)
+        args = []
+        if zout.domain != "POINT":
+            args.append(ast.Arg("domain", ast.Ref(zout.domain, 0, 0), 0, 0))
+        links = incoming.get(sockets[1].identifier)
+        if links:
+            args.append(ast.Arg("selection", self.use(*links[0]), 0, 0))
+        elif not snapshot(sockets[1]):
+            args.append(ast.Arg("selection", ast.Bool(False, 0, 0), 0, 0))
+        for sock in sockets[2:]:
+            args.append(ast.Arg(sock.name, self.item_value("foreach", zout, zin, sock, incoming), 0, 0))
+        self.zone_names("foreach", zout, zin, [s.name for s in sockets[2:]])
+
+        statements = [(self.tree.nodes[n], ast.Assign(self.bound[n], self.expr(self.tree.nodes[n]), 0, 0))
+                      for n in self.statement_order(zout.name)]
+        generation = list(zout.generation_items)
+        if generation and generation[0].socket_type != "GEOMETRY":
+            self.warn(f"foreach « {zout.name} » : l'item généré « {generation[0].name} » ne suit aucune géométrie, "
+                      "pas encore pris en charge par le texte")
+        for item in generation:
+            if item.socket_type != "GEOMETRY" and item.domain != "POINT":
+                self.warn(f"foreach « {zout.name} » : domaine {item.domain} de l'attribut généré « {item.name} », "
+                          "pas encore pris en charge par le texte")
+        outgoing = self.incoming.get(zout.name, {})
+        returned = self.items(zout.inputs)
+        fields = [ast.Arg(s.name, self.item_value("foreach", zout, zout, s, outgoing), 0, 0) for s in returned]
+        keys = [key(s.name) for s in returned]
+        if len(set(keys)) < len(keys):
+            self.warn(f"foreach « {zout.name} » : deux items du même nom, pas encore pris en charge par le texte")
+        ret = ast.Return(ast.Record([f for f in fields if f.value is not None], 0, 0), 0, 0)
+        body = self.framed(statements + [(zout, ret)], base=frame_path(zout), notes=False)
+        return ast.Foreach(geometry, args, body, 0, 0)
+
+    def item_value(self, word, zout, node, sock, incoming, check=True):
+        """What a zone item of `node` gets: its link, its value, else its type alone (`cache: Bundle`).
+
+        The text gives an item the type of what it gets: say when Blender's differs."""
+        links = incoming.get(sock.identifier)
+        wanted = SOCKET_TYPES.get(sock.type)
+        if links:
+            value, given = self.use(*links[0]), SOCKET_TYPES.get(links[0][1].type)
+        elif sock.type == "MENU":
+            self.warn(f"{word} « {zout.name} » : valeur de menu de « {sock.name} », "
+                      "pas encore prise en charge par le texte")
+            return ast.Ref(wanted, 0, 0)
+        elif sock.type in NO_LITERAL or not hasattr(sock, "default_value"):
+            value, given = (ast.Ref(wanted, 0, 0), wanted) if wanted else (None, None)
+        else:
+            value, given = self.literal(node, sock, {}), literal_type(snapshot(sock), sock)
+        if check and value is not None and given != wanted:
+            self.warn(f"{word} « {zout.name} » : « {sock.name} » est un {wanted} qui reçoit un {given} ; "
+                      f"relu comme {given}")
+        return value
+
+    def zone_names(self, word, zout, zin, items):
+        """Warn of the item names the text cannot hold: twice the same key, a name of the zone
+        itself, or one that hides a group input the body reads."""
+        keys = [key(n) for n in items]
+        own = set(BODY_NAMES[zin.bl_idname].values()) | set(HEAD_NAMES[zin.bl_idname])
+        if len(set(keys)) < len(keys) or own & set(keys):
+            self.warn(f"{word} « {zout.name} » : des items portent le même nom, ou un nom de la zone "
+                      f"({', '.join(sorted(own))}), pas encore pris en charge par le texte")
+        # In the body an item, or a name of the zone, hides the group input of the same name
+        hidden = (set(keys) | set(BODY_NAMES[zin.bl_idname].values())) & set(self.param_keys)
+        inside = [n for n, z in self.zone_of.items() if z == zout.name] + [zout.name]
         gin = [s for n in inside for links in self.incoming.get(n, {}).values() for s in links
                if s[0].bl_idname == "NodeGroupInput"]
         for src, sock in gin:
             k = self.param_keys[self.items(src.outputs).index(sock)]
             if k in hidden:
-                self.warn(f"repeat « {rout.name} » : son corps lit l'entrée « {k} », cachée par l'état du même nom ; "
+                self.warn(f"{word} « {zout.name} » : son corps lit l'entrée « {k} », cachée par l'état du même nom ; "
                           "pas encore pris en charge par le texte")
                 hidden.discard(k)
-
-        statements = [(self.tree.nodes[n], ast.Assign(self.bound[n], self.expr(self.tree.nodes[n]), 0, 0))
-                      for n in self.statement_order(rout.name)]
-        fields = []
-        outgoing = self.incoming.get(rout.name, {})
-        for sock in self.items(rout.inputs):
-            links = outgoing.get(sock.identifier)
-            if links and links[0][0] == rin and links[0][1].name == sock.name:
-                continue  # unchanged: the text leaves it out
-            value = self.use(*links[0]) if links else self.literal(rout, sock, {})
-            if value is not None:
-                fields.append((sock.name, value))
-        if len(sockets) == 2 and fields:
-            ret = ast.Return(fields[0][1], 0, 0)
-        else:
-            ret = ast.Return(ast.Record([ast.Arg(n, v, 0, 0) for n, v in fields], 0, 0), 0, 0)
-        body = self.framed(statements + [(rout, ret)], base=frame_path(rout), notes=False)
-        return ast.Repeat(count, states, body, 0, 0)
 
     def call(self, node):
         group = node.bl_idname in GROUP_NODES
@@ -923,9 +1024,12 @@ def refs(e):
         yield from refs(e.right)
     elif isinstance(e, (ast.Neg, ast.Not)):
         yield from refs(e.value)
-    elif isinstance(e, ast.Repeat):
-        yield from refs(e.count)
-        for a in e.states:
+    elif isinstance(e, ast.ZONES):
+        if isinstance(e, ast.Repeat):
+            yield from refs(e.count)
+        if isinstance(e, ast.Foreach):
+            yield from refs(e.geometry)
+        for a in e.args if isinstance(e, ast.Foreach) else e.states:
             yield from refs(a.value)
         for s in e.body:
             yield from statement_refs(s)

@@ -113,8 +113,8 @@ def statement(s, pad=INDENT):
         for inner in s.body:
             lines += statement(inner, pad + INDENT)
         return lines + [(s.end, pad + "}")]
-    if isinstance(s, ast.Assign) and isinstance(s.value, ast.Repeat):
-        lines = repeat_head(s, pad)
+    if isinstance(s, ast.Assign) and isinstance(s.value, ast.ZONES):
+        lines = zone_head(s, pad)
         for inner in s.value.body:
             lines += statement(inner, pad + INDENT)
         return lines + [(s.value.end, pad + "}")]
@@ -128,14 +128,19 @@ def statement(s, pad=INDENT):
     return block(f"{pad}return ", s.value, s.line, pad)
 
 
-def repeat_head(s, pad):
+def zone_head(s, pad):
     """`name = repeat(count, state: start, …) {`, one argument per line when too long."""
-    r = s.value
-    items = [ast.Arg(None, r.count, r.line, r.col)] + r.states
-    line = f"{pad}{s.name} = repeat({args(items)}) {{"
-    if len(line) <= WIDTH:
+    z = s.value
+    if isinstance(z, ast.Repeat):
+        word, items = "repeat", [ast.Arg(None, z.count, z.line, z.col)] + z.states
+    elif isinstance(z, ast.Simulate):
+        word, items = "simulate", z.states
+    else:
+        word, items = "foreach", [ast.Arg(None, z.geometry, z.line, z.col)] + z.args
+    line = f"{pad}{s.name} = {word}({args(items)}) {{"
+    if len(line) <= WIDTH or not items:
         return [(s.line, line)]
-    lines = spread(f"{pad}{s.name} = repeat(", items, s.line, pad)
+    lines = spread(f"{pad}{s.name} = {word}(", items, s.line, pad)
     lines[-1] = (lines[-1][0], lines[-1][1] + " {")
     return lines
 

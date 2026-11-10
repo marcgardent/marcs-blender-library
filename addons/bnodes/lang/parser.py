@@ -10,6 +10,9 @@ from .errors import BnError, Diagnostic
 from .lexer import tokenize
 from .sugar import COMPARE, WORDS
 
+# Zones whose keyword is one only before `(…) {`
+ZONE_WORDS = ("simulate", "foreach")
+
 
 def parse(source, filename="<text>"):
     return Parser(tokenize(source, filename), filename).file()
@@ -166,7 +169,12 @@ class Parser:
                           "choisir un autre nom")
             self.advance()
             self.advance()
-            value = self.repeat() if self.at("KEYWORD", "repeat") else self.expr()
+            if self.at("KEYWORD", "repeat"):
+                value = self.repeat()
+            elif self.at_zone():
+                value = self.zone()
+            else:
+                value = self.expr()
             return ast.Assign(t.text, value, t.line, t.col)
         self.fail(f"instruction attendue (nom = …, return, ou un frame \"titre\" {{ … }}), trouvé {describe(t)}")
 
@@ -192,13 +200,46 @@ class Parser:
         if len(args) < 2:
             self.fail("repeat attend au moins un état : repeat(10, état: départ)", t)
         self.expect("{", what="« { » après repeat(…)")
+        body, end = self.block()
+        return ast.Repeat(args[0].value, args[1:], body, t.line, t.col, end.line)
+
+    def at_zone(self):
+        """`simulate(…) {` or `foreach(…) {`: contextual keywords, so that a name or a group
+        may still be called simulate; only a block right after the parenthesis makes a zone."""
+        if not (self.at("IDENT") and self.tok.text in ZONE_WORDS and self.peek().kind == "("):
+            return False
+        depth, j = 0, self.i + 1
+        while self.tokens[j].kind != "EOF":
+            depth += (self.tokens[j].kind == "(") - (self.tokens[j].kind == ")")
+            if depth == 0:
+                return self.tokens[j + 1].kind == "{"
+            j += 1
+        return False
+
+    def zone(self):
+        t = self.advance()
+        self.advance()
+        args = self.args()
+        if t.text == "simulate":
+            if any(a.name is None for a in args):
+                self.fail("simulate attend des états nommés : simulate(état: départ, …)", t)
+        elif not args or args[0].name is not None or any(a.name is None for a in args[1:]):
+            self.fail("foreach attend d'abord la géométrie, puis des valeurs nommées : "
+                      "foreach(geometry, domain: FACE, valeur: champ, …)", t)
+        self.expect("{")
+        body, end = self.block()
+        if t.text == "simulate":
+            return ast.Simulate(args, body, t.line, t.col, end.line)
+        return ast.Foreach(args[0].value, args[1:], body, t.line, t.col, end.line)
+
+    def block(self):
+        """Statements up to `}`, which is consumed: (body, the closing token)."""
         body = []
         while not self.at("}"):
             if self.at("EOF"):
                 self.fail("« } » attendu avant la fin du fichier")
             body.append(self.statement())
-        end = self.advance()
-        return ast.Repeat(args[0].value, args[1:], body, t.line, t.col, end.line)
+        return body, self.advance()
 
     def expr(self):
         left = self.disjunction()

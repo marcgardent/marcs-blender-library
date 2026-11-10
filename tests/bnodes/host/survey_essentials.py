@@ -42,7 +42,17 @@ def cause(warning):
     if "réglages de l'arbre" in warning:
         return "réglages de l'arbre (outil, modifier)"
     if "part sans valeur" in warning:
-        return "état de repeat sans valeur"
+        return "état de zone sans valeur"
+    if "qui reçoit un" in warning and "relu comme" in warning:
+        return "item relu d'un autre type"
+    if re.search(r"domaine \w+ de l", warning):
+        return "domaine d'un item de zone"
+    if "valeur de menu de" in warning:
+        return "item de zone : valeur de menu"
+    if "cachée par l'état" in warning or "un nom de la zone" in warning or "deux items du même nom" in warning:
+        return "nom d'item de zone"
+    if "ne suit aucune géométrie" in warning:
+        return "attribut généré sans géométrie"
     return warning
 
 

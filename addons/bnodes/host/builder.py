@@ -26,6 +26,9 @@ LINE = "bnodes_line"
 # Set rather than left to Blender, which translates new names when asked to
 FIXED_NAMES = {ir.GROUP_INPUT: "Group Input", ir.GROUP_OUTPUT: "Group Output"}
 
+# Zone output -> its item collection, the input node's following it
+ZONE_ITEMS = {ir.REPEAT_OUTPUT: "repeat_items", ir.SIMULATION_OUTPUT: "state_items"}
+
 
 def build_source(source, filename="<text>"):
     """Compile a .bn source and build its graphs, and those its `use` lines bring.
@@ -200,11 +203,13 @@ class Builder:
             if n.pair:
                 nodes[n.id].pair_with_output(nodes[n.pair])
         for n in g.nodes:
-            if n.items is not None and n.bl_idname == ir.REPEAT_OUTPUT:
-                items = nodes[n.id].repeat_items
-                items.clear()
-                for name, type in n.items:
-                    items.new(REPEAT_ITEMS[type], name)
+            if n.items is not None and n.bl_idname in ZONE_ITEMS:
+                fill_items(getattr(nodes[n.id], ZONE_ITEMS[n.bl_idname]), n.items)
+            elif n.items is not None and n.bl_idname == ir.FOREACH_OUTPUT:
+                fill_items(nodes[n.id].main_items, n.items[:n.main])
+                fill_items(nodes[n.id].generation_items, n.items[n.main:])
+            elif n.items is not None and n.bl_idname == ir.FOREACH_INPUT:
+                fill_items(nodes[n.pair].input_items, n.items)
             elif n.items is not None and n.bl_idname in ITEM_NODES:
                 self.items(nodes[n.id], n)
 
@@ -269,10 +274,9 @@ class Builder:
                 return found
             return sockets[fixed + [name for name, _t in n.items].index(ident)]
         elif n.items is not None:
-            # Zone items are numbered by Blender too; the input node has the count first
-            names = n.items
-            if n.bl_idname == ir.REPEAT_INPUT:
-                names = [("Iterations" if side == "inputs" else "Iteration", "Int")] + names
+            # Zone items are numbered by Blender too, after the zone node's fixed sockets
+            fixed = ir.ZONE_SOCKETS[n.bl_idname][side == "outputs"]
+            names = [(name, None) for name in fixed] + n.items
             sockets = [s for s in sockets if s.type != "CUSTOM"]
         if names is not None:
             return sockets[[name for name, _t in names].index(ident)]
@@ -288,6 +292,13 @@ class Builder:
                 self.fail(n, f"{sock.type.title()} « {value} » introuvable dans le fichier")
             return found
         return coerce(sock, value)
+
+
+def fill_items(items, wanted):
+    """A zone's item collection, as the text lists it."""
+    items.clear()
+    for name, type in wanted:
+        items.new(REPEAT_ITEMS[type], name)
 
 
 def coerce(sock, value):

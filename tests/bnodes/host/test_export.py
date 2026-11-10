@@ -252,6 +252,100 @@ def test_rebuilding_a_repeat_keeps_one_zone():
     assert abs(rin.inputs["pas"].default_value - 0.25) < 1e-6
 
 
+def test_simulation_and_foreach_zones_come_back_identical():
+    src = fixture("zones.bn")
+    trees = build_source(src, "zones.bn")
+    for tree in trees:
+        pairs = [n for n in tree.nodes if hasattr(n, "pair_with_output")]
+        assert pairs and all(n.paired_output is not None for n in pairs), tree.name
+        assert all(link.is_valid for link in tree.links), tree.name
+    text = "\n".join(export_tree(t)[0] for t in trees)
+    assert text == src, text
+    assert all(export_tree(t)[1] == [] for t in trees)
+    chute, semis, _compte = trees
+    sim = next(n for n in chute.nodes if n.bl_idname == "GeometryNodeSimulationOutput")
+    assert [(i.name, i.socket_type) for i in sim.state_items] == [
+        ("points", "GEOMETRY"), ("vitesse", "FLOAT"), ("cache", "BUNDLE")]
+    out = next(n for n in semis.nodes if n.bl_idname == "GeometryNodeForeachGeometryElementOutput")
+    assert out.domain == "FACE"
+    assert [(i.name, i.socket_type) for i in out.input_items] == [("centre", "VECTOR")]
+    assert [i.name for i in out.main_items] == ["double"]
+    assert [(i.name, i.socket_type) for i in out.generation_items] == [("points", "GEOMETRY"), ("rang", "INT")]
+
+
+def test_unlinked_and_mistyped_zone_items_are_written_or_reported():
+    (tree,) = build_source(fixture("wave.bn"), "wave.bn")
+    tree.nodes.clear()
+    zin = tree.nodes.new("GeometryNodeSimulationInput")
+    zout = tree.nodes.new("GeometryNodeSimulationOutput")
+    zin.pair_with_output(zout)
+    zout.state_items.new("ROTATION", "r")
+    zout.state_items[1].attribute_domain = "FACE"
+    gout = tree.nodes.new("NodeGroupOutput")
+    tree.links.new(zout.outputs[0], gout.inputs[0])
+    text, warnings = export_tree(tree)
+    # The geometry starts empty and is written by its type; the rotation's value would read as a vector
+    assert "simulate(Geometry: Geometry, r: (0.0, 0.0, 0.0))" in text, text
+    assert any("« r » est un Rotation qui reçoit un Vector" in w for w in warnings), warnings
+    assert any("domaine FACE de l'état « r »" in w for w in warnings), warnings
+
+
+ZONES_CALLER = """geometry graph essai_semis(geometry: Geometry) -> Geometry {
+  e = semis(MeshGrid(2.0, 2.0, 3, 3))
+  return e.points |> PointsToVertices() |> StoreNamedAttribute(name: "rang", value: e.rang)
+}
+
+geometry graph essai_double(geometry: Geometry) -> Geometry {
+  e = semis(MeshGrid(2.0, 2.0, 3, 3))
+  return e.geometry |> StoreNamedAttribute(domain: FACE, name: "d", value: e.double)
+}
+
+geometry graph essai_chute(geometry: Geometry) -> Geometry {
+  c = chute(MeshGrid(1.0, 1.0, 2, 2), gravité: -10.0)
+  return c.geometry |> StoreNamedAttribute(name: "v", value: c.vitesse)
+    |> StoreNamedAttribute(name: "n", value: compte(1.0))
+}
+"""
+
+
+def evaluated(tree):
+    obj = bpy.data.objects.new(tree.name, bpy.data.meshes.new(tree.name))
+    bpy.context.scene.collection.objects.link(obj)
+    obj.modifiers.new(tree.name, "NODES").node_group = tree
+    return obj
+
+
+def test_simulation_and_foreach_zones_compute():
+    trees = {t.name: t for t in build_source(fixture("zones.bn") + "\n" + ZONES_CALLER, "essai.bn")}
+    scene = bpy.context.scene
+    scene.frame_set(scene.frame_start)
+    semis_obj, double_obj = evaluated(trees["essai_semis"]), evaluated(trees["essai_double"])
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    # 4 faces, the first 3 selected: one point at the centre of each, with the face's index
+    mesh = semis_obj.evaluated_get(depsgraph).data
+    assert len(mesh.vertices) == 3
+    assert [d.value for d in mesh.attributes["rang"].data] == [0, 1, 2]
+    assert all(abs(v.co.z) < 1e-6 and abs(v.co.x) == abs(v.co.y) == 0.5 for v in mesh.vertices)
+    mesh = double_obj.evaluated_get(depsgraph).data
+    assert [round(d.value, 3) for d in mesh.attributes["d"].data] == [0.0, 2.0, 4.0, 0.0]
+
+    obj = evaluated(trees["essai_chute"])
+    seen = []
+    for frame in range(scene.frame_start, scene.frame_start + 4):
+        scene.frame_set(frame)
+        mesh = obj.evaluated_get(bpy.context.evaluated_depsgraph_get()).data
+        seen.append((mesh.attributes["n"].data[0].value, mesh.attributes["v"].data[0].value, mesh.vertices[0].co.z))
+    counts, speeds, heights = zip(*seen)
+    # One step a frame, the first at the start frame with no time gone by: the speed
+    # grows by g × dt, and the points fall by the new speed × dt
+    assert counts == (1.0, 2.0, 3.0, 4.0), seen
+    assert speeds[0] == heights[0] == 0.0, seen
+    dt = 1 / scene.render.fps
+    for k in range(1, 4):
+        assert abs(speeds[k] - speeds[k - 1] + 10.0 * dt) < 1e-5, seen
+        assert abs(heights[k] - heights[k - 1] - speeds[k] * dt) < 1e-5, seen
+
+
 def test_item_nodes_come_back_identical():
     src = fixture("items.bn")
     trees = build_source(src, "items.bn")
