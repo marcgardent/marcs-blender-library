@@ -328,6 +328,12 @@ après leurs entrées fixes :
 | `CombineList(a, b, c)` | un item par valeur ; la liste de ces valeurs |
 | `vue = Viewer(geometry: g, hauteur: h)` | un item par valeur nommée, montrée dans l'éditeur ; une instruction que rien ne lit |
 
+Un item qui porte le nom d'une entrée fixe, d'une sortie ou d'un réglage de son nœud
+prend une clé à lui, par `as` : `c = CaptureAttribute(geometry, masque, Selection as
+capturé: champ)`. L'item s'appelle « Selection » dans Blender ; le texte l'écrit et le
+relit par sa clé, `c.capturé`, et `c.selection` reste la sortie fixe. Les options
+suivent la clé : `Selection as capturé(option: valeur): champ`.
+
 Les items d'un switch et de Combine List ont le type de la première valeur, ou celui de
 `data_type:` écrit ; ceux des autres nœuds, chacun le type de sa valeur.
 `_` laisse un item vide, sans lien ni valeur, quand les items partagent un type :
@@ -552,8 +558,6 @@ avertissement :
 - la présentation des Group Input (libellé, couleur, replié), que le texte n'a pas en
   nœuds, et celle du nœud d'entrée d'une zone (celle de sa sortie s'écrit sur le
   `return` de son bloc) ;
-- un item qui porte le nom d'une entrée fixe ou d'un réglage de son nœud (un item
-  « Selection » de Capture Attribute) ;
 - un item d'un type que le texte ne connaît pas (Font…) ;
 - le domaine d'un état de simulation ou d'un attribut généré par For Each, quand il
   n'est pas `POINT` ; la valeur d'un item de menu non relié ;

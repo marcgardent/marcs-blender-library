@@ -367,6 +367,9 @@ class Builder:
             shape = ITEM_NODES[n.bl_idname]
             sockets = [s for s in sockets if s.type != "CUSTOM"]
             fixed = shape.inputs if side == "inputs" else shape.outputs
+            if ident.startswith("#"):
+                # An item with a key of its own (`Selection as capturé`), by its number
+                return sockets[fixed + int(ident[1:])]
             found = next((s for s in sockets[:fixed] if s.identifier == ident), None)
             if found is not None:
                 return found

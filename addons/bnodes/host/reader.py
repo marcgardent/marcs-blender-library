@@ -101,6 +101,7 @@ class GraphReader:
         self.exprs = {}
         self.chain_heads = set()  # ids of calls whose first argument is a geometry name
         self.opened = set()  # frames written as blocks so far
+        self.aliases = {}  # node name -> the key of each of its items, see item_aliases
         self.called = False  # another graph of the text calls it
         self.shown = set()  # nodes whose look the text holds
         self.last_block = {}  # (enclosing frame name, title) -> the frame its last block was
@@ -518,6 +519,12 @@ class GraphReader:
             return member(target, snake(sock.name))
         # Group sockets and items are named in text, not numbered: Item_1 means nothing there
         named = node.bl_idname in GROUP_NODES or node.bl_idname in ITEM_NODES or node.bl_idname in SIGNATURE_NODES
+        shape = ITEM_NODES.get(node.bl_idname)
+        if shape is not None and shape.out:
+            every = [s for s in node.outputs if s.type != "CUSTOM"][shape.outputs:]
+            alias = self.item_aliases(node)[every.index(sock)] if sock in every else None
+            if alias:
+                return member(target, alias)
         return member(target, socket_name(sock, outputs, named, group_keys(node, "OUTPUT")))
 
     def expr(self, node):
@@ -845,7 +852,7 @@ class GraphReader:
             made = [(s.name, SOCKET_TYPES.get(s.type) if shape.typed else None) for s in every]
             fresh = fresh_item_options(node.bl_idname, made)
             item_of = {s.identifier: (i, f) for s, i, f in zip(every, getattr(node, shape.collection), fresh)}
-            self.item_names(node, shape, inputs[:shape.inputs], every, spec)
+            aliases = self.item_aliases(node)
         positional = True
         geometry_first = False
         for i, sock in enumerate(inputs):
@@ -859,6 +866,7 @@ class GraphReader:
                               "que le texte sache écrire ; il est perdu")
                 else:
                     arg.options = self.item_options(node, shape, *item_of[sock.identifier], sock)
+                    arg.alias = aliases[every.index(sock)]
                     args.append(arg)
                 positional = False
                 continue
@@ -886,6 +894,8 @@ class GraphReader:
             options = self.item_options(node, shape, *item_of[sock.identifier], sock) if item else []
             for v in values:
                 args.append(ast.Arg(label, v, 0, 0, options))
+                if item and shape.named:
+                    args[-1].alias = aliases[every.index(sock)]
             if sock.is_multi_input:
                 # Every positional value goes to a multi-input: the inputs after it are named
                 positional = False
@@ -955,16 +965,24 @@ class GraphReader:
             return []
         return options
 
-    def item_names(self, node, shape, fixed, every, spec):
-        """An item named like an input or a setting of its node would read back as that one."""
-        if not shape.named:
-            return
-        taken = {s.identifier for s in fixed} | {s.name for s in fixed} | {snake(s.name) for s in fixed}
-        taken |= set(spec.props) if spec is not None else set()
-        for sock in every:
-            if sock.name in taken or snake(sock.name) in taken:
-                self.warn(f"« {node.name} » : l'item « {sock.name} » porte le nom d'une entrée ou d'un réglage "
-                          "du nœud ; pas encore pris en charge par le texte")
+    def item_aliases(self, node):
+        """The key of each item of a node of ITEM_NODES, None for an item that goes by its name.
+
+        An item named like an input, an output or a setting of its node would read back
+        as that one: it is written `Selection as selection_2`."""
+        if node.name not in self.aliases:
+            shape = ITEM_NODES[node.bl_idname]
+            every = [s for s in node.inputs if s.type != "CUSTOM"][shape.inputs:]
+            fixed = [s for s in node.inputs if s.type != "CUSTOM"][:shape.inputs] + \
+                [s for s in node.outputs if s.type != "CUSTOM"][:shape.outputs]
+            spec = self.spec(node)
+            taken = {s.identifier for s in fixed} | {s.name for s in fixed} | {snake(s.name) for s in fixed}
+            taken |= set(spec.props) if spec is not None else set()
+            used = taken | {snake(s.name) for s in every}
+            self.aliases[node.name] = [
+                unique(snake(s.name), used) if shape.named and (s.name in taken or snake(s.name) in taken) else None
+                for s in every]
+        return self.aliases[node.name]
 
     def joins(self, node):
         """A Join Geometry written `a + b`: two links or more."""

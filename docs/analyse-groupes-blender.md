@@ -63,14 +63,12 @@ comble ce manque.
 
 ## Ce que le texte ne sait pas encore relire
 
-Presque plus rien. Sur les 122 arbres Geometry Nodes livrés, **121 se reconstruisent à
+Presque plus rien. Les 122 arbres Geometry Nodes livrés **se reconstruisent tous à
 l'identique** depuis leur texte : mêmes nœuds (y compris ceux sans effet sur la sortie),
 mêmes réglages, mêmes items, même interface avec ses panneaux, même présentation. Ils
-étaient 57 avant les nœuds à items, 77 à la version 0.5. Le seul qui manque, Curve to
-Tube, a un Capture Attribute dont un item s'appelle « Selection », comme une entrée fixe
-du nœud.
+étaient 57 avant les nœuds à items, 77 à la version 0.5.
 
-23 groupes sur 150 donnent encore un avertissement à la relecture (108 à la version
+22 groupes sur 150 donnent encore un avertissement à la relecture (108 à la version
 0.5). Nombre de groupes touchés, par cause :
 
 | Cause | Groupes |
@@ -78,7 +76,6 @@ du nœud.
 | Libellé ou couleur d'un nœud Group Input (le texte n'a pas de nœud Group Input) | 14 |
 | Frame coupé par un autre frame du même titre | 5 |
 | Guillemets ou retours à la ligne dans un texte, remplacés | 4 |
-| Item au nom d'une entrée fixe de son nœud | 1 |
 
 Tout le reste s'écrit : zones Repeat, Simulation, For Each et Closure, bundles, nœuds à
 items (Capture Attribute, Menu et Index Switch, Format String, Bake, Field to List,

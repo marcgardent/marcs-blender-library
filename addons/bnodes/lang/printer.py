@@ -242,7 +242,7 @@ def args(items):
 def arg(a):
     if a.name is None:
         return expr(a.value)
-    options = f"({args(a.options)})" if a.options else ""
+    options = (f" as {a.alias}" if a.alias else "") + (f"({args(a.options)})" if a.options else "")
     if a.type is not None:
         return f"{label(a.name)}{options}: {a.type.type} = {expr(a.value)}"
     return f"{label(a.name)}{options}: {expr(a.value)}"

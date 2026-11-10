@@ -257,6 +257,7 @@ class Parser:
         t = self.advance()
         self.expect("(", what="« ( » après repeat")
         args = self.args()
+        self.no_alias(args)
         if not args or args[0].name is not None:
             self.fail("repeat attend d'abord le nombre de tours : repeat(10, état: départ, …)", t)
         if len(args) < 2:
@@ -284,6 +285,7 @@ class Parser:
         t = self.advance()
         self.advance()
         args = self.args()
+        self.no_alias(args)
         if t.text == "simulate":
             if any(a.name is None for a in args):
                 self.fail("simulate attend des états nommés : simulate(état: départ, …)", t)
@@ -472,7 +474,20 @@ class Parser:
         args = []
         while not self.accept(")"):
             t = self.tok
-            if t.kind in ("IDENT", "STRING") and self.peek().kind == ":":
+            if t.kind in ("IDENT", "STRING") and self.peek().text == "as" and self.peek().kind == "IDENT" \
+                    and self.peek(2).kind == "IDENT" and self.peek(3).kind in (":", "("):
+                # `Selection as capturé: m`, an item under a key of its own
+                self.advance()
+                self.advance()
+                alias = self.advance()
+                if named_only:
+                    self.fail("« as » nomme un item dans l'appel d'un nœud à items, ou une entrée dans l'en-tête "
+                              "d'un graph", alias)
+                options = self.args(named_only=True) if self.accept("(") else []
+                self.expect(":")
+                args.append(self.item(t, options))
+                args[-1].alias = alias.text
+            elif t.kind in ("IDENT", "STRING") and self.peek().kind == ":":
                 self.advance()
                 self.advance()
                 args.append(self.item(t, []))
@@ -493,6 +508,11 @@ class Parser:
                 self.expect(")")
                 break
         return args
+
+    def no_alias(self, args):
+        for a in args:
+            if a.alias:
+                self.fail(f"« {a.name} as {a.alias} » : « as » ne nomme que l'item d'un nœud à items", a)
 
     def at_item_options(self):
         """`name(` … `):` ahead: an item with options, not a call given as a value."""

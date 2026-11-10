@@ -52,6 +52,8 @@ class Arg:
     options: list = field(default_factory=list)  # of Arg, all named
     # `hauteur: Float = h`: an item given its type, a Param (its options are merged into `options`)
     type: object = None
+    # `Selection as capturé: m`: the key of an item named like an input or a setting of its node
+    alias: str | None = None
 
 
 @dataclass

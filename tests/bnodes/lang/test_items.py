@@ -155,3 +155,28 @@ def test_a_repeat_state_takes_no_options():
     with pytest.raises(BnError) as err:
         parse("geometry graph g(x: Float) -> Float {\n  r = repeat(3, s(a: 1): x) {\n    return s\n  }\n  return r\n}\n")
     assert err.value.diagnostics[0].message == "un état de repeat ne prend pas d'options"
+
+
+def test_an_item_named_like_an_input_goes_by_a_key_of_its_own(schema):
+    src = graph("  c = CaptureAttribute(geometry, t > 0.0, Selection as capturé: t < 1.0, domain as domaine: t)\n"
+                "  return SetPosition(c.geometry, c.capturé, offset: CombineXYZ(z: c.domaine)).geometry", "Geometry")
+    assert to_source(parse(src)) == src
+    g, c = node(src, schema, "GeometryNodeCaptureAttribute")
+    assert c.items == [("Selection", "Bool"), ("domain", "Float")] and c.props == {}
+    assert [ident for ident, _l in c.links] == ["Geometry", "Selection", "#0", "#1"]
+    user = next(n for n in g.nodes if n.bl_idname == "GeometryNodeSetPosition")
+    assert ("Selection", "#0") in [(i, link.output) for i, link in user.links]
+
+
+def test_an_item_key_with_options_prints_back():
+    src = graph('  return MenuSwitch(mode, Menu as menu_2(description: "Le premier"): 1.0, B: 2.0).output')
+    assert to_source(parse(src)) == src
+
+
+def test_a_key_must_be_free_and_only_names_an_item(schema):
+    taken = graph("  return CaptureAttribute(geometry, a as selection: t).geometry", "Geometry")
+    assert errors(taken, schema) == ["CaptureAttribute : la clé « selection » est déjà une entrée, un réglage ou un item du nœud"]
+    plain = graph("  return SetPosition(geometry, offset as o: (0.0, 0.0, 1.0)).geometry", "Geometry")
+    assert errors(plain, schema)[0].startswith("« offset as o » : seuls les items")
+    with pytest.raises(BnError, match="ne nomme que l'item"):
+        parse(graph("  r = repeat(3, a as b: 0.0) {\n    return a\n  }\n  return r"))

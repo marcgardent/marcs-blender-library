@@ -213,10 +213,10 @@ arbres construits avec **Add as Modifier** et **Tree → Text**, cases **Sync Se
 - Tout Geometry Nodes s'écrit : zones (`repeat`, `simulate`, `foreach`, `closure`),
   bundles, nœuds à items, gizmos, panneaux de l'interface (`"Titre" { … }` dans l'en-tête),
   réglages d'outil, présentation des nœuds (`… @ "Libellé" #couleur hide mute`). Sur les
-  122 arbres Geometry Nodes livrés avec Blender 5.2, 121 se reconstruisent à l'identique
+  Les 122 arbres Geometry Nodes livrés avec Blender 5.2 se reconstruisent à l'identique
   depuis leur texte. Chaque écriture est dans [docs/reference.md](docs/reference.md).
-- Pas encore pris en charge : le libellé et la couleur des nœuds Group Input, un item
-  nommé comme une entrée fixe de son nœud, la construction des shaders et du compositing.
+- Pas encore pris en charge : le libellé et la couleur des nœuds Group Input, la
+  construction des shaders et du compositing.
   Tree → Text signale chacun de ces manques.
 
 ## Installation locale (clone git)

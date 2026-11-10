@@ -1262,6 +1262,8 @@ class GraphChecker:
         named = []
         failed = False
         for a in c.args:
+            if a.alias and not items:
+                self.error(a, f"« {a.name} as {a.alias} » : seuls les items d'un nœud à items prennent une clé")
             if a.options and not items:
                 self.error(a, f"« {a.name}(…) » : seuls les items d'un nœud à items prennent des options")
             # An item may be given its type, or be its type alone
@@ -1299,7 +1301,7 @@ class GraphChecker:
             node.bl_idname = spec.bl_idname
             rest = []
             for name, v, a in named:
-                if name in spec.props and isinstance(v, (Lit, Sym)):
+                if name in spec.props and isinstance(v, (Lit, Sym)) and not a.alias:
                     self.prop(node, spec.props[name], v, a)
                 else:
                     rest.append((name, v, a))
@@ -1358,24 +1360,33 @@ class GraphChecker:
                 self.error(positional[shape.inputs][1], f"{c.name} : les valeurs se donnent par nom, "
                                                         f"{c.name}(…, nom: valeur)")
                 return None, None
-            given = [(n, v, a) for n, v, a in named if find_socket(fixed, n) is None]
-            named[:] = [(n, v, a) for n, v, a in named if find_socket(fixed, n) is not None]
+            # An item under a key of its own may be named like a fixed input
+            given = [(n, v, a) for n, v, a in named if a.alias or find_socket(fixed, n) is None]
+            named[:] = [(n, v, a) for n, v, a in named if not a.alias and find_socket(fixed, n) is not None]
         else:
             given = [(str(k), v, a) for k, (v, a) in enumerate(positional[shape.inputs:])]
             del positional[shape.inputs:]
         for name, _v, a in named:
             if a.options:
                 self.error(a, f"{c.name} : « {name} » est une entrée du nœud, pas un item ; elle ne prend pas d'options")
-        items, values, options = [], [], {}
+        items, values, options, keys = [], [], {}, []
         for name, v, a in given:
+            alias = getattr(a, "alias", None)
             if key(name) in {key(n) for n, _t in items}:
                 self.error(a, f"{c.name} : « {name} » donné deux fois")
+                continue
+            if alias and (find_socket(fixed, alias) is not None or alias in spec.props or alias in keys):
+                self.error(a, f"{c.name} : la clé « {alias} » est déjà une entrée, un réglage ou un item du nœud")
+                continue
+            if not alias and shape.named and (key(name) in keys or name in keys):
+                self.error(a, f"{c.name} : « {name} » est déjà la clé d'un item")
                 continue
             if getattr(a, "options", None):
                 options[name] = self.item_options(c, a)
             if isinstance(v, Sym) and v.name == NO_VALUE and not shape.typed:
                 # An empty item: no link, its default value (an empty geometry…)
                 items.append((name, None))
+                keys.append(alias)
                 continue
             if isinstance(v, Sym):
                 self.error(a, f"nom inconnu « {v.name} »")
@@ -1388,9 +1399,10 @@ class GraphChecker:
                 self.error(a, f"{c.name} : pas d'item {t} ; types : {', '.join(allowed)}")
                 return None, None
             items.append((name, t))
+            keys.append(alias)
             if not isinstance(v, Empty):
                 # Its type alone is an item with no link, holding the default value of its type
-                values.append((name, v, a))
+                values.append((alias or name, v, a))
         if not shape.typed:
             # The items share the node's data_type: written, or the type of the first one
             chosen = node.props.get("data_type")
@@ -1404,10 +1416,12 @@ class GraphChecker:
         node.items = items
         node.item_options = {n: o for n, o in options.items() if o}
         inputs, outputs = self.schema.sockets(self.g.kind, spec, node.props)
-        sockets = [Socket(name, name, t) for name, t in items]
+        # An item with a key of its own goes by it in text, and by its number to the builder
+        names = [(k or name, f"#{i}" if k else name) for i, ((name, _t), k) in enumerate(zip(items, keys))]
+        sockets = [Socket(n, ident, t) for (n, ident), (_name, t) in zip(names, items)]
         # Each value to its own item, by name: an empty one in between is skipped
         named += values
-        added = {"value": sockets, "flag": [Socket(name, name, "Bool") for name, _t in items]}.get(shape.out, [])
+        added = {"value": sockets, "flag": [Socket(n, ident, "Bool") for n, ident in names]}.get(shape.out, [])
         return inputs[:shape.inputs] + sockets, outputs[:shape.outputs] + added
 
     def existing_group(self, c):

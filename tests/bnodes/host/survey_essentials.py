@@ -29,8 +29,6 @@ def cause(warning):
         return "frame coupé"
     if "sortie(s) de groupe inactive(s)" in warning:
         return "sorties de groupe inactives"
-    if "porte le nom d'une entrée ou d'un réglage" in warning:
-        return "item au nom d'une entrée du nœud"
     if "de l'item" in warning and "non exporté" in warning:
         return "option d'un item donné par position"
     if "guillemets et retours à la ligne" in warning:

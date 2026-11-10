@@ -185,8 +185,8 @@ geometry graph rochers(sol: Geometry, densité: Float, graine: Int) -> Geometry 
 
 ## Ce que le texte ne sait pas encore écrire
 
-Il reste peu de chose : le libellé et la couleur des nœuds Group Input, un item qui
-porte le nom d'une entrée fixe de son nœud, et les arbres de shaders et de compositing,
+Il reste peu de chose : le libellé et la couleur des nœuds Group Input, et les arbres
+de shaders et de compositing,
 qui se relisent sans se construire. « Tree → Text » signale chaque manque par un
 avertissement ; la liste complète est dans la [référence](reference.md#ce-que-le-texte-nécrit-pas).
 

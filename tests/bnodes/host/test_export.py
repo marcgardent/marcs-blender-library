@@ -810,7 +810,7 @@ def test_bundled_assets_export_and_come_back_stable():
         assert tree_settings(rebuilt) == flags, name
         stats["stable"] += 1
     print("   bundled trees:", dict(stats))
-    assert stats["exported"] == len(names) and stats["stable"] >= 121
+    assert stats["exported"] == len(names) and stats["stable"] == len(names)
 
 
 def item_settings(tree):

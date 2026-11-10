@@ -87,7 +87,7 @@
       "id": "bnodes",
       "name": "Nodes as Text",
       "tagline": "\u00c9crit et relit les arbres de n\u0153uds comme des fonctions",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "type": "add-on",
       "maintainer": "Marc Gardent",
       "license": [
@@ -99,9 +99,9 @@
         "Node",
         "Geometry Nodes"
       ],
-      "archive_url": "./bnodes-0.6.0.zip",
-      "archive_size": 93518,
-      "archive_hash": "sha256:6c8f168e3e0bb3d8426d9f913ca409016b15a08d45093ee39914b3785dee4c60"
+      "archive_url": "./bnodes-0.6.1.zip",
+      "archive_size": 94294,
+      "archive_hash": "sha256:e2036efb377fbc83c87880a516cf08b62518a6b40d289b85ceb58a37878a4380"
     }
   ]
 }
