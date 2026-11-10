@@ -11,3 +11,10 @@ f5375e3e-dc8d-4fe6-949c-6f0dc80a45bf:Geometry Nodes:Geometry Nodes
 0a669493-bbbc-40e6-9719-535bc39cb630:Geometry Nodes/Tonneau:Geometry Nodes-Tonneau
 43e4e1b4-c635-46b6-8440-7ae3963a39b6:Geometry Nodes/Outils:Geometry Nodes-Outils
 167fb2b4-a6a2-4e99-891a-7769742d72a1:Geometry Nodes/Grease Pencil:Geometry Nodes-Grease Pencil
+4d045ce9-f2b5-4a1f-aa00-f0163080bd47:Geometry Nodes/Maths:Geometry Nodes-Maths
+a6b2424f-9ae9-43da-a399-ec3210a866c5:Geometry Nodes/Maths/Courbes:Geometry Nodes-Maths-Courbes
+f3de963a-6f99-4f8d-bd4f-a49adb7c5e79:Geometry Nodes/Maths/Ondes:Geometry Nodes-Maths-Ondes
+391bddc9-8b92-4969-ba9e-ce961a8c3f5f:Geometry Nodes/Maths/Vecteurs:Geometry Nodes-Maths-Vecteurs
+92950255-dbd3-4b12-9454-b78123f90546:Geometry Nodes/Maths/Angles:Geometry Nodes-Maths-Angles
+35939de3-539a-476b-9ebc-25c8d8a7df10:Geometry Nodes/Maths/Champs de distance:Geometry Nodes-Maths-Champs de distance
+d7443a2b-2977-41a1-9689-e55f78125685:Geometry Nodes/Maths/Hasard:Geometry Nodes-Maths-Hasard

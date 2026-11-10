@@ -1,0 +1,195 @@
+// Boîte à outils mathématique pour Geometry Nodes : courbes de réglage, ondes, angles,
+// vecteurs, champs de distance signée (SDF) et tirages au hasard.
+// Les courbes et les SDF suivent les formules publiées par Inigo Quilez (iquilezles.org).
+// Le commentaire au-dessus de chaque graph devient la description de son asset.
+
+// ---- Courbes : x de 0 à 1 donne de 0 à 1 ----
+
+// Pousse les valeurs vers 0 (force < 0.5) ou vers 1 (force > 0.5) ; 0.5 ne change rien
+geometry graph biais(x: Float, force: Float) -> Float {
+  return x / ((1.0 / force - 2.0) * (1.0 - x) + 1.0)
+}
+
+// Courbe en S autour de 0.5 (contraste < 0.5) ou son inverse (> 0.5) ; 0.5 ne change rien
+geometry graph gain(x: Float, contraste: Float) -> Float {
+  bas = biais(x * 2.0, contraste) * 0.5
+  haut = 1.0 - biais(2.0 - x * 2.0, contraste) * 0.5
+  return Switch(x < 0.5, haut, bas)
+}
+
+// Démarre lentement : t élevé à la puissance
+geometry graph accélère(t: Float, puissance: Float) -> Float {
+  return pow(t, puissance)
+}
+
+// Finit lentement : l'inverse d'accélère
+geometry graph freine(t: Float, puissance: Float) -> Float {
+  return 1.0 - pow(1.0 - t, puissance)
+}
+
+// Démarre et finit lentement, passe par 0.5 au milieu
+geometry graph "accélère freine"(t: Float, puissance: Float) -> Float {
+  return Switch(t < 0.5, 1.0 - pow(2.0 - t * 2.0, puissance) * 0.5, pow(t * 2.0, puissance) * 0.5)
+}
+
+// Monte vite jusqu'à 1 en x = 1 / raideur, puis retombe lentement : un choc, un rebond
+geometry graph impulsion(x: Float, raideur: Float) -> Float {
+  h = raideur * x
+  return h * exp(1.0 - h)
+}
+
+// Une bosse lisse : 1 au centre, 0 à partir de la demi-largeur
+geometry graph bosse(x: Float, centre: Float, "demi largeur": Float) -> Float {
+  d = min(abs(x - centre) / demi_largeur, 1.0)
+  return 1.0 - d * d * (3.0 - d * 2.0)
+}
+
+// 0 aux bords, 1 au milieu ; finesse 1 donne une parabole, plus haut l'affine
+geometry graph parabole(x: Float, finesse: Float) -> Float {
+  return pow(x * 4.0 * (1.0 - x), finesse)
+}
+
+// Des marches d'escalier : chacune monte en douceur sur sa dernière fraction « montée »
+geometry graph marches(x: Float, montée: Float) -> Float {
+  return floor(x) + MapRange(fract(x), 1.0 - montée, interpolation_type: SMOOTHSTEP)
+}
+
+// ---- Ondes de période 1 ----
+
+// Onde triangle : 0 sur les entiers, 1 au milieu
+geometry graph triangle(x: Float) -> Float {
+  return 1.0 - abs(fract(x) * 2.0 - 1.0)
+}
+
+// Onde carrée : 1 pendant la fraction « cycle » de chaque période, 0 ensuite
+geometry graph créneau(x: Float, cycle: Float) -> Float {
+  return fract(x) < cycle
+}
+
+// Sinus entre 0 et 1 : 0.5 sur les entiers, 1 au quart
+geometry graph sinus01(x: Float) -> Float {
+  return sin(x * 6.283185) * 0.5 + 0.5
+}
+
+// ---- Vecteurs ----
+
+// Ce qui reste de v sans sa part le long de la normale : sa projection sur le plan
+geometry graph "sur le plan"(v: Vector, normale: Vector) -> Vector {
+  n = normalize(normale)
+  return v - n * (v ⋅ n)
+}
+
+// Un vecteur unitaire perpendiculaire à v
+geometry graph perpendiculaire(v: Vector) -> Vector {
+  return normalize(
+    Switch(abs(v.x) > abs(v.z), CombineXYZ(y: -v.z, z: v.y), CombineXYZ(-v.y, v.x), input_type: VECTOR))
+}
+
+// La plus grande des trois composantes
+geometry graph "composante max"(v: Vector) -> Float {
+  return max(max(v.x, v.y), v.z)
+}
+
+// La plus petite des trois composantes
+geometry graph "composante min"(v: Vector) -> Float {
+  return min(min(v.x, v.y), v.z)
+}
+
+// Luminance d'une couleur (Rec. 709) : sa clarté perçue
+geometry graph luminance(couleur: Color) -> Float {
+  return couleur ⋅ (0.2126, 0.7152, 0.0722)
+}
+
+// Le point du segment [a, b] le plus proche de p, sa distance à p et sa place (0 en a, 1 en b)
+geometry graph "proche sur segment"(
+    p: Vector,
+    a: Vector,
+    b: Vector
+) -> (Distance: Float, Facteur: Float, Point: Vector) {
+  ab = b - a
+  t = Clamp(((p - a) ⋅ ab) / (ab ⋅ ab))
+  point = a + ab * t
+  return (Distance: distance(p, point), Facteur: t, Point: point)
+}
+
+// ---- Angles, en radians ----
+
+// Ramène un angle entre -π et π
+geometry graph "angle ramené"(angle: Float) -> Float {
+  return Math(angle, 3.141593, -3.141593, operation: WRAP)
+}
+
+// Angle entre deux vecteurs, de 0 à π, précis même pour des vecteurs presque alignés
+geometry graph "angle entre"(u: Vector, v: Vector) -> Float {
+  return atan2(length(u × v), u ⋅ v)
+}
+
+// Angle pour aller de u à v en tournant autour de l'axe, de -π à π ; u et v sont d'abord
+// projetés sur le plan perpendiculaire à l'axe
+geometry graph "angle signé"(u: Vector, v: Vector, axe: Vector) -> Float {
+  a = sur_le_plan(u, axe)
+  b = sur_le_plan(v, axe)
+  return atan2((a × b) ⋅ normalize(axe), a ⋅ b)
+}
+
+// ---- Champs de distance signée : négatifs dedans, nuls sur la surface ----
+
+// Une sphère centrée sur l'origine
+geometry graph "sdf sphère"(p: Vector, rayon: Float) -> Float {
+  return length(p) - rayon
+}
+
+// Une boîte centrée sur l'origine, de demi-côtés donnés
+geometry graph "sdf boîte"(p: Vector, "demi taille": Vector) -> Float {
+  q = abs(p) - demi_taille
+  return length(max(q, 0.0)) + min(composante_max(q), 0.0)
+}
+
+// Un tore à plat autour de l'axe Z
+geometry graph "sdf tore"(p: Vector, "grand rayon": Float, "petit rayon": Float) -> Float {
+  return length(CombineXYZ(length(p * (1.0, 1.0, 0.0)) - grand_rayon, p.z)) - petit_rayon
+}
+
+// Un cylindre fermé le long de Z, de hauteur 2 × demi hauteur
+geometry graph "sdf cylindre"(p: Vector, rayon: Float, "demi hauteur": Float) -> Float {
+  d = CombineXYZ(length(p * (1.0, 1.0, 0.0)) - rayon, abs(p.z) - demi_hauteur)
+  return min(max(d.x, d.y), 0.0) + length(max(d, 0.0))
+}
+
+// Une capsule : un segment de a à b, épaissi du rayon
+geometry graph "sdf capsule"(p: Vector, a: Vector, b: Vector, rayon: Float) -> Float {
+  return proche_sur_segment(p, a, b).distance - rayon
+}
+
+// Creuse b dans a, avec un raccord arrondi de la taille de la douceur
+geometry graph "soustraction douce"(a: Float, b: Float, douceur: Float) -> Float {
+  return Math(a, -b, douceur, operation: SMOOTH_MAX)
+}
+
+// Une coque de l'épaisseur donnée, centrée sur la surface
+geometry graph coque(distance: Float, épaisseur: Float) -> Float {
+  return abs(distance) - épaisseur * 0.5
+}
+
+// Répète l'espace : p ramené dans sa cellule, centrée sur l'origine
+geometry graph répétition(p: Vector, cellule: Vector) -> Vector {
+  return p - cellule * floor(p / cellule + 0.5)
+}
+
+// ---- Hasard ----
+
+// Une direction au hasard, uniforme sur la sphère
+geometry graph "direction aléatoire"(id: Int, graine: Int) -> Vector {
+  r = RandomValue(max: (1.0, 1.0, 0.0), id: id, seed: graine, data_type: FLOAT_VECTOR)
+  z = r.x * 2.0 - 1.0
+  s = sqrt(1.0 - z * z)
+  a = r.y * 6.283185
+  return CombineXYZ(s * cos(a), s * sin(a), z)
+}
+
+// Un point au hasard dans le disque de rayon 1 du plan XY, uniforme
+geometry graph "point dans disque"(id: Int, graine: Int) -> Vector {
+  r = RandomValue(max: (1.0, 1.0, 0.0), id: id, seed: graine, data_type: FLOAT_VECTOR)
+  a = r.y * 6.283185
+  return CombineXYZ(cos(a), sin(a)) * sqrt(r.x)
+}

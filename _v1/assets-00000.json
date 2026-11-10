@@ -1,6 +1,6 @@
 {
-  "asset_count": 13,
-  "file_count": 3,
+  "asset_count": 44,
+  "file_count": 4,
   "assets": [
     {
       "name": "Tri par Mat\u00e9riau",
@@ -38,6 +38,951 @@
             "name": "geometry_node_asset_traits_flag",
             "type": "IDP_INT",
             "value": 64
+          }
+        ]
+      }
+    },
+    {
+      "name": "acc\u00e9l\u00e8re",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/accelere.webp",
+        "hash": "SHA256:983f34680c662dabe4f6b2b5b7e87b7d4d665d2d71817eddf8677e6bd4c66b45"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "D\u00e9marre lentement : t \u00e9lev\u00e9 \u00e0 la puissance",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "acc\u00e9l\u00e8re freine",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/accelere-freine.webp",
+        "hash": "SHA256:07ac7598f4cbe8ef81b4ec71d1fbb5ccd8c7771217a7c2198dd8e18a36896ff8"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "D\u00e9marre et finit lentement, passe par 0.5 au milieu",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "angle entre",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "92950255-dbd3-4b12-9454-b78123f90546",
+        "tags": [
+          "angle",
+          "radians",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Angle entre deux vecteurs, de 0 \u00e0 \u03c0, pr\u00e9cis m\u00eame pour des vecteurs presque align\u00e9s",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "angle ramen\u00e9",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "92950255-dbd3-4b12-9454-b78123f90546",
+        "tags": [
+          "angle",
+          "radians",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Ram\u00e8ne un angle entre -\u03c0 et \u03c0",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "angle sign\u00e9",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "92950255-dbd3-4b12-9454-b78123f90546",
+        "tags": [
+          "angle",
+          "radians",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Angle pour aller de u \u00e0 v en tournant autour de l'axe, de -\u03c0 \u00e0 \u03c0 ; u et v sont d'abord projet\u00e9s sur le plan perpendiculaire \u00e0 l'axe",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "biais",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/biais.webp",
+        "hash": "SHA256:91c997c6977de1e22da3c8fef193f105feec895c26fe6d4396ee3f3772ce5597"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Pousse les valeurs vers 0 (force < 0.5) ou vers 1 (force > 0.5) ; 0.5 ne change rien",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "bosse",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/bosse.webp",
+        "hash": "SHA256:f5faff14c086d89bfb5f85616d5d3a3e170d0975021b3d9a195bd282c14fd4de"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Une bosse lisse : 1 au centre, 0 \u00e0 partir de la demi-largeur",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "composante max",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "391bddc9-8b92-4969-ba9e-ce961a8c3f5f",
+        "tags": [
+          "vecteur",
+          "vector",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "La plus grande des trois composantes",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "composante min",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "391bddc9-8b92-4969-ba9e-ce961a8c3f5f",
+        "tags": [
+          "vecteur",
+          "vector",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "La plus petite des trois composantes",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "coque",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/coque.webp",
+        "hash": "SHA256:dc2730165823015790d82f67b4e3ae608b2a12112ce91d2bf1fbdf99e0908145"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Une coque de l'\u00e9paisseur donn\u00e9e, centr\u00e9e sur la surface",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "cr\u00e9neau",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/creneau.webp",
+        "hash": "SHA256:06c80b3bc2ef11072d5f363953e6256206c4dfc6d03510c60fe17fbce42c7ebf"
+      },
+      "meta": {
+        "catalog_id": "f3de963a-6f99-4f8d-bd4f-a49adb7c5e79",
+        "tags": [
+          "onde",
+          "wave",
+          "p\u00e9riodique",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Onde carr\u00e9e : 1 pendant la fraction \u00ab cycle \u00bb de chaque p\u00e9riode, 0 ensuite",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "direction al\u00e9atoire",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/direction-aleatoire.webp",
+        "hash": "SHA256:62c5f25200cc0810c10a30087c3c7f0edc90dc3ed443337f08fa2c9a210db153"
+      },
+      "meta": {
+        "catalog_id": "d7443a2b-2977-41a1-9689-e55f78125685",
+        "tags": [
+          "random",
+          "hasard",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Une direction au hasard, uniforme sur la sph\u00e8re",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "freine",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/freine.webp",
+        "hash": "SHA256:3a09983858739a6d38ec036d16bc626fd9fb489690c572002bb4f9a5efe730bb"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Finit lentement : l'inverse d'acc\u00e9l\u00e8re",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "gain",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/gain.webp",
+        "hash": "SHA256:49e9c9b2c84f791baeca26d22b59e09fed9024fc8694d4cb97db2d0ba551e478"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Courbe en S autour de 0.5 (contraste < 0.5) ou son inverse (> 0.5) ; 0.5 ne change rien",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "impulsion",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/impulsion.webp",
+        "hash": "SHA256:f9040468e75da51186f75623abc65caf234c443244fe13171e31a98a7e8f2f60"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Monte vite jusqu'\u00e0 1 en x = 1 / raideur, puis retombe lentement : un choc, un rebond",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "luminance",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "391bddc9-8b92-4969-ba9e-ce961a8c3f5f",
+        "tags": [
+          "vecteur",
+          "vector",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Luminance d'une couleur (Rec. 709) : sa clart\u00e9 per\u00e7ue",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "marches",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/marches.webp",
+        "hash": "SHA256:6d4118ba5b36ab993f2f9ac1a154bcc94abc67457c3f2a76a2a68de51b40f4bf"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Des marches d'escalier : chacune monte en douceur sur sa derni\u00e8re fraction \u00ab mont\u00e9e \u00bb",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "parabole",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/parabole.webp",
+        "hash": "SHA256:4f10d594d1715475669b1cc42458eb431a7c7776d9e48e3206b70c9b01f68070"
+      },
+      "meta": {
+        "catalog_id": "a6b2424f-9ae9-43da-a399-ec3210a866c5",
+        "tags": [
+          "courbe",
+          "easing",
+          "falloff",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "0 aux bords, 1 au milieu ; finesse 1 donne une parabole, plus haut l'affine",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "perpendiculaire",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "391bddc9-8b92-4969-ba9e-ce961a8c3f5f",
+        "tags": [
+          "vecteur",
+          "vector",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un vecteur unitaire perpendiculaire \u00e0 v",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "point dans disque",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/point-dans-disque.webp",
+        "hash": "SHA256:306416a41852976a5911a7e6f88d85666f5e3055df67aad35c829f98c958f2e6"
+      },
+      "meta": {
+        "catalog_id": "d7443a2b-2977-41a1-9689-e55f78125685",
+        "tags": [
+          "random",
+          "hasard",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un point au hasard dans le disque de rayon 1 du plan XY, uniforme",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "proche sur segment",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "391bddc9-8b92-4969-ba9e-ce961a8c3f5f",
+        "tags": [
+          "vecteur",
+          "vector",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Le point du segment [a, b] le plus proche de p, sa distance \u00e0 p et sa place (0 en a, 1 en b)",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "r\u00e9p\u00e9tition",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/repetition.webp",
+        "hash": "SHA256:fae5cb166ad43001fcb6773dd12b655e271195ae81d6d8d379ecf232b35d9a20"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "R\u00e9p\u00e8te l'espace : p ramen\u00e9 dans sa cellule, centr\u00e9e sur l'origine",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sdf bo\u00eete",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sdf-boite.webp",
+        "hash": "SHA256:605391488985ea6d1d6ae15a612cf1bfe1c221858a3360a7880e8c1c1c0aae3f"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Une bo\u00eete centr\u00e9e sur l'origine, de demi-c\u00f4t\u00e9s donn\u00e9s",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sdf capsule",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sdf-capsule.webp",
+        "hash": "SHA256:a15c287bf23f562041207ab58196f61c02586cc3c9cb825e1551f7489b78c9c1"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Une capsule : un segment de a \u00e0 b, \u00e9paissi du rayon",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sdf cylindre",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sdf-cylindre.webp",
+        "hash": "SHA256:c6fb0dabcde176050b95c2b4e5de230bac8524331a89f6fa975f7d92688801aa"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un cylindre ferm\u00e9 le long de Z, de hauteur 2 \u00d7 demi hauteur",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sdf sph\u00e8re",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sdf-sphere.webp",
+        "hash": "SHA256:7df2a9b15b375db2aefd7dcbe7d5ec17402e4fb015589046e38aba938e8d9a85"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Une sph\u00e8re centr\u00e9e sur l'origine",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sdf tore",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sdf-tore.webp",
+        "hash": "SHA256:2e29db795ae6eabc4b906d0cba143d487b39a38c1d1e664063d147b8396c9cd7"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Un tore \u00e0 plat autour de l'axe Z",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sinus01",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/sinus01.webp",
+        "hash": "SHA256:621ef6431205e8c670832c6838a9bce1ef325ba544bb6b816f0b54d262de8ccd"
+      },
+      "meta": {
+        "catalog_id": "f3de963a-6f99-4f8d-bd4f-a49adb7c5e79",
+        "tags": [
+          "onde",
+          "wave",
+          "p\u00e9riodique",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Sinus entre 0 et 1 : 0.5 sur les entiers, 1 au quart",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "soustraction douce",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/soustraction-douce.webp",
+        "hash": "SHA256:576f0102b383390c76f98e3ebf4b336d3f77859cab0c1cf1afb155c138c4c94c"
+      },
+      "meta": {
+        "catalog_id": "35939de3-539a-476b-9ebc-25c8d8a7df10",
+        "tags": [
+          "sdf",
+          "distance",
+          "volume",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Creuse b dans a, avec un raccord arrondi de la taille de la douceur",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "sur le plan",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "meta": {
+        "catalog_id": "391bddc9-8b92-4969-ba9e-ce961a8c3f5f",
+        "tags": [
+          "vecteur",
+          "vector",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Ce qui reste de v sans sa part le long de la normale : sa projection sur le plan",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "triangle",
+      "id_type": "NODETREE",
+      "files": [
+        "assets/geometry_nodes/maths.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "assets/geometry_nodes/maths_thumbnails/Nodetree/triangle.webp",
+        "hash": "SHA256:2918b7fbb285e27697250ef1912753e1b514ba796fd34a6c41b634eca70cbad0"
+      },
+      "meta": {
+        "catalog_id": "f3de963a-6f99-4f8d-bd4f-a49adb7c5e79",
+        "tags": [
+          "onde",
+          "wave",
+          "p\u00e9riodique",
+          "maths"
+        ],
+        "author": "Marc Gardent",
+        "description": "Onde triangle : 0 sur les entiers, 1 au milieu",
+        "properties": [
+          {
+            "name": "type",
+            "type": "IDP_INT",
+            "value": 3
           }
         ]
       }
@@ -453,6 +1398,12 @@
       "path": "assets/geometry_nodes/gp_tri_materiau.blend",
       "size_in_bytes": 133198,
       "hash": "SHA256:6f2b4f9daacb5c303b18df117c89f37ee3ecf81253488ac400934b80d5131b53",
+      "blender_version": "5.2.45"
+    },
+    {
+      "path": "assets/geometry_nodes/maths.blend",
+      "size_in_bytes": 563165,
+      "hash": "SHA256:f6c0b1c63c4177b1244f9e3aa7764ae40f227806feeded270aa361234eff754b",
       "blender_version": "5.2.45"
     },
     {

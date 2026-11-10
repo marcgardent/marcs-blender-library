@@ -199,6 +199,7 @@ apparaît tout de suite. Sinon, à la main : Préférences > File Paths > Asset 
 | Tonneau Fermé, Tonneau | Geometry Nodes (modifier) | Geometry Nodes/Tonneau | `assets/geometry_nodes/tonneau.blend` |
 | Cerclage, Fond Planches | Geometry Nodes (groupe) | Geometry Nodes/Tonneau | `assets/geometry_nodes/tonneau.blend` |
 | Centre Mesh, Box Normalisée, Profil Cloche, Poussée Radiale, Choix Axe, Orienter Axe, Paire Miroir | Geometry Nodes (groupe) | Geometry Nodes/Outils | `assets/geometry_nodes/tonneau.blend` |
+| Maths : 31 fonctions (courbes, ondes, vecteurs, angles, SDF, hasard) | Geometry Nodes (groupe) | Geometry Nodes/Maths/… | `assets/geometry_nodes/maths.blend` |
 
 ### Outline Backface
 
@@ -282,6 +283,26 @@ nouveau groupe avec un choix d'axe doit passer par **Choix Axe**.
 
 Ajout : Add Modifier > Geometry Nodes > Tonneau, ou glisser depuis l'Asset Browser.
 
+### Maths
+
+![Maths](previews/maths.png)
+
+31 fonctions qui manquent à Blender, écrites en texte avec
+[Nodes as Text](#nodes-as-text) dans `src/maths.bn` : courbes de réglage (biais, gain,
+accélère, impulsion, bosse, marches…), ondes (triangle, créneau), vecteurs et angles,
+champs de distance signée (sphère, boîte, tore, cylindre, capsule, soustraction douce,
+coque, répétition) et tirages au hasard. Chacune a sa vignette, tracée à partir des
+valeurs que Blender calcule. La liste, les démos et la façon de mailler un SDF :
+[docs/maths.md](docs/maths.md). Ce que Blender livre déjà, et pourquoi ces fonctions :
+[docs/analyse-groupes-blender.md](docs/analyse-groupes-blender.md).
+
+- Une entrée `p` laissée libre prend la position du point, une entrée `id` l'index.
+- Dans un texte `.bn`, coller `src/maths.bn` en tête puis appeler les fonctions en
+  snake_case : `bosse(x, 0.5, 0.2)`, `sdf_tore(p, 1.0, 0.25)`.
+
+Ajout : Add (Maj+A) dans le Node Editor > Geometry Nodes > Maths, ou glisser depuis
+l'Asset Browser.
+
 ## Structure
 
 ```
@@ -320,6 +341,7 @@ le téléchargement) :
 blender -b --factory-startup --python src/outline_backface.py
 blender -b --factory-startup --python src/tonneau.py
 blender -b --factory-startup --python src/gp_tri_materiau.py
+blender -b --factory-startup --python src/maths.py
 blender -b -c asset_listing generate .
 ```
 

@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0.0",
-  "asset_size_bytes": 490402,
-  "asset_count": 13,
-  "file_count": 3,
+  "asset_size_bytes": 1053567,
+  "asset_count": 44,
+  "file_count": 4,
   "pages": [
     {
       "url": "_v1/assets-00000.json",
-      "hash": "SHA256:0e1b59a6e0a7c8a20646222fe8e0cbf18d29ceff2a04adc133c0b5dc3f084659"
+      "hash": "SHA256:ba2a5f663114cb502d72088b2769d459b781dbd9981f5a18ccf9a52f08037404"
     }
   ],
   "catalogs": [
@@ -23,6 +23,55 @@
         "167fb2b4-a6a2-4e99-891a-7769742d72a1"
       ],
       "simple_name": "Geometry Nodes-Grease Pencil"
+    },
+    {
+      "path": "Geometry Nodes/Maths",
+      "uuids": [
+        "4d045ce9-f2b5-4a1f-aa00-f0163080bd47"
+      ],
+      "simple_name": "Geometry Nodes-Maths"
+    },
+    {
+      "path": "Geometry Nodes/Maths/Angles",
+      "uuids": [
+        "92950255-dbd3-4b12-9454-b78123f90546"
+      ],
+      "simple_name": "Geometry Nodes-Maths-Angles"
+    },
+    {
+      "path": "Geometry Nodes/Maths/Champs de distance",
+      "uuids": [
+        "35939de3-539a-476b-9ebc-25c8d8a7df10"
+      ],
+      "simple_name": "Geometry Nodes-Maths-Champs de distance"
+    },
+    {
+      "path": "Geometry Nodes/Maths/Courbes",
+      "uuids": [
+        "a6b2424f-9ae9-43da-a399-ec3210a866c5"
+      ],
+      "simple_name": "Geometry Nodes-Maths-Courbes"
+    },
+    {
+      "path": "Geometry Nodes/Maths/Hasard",
+      "uuids": [
+        "d7443a2b-2977-41a1-9689-e55f78125685"
+      ],
+      "simple_name": "Geometry Nodes-Maths-Hasard"
+    },
+    {
+      "path": "Geometry Nodes/Maths/Ondes",
+      "uuids": [
+        "f3de963a-6f99-4f8d-bd4f-a49adb7c5e79"
+      ],
+      "simple_name": "Geometry Nodes-Maths-Ondes"
+    },
+    {
+      "path": "Geometry Nodes/Maths/Vecteurs",
+      "uuids": [
+        "391bddc9-8b92-4969-ba9e-ce961a8c3f5f"
+      ],
+      "simple_name": "Geometry Nodes-Maths-Vecteurs"
     },
     {
       "path": "Geometry Nodes/Outils",
