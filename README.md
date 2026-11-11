@@ -252,11 +252,13 @@ faces arrière. Marche en EEVEE et en Cycles (le culling est refait dans le shad
 et la coque n'est visible que depuis la caméra).
 
 - Entrées : **Epaisseur** (0,03 par défaut), **Poids**, **Materiau** (`Outline`, noir).
-- **Poids** multiplie l'épaisseur (1 par défaut). Pour le piloter par un vertex group :
-  dans le modifier, cliquer l'icône attribut à droite de *Poids* et taper le nom du
-  vertex group. Poids 0 = pas de contour. Un nom de vertex group inexistant donne 0
-  partout, donc plus de contour du tout. L'aperçu ci-dessous utilise un vertex group
-  qui va de 0 au menton à 1 en haut du crâne.
+- **Poids** est un vertex group peint en Weight Paint, comme pour une armature : il
+  dose l'épaisseur point par point (0 = pas de contour, 1 = épaisseur pleine). Le
+  modifier ajouté lit d'emblée le vertex group **Contour** ; le champ propose les
+  groupes de l'objet pour en choisir un autre. Sans ce groupe sur l'objet, le contour
+  est appliqué partout, comme un modifier natif sans vertex group. L'icône à droite de
+  *Poids* repasse à une valeur fixe. L'aperçu ci-dessous utilise un vertex group qui
+  va de 0 au menton à 1 en haut du crâne.
 - À mettre en dernier dans la pile de modifiers.
 - Si l'objet a des booléens, masquer leurs objets à la caméra (Object > Visibility >
   Ray Visibility > Camera), sinon ils recouvrent le contour.

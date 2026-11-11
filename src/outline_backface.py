@@ -17,6 +17,8 @@ BLEND_PATH = os.path.join(ROOT, "assets", "geometry_nodes", "outline_backface.bl
 PREVIEW_PATH = os.path.join(ROOT, "previews", "outline_backface.png")
 
 GROUP_NAME = "Outline Backface"
+# Vertex group lu par défaut par l'entrée Poids, comme le champ Vertex Group d'un modifier natif.
+VGROUP_NAME = "Contour"
 MAT_NAME = "Outline"
 # « Geometry Nodes/Outline » dans blender_assets.cats.txt.
 CATALOG_ID = "50bb5659-02be-406f-9c02-87b386b9944f"
@@ -68,14 +70,19 @@ def build_group(mat):
     thickness.subtype = "DISTANCE"
     thickness.default_value = 0.03
     thickness.min_value = 0.0
-    # Field : dans le modifier, l'icône attribut permet de choisir un vertex group.
+    # Un vertex group peint (Weight Paint), pas une constante : le modifier ajouté lit
+    # « Contour » d'emblée ; l'icône à droite repasse en valeur fixe.
     weight = ng.interface.new_socket("Poids", in_out="INPUT", socket_type="NodeSocketFloat")
     weight.structure_type = "FIELD"
     weight.subtype = "FACTOR"
     weight.default_value = 1.0
     weight.min_value = 0.0
     weight.max_value = 1.0
-    weight.description = "Multiplie l'épaisseur. Choisir un vertex group via l'icône attribut ; 0 = pas de contour"
+    weight.default_attribute_name = VGROUP_NAME
+    weight.description = (
+        "Vertex group qui dose l'épaisseur (Contour par défaut) ; 0 = pas de contour. "
+        "Groupe absent : contour partout"
+    )
     material = ng.interface.new_socket("Materiau", in_out="INPUT", socket_type="NodeSocketMaterial")
     material.default_value = mat
     ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
@@ -85,6 +92,24 @@ def build_group(mat):
     gin.location = (-800, 0)
     gout = n.new("NodeGroupOutput")
     gout.location = (600, 0)
+
+    # Groupe absent (ou tout à 0) : Blender lit 0 partout. Comme un modifier natif sans
+    # vertex group, on applique alors le contour partout.
+    stats = n.new("GeometryNodeAttributeStatistic")
+    stats.data_type = "FLOAT"
+    stats.domain = "POINT"
+    stats.location = (-800, 400)
+    absent = n.new("FunctionNodeCompare")
+    absent.data_type = "FLOAT"
+    absent.operation = "LESS_EQUAL"
+    absent.inputs["B"].default_value = 0.0001
+    absent.location = (-600, 450)
+    absent.label = "Groupe absent"
+    fallback = n.new("GeometryNodeSwitch")
+    fallback.input_type = "FLOAT"
+    fallback.inputs["True"].default_value = 1.0
+    fallback.location = (-400, 450)
+    fallback.label = "Poids effectif"
 
     # Pas de coque là où le poids est nul : elle se confondrait avec la surface.
     no_weight = n.new("FunctionNodeCompare")
@@ -117,11 +142,17 @@ def build_group(mat):
     join.location = (400, 0)
 
     L = ng.links.new
-    L(gin.outputs["Poids"], no_weight.inputs["A"])
+    L(gin.outputs["Geometry"], stats.inputs["Geometry"])
+    L(gin.outputs["Poids"], stats.inputs["Attribute"])
+    L(stats.outputs["Max"], absent.inputs["A"])
+    L(absent.outputs["Result"], fallback.inputs["Switch"])
+    L(gin.outputs["Poids"], fallback.inputs["False"])
+    poids = fallback.outputs["Output"]
+    L(poids, no_weight.inputs["A"])
     L(gin.outputs["Geometry"], delete.inputs["Geometry"])
     L(no_weight.outputs["Result"], delete.inputs["Selection"])
     L(gin.outputs["Epaisseur"], weighted.inputs[0])
-    L(gin.outputs["Poids"], weighted.inputs[1])
+    L(poids, weighted.inputs[1])
     L(normal.outputs["Normal"], scale.inputs[0])
     L(weighted.outputs["Value"], scale.inputs["Scale"])
     L(delete.outputs["Geometry"], set_pos.inputs["Geometry"])
@@ -144,7 +175,7 @@ def mark_asset(ng):
     data.description = (
         "Contour par backface culling (inverted hull). Gonfle une copie du mesh, "
         "retourne ses faces et ne garde que les faces arrière. EEVEE et Cycles. "
-        "Poids : vertex group qui module l'épaisseur. "
+        "Poids : vertex group qui dose l'épaisseur, Contour par défaut (absent = contour partout). "
         "A mettre en dernier modifier ; masquer à la caméra les objets des booléens."
     )
     for tag in ("outline", "contour", "npr", "toon", "inverted hull", "backface culling", "vertex weight"):
@@ -167,7 +198,7 @@ def build_demo(ng):
     demo.name = "Demo Outline"
     zs = [v.co.z for v in demo.data.vertices]
     z_min, z_max = min(zs), max(zs)
-    group = demo.vertex_groups.new(name="Contour")
+    group = demo.vertex_groups.new(name=VGROUP_NAME)
     for v in demo.data.vertices:
         group.add([v.index], (v.co.z - z_min) / (z_max - z_min), "REPLACE")
     demo.modifiers.new("Subdivision", "SUBSURF").levels = 2
@@ -180,9 +211,7 @@ def build_demo(ng):
     outline = demo.modifiers.new("Outline", "NODES")
     outline.node_group = ng
     modifier_input(outline, "Epaisseur").value = 0.06
-    weight = modifier_input(outline, "Poids")
-    weight.type = "ATTRIBUTE"
-    weight.attribute_name = "Contour"
+    # Poids lit déjà le vertex group « Contour » : rien à régler.
 
     bpy.ops.object.camera_add(location=(0, -6.5, 0.3), rotation=(1.53, 0, 0))
     scene = bpy.context.scene
