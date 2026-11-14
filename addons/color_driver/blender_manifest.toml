@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+
+id = "color_driver"
+version = "1.0.0"
+name = "Color Driver"
+tagline = "Couleur d'objet copiée en driver sur n'importe quelle couleur"
+maintainer = "Marc Gardent"
+type = "add-on"
+website = "https://github.com/marcgardent/marcs-blender-library#color-driver"
+tags = ["Animation", "Object"]
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]

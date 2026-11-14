@@ -98,6 +98,28 @@ remplace *Remove Meta* (Ctrl+Alt+G), qui marche toujours ailleurs dans l'éditeu
 Marker > *Sync Markers* déplace les markers avec les keys, après Select > *Columns on
 Selected Markers* (Shift+K) puis G.
 
+### Color Driver
+
+Blender 4.2+. Properties > Object > **Color Drivers**.
+
+Une couleur posée sur l'objet, que d'autres couleurs suivent par drivers :
+
+1. **Add Color** : nom et couleur de départ. La couleur devient une propriété custom
+   de l'objet (RGBA), aussitôt copiée.
+2. Clic droit sur n'importe quelle couleur (Base Color d'un matériau, lumière, monde,
+   entrée couleur d'un modifier Geometry Nodes…) > **Paste Color Driver**.
+
+Chaque canal reçoit un driver qui lit la couleur de l'objet : changer la couleur dans
+le panneau change toutes celles qui la suivent. Une cible RGB (une lumière) ne prend
+que R, G et B.
+
+- Le bouton copie d'une ligne du panneau choisit la couleur à coller ; il reste
+  enfoncé sur la couleur copiée. Clic droit sur la couleur dans Custom Properties >
+  **Copy as Color Driver** fait de même.
+- Coller sur une couleur qui a déjà des drivers les remplace.
+- Les drivers lisent la couleur par son nom : la renommer dans Custom Properties les
+  casse. Le bouton X supprime la couleur, après confirmation.
+
 ### Nodes as Text
 
 L'extension **Nodes as Text** (maintenant **Base Node for Blender**) est désormais hébergée dans son propre dépôt dédié : [Base Node for Blender](https://github.com/marcgardent/base-node-library).

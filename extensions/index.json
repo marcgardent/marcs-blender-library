@@ -45,6 +45,27 @@
     },
     {
       "schema_version": "1.0.0",
+      "id": "color_driver",
+      "name": "Color Driver",
+      "tagline": "Couleur d'objet copi\u00e9e en driver sur n'importe quelle couleur",
+      "version": "1.0.0",
+      "type": "add-on",
+      "maintainer": "Marc Gardent",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "4.2.0",
+      "website": "https://github.com/marcgardent/marcs-blender-library#color-driver",
+      "tags": [
+        "Animation",
+        "Object"
+      ],
+      "archive_url": "./color_driver-1.0.0.zip",
+      "archive_size": 3631,
+      "archive_hash": "sha256:21ccdad971ae886ada675eeaf99df1d6d861f02ced9cb574342de68acf33345d"
+    },
+    {
+      "schema_version": "1.0.0",
       "id": "gp_tools",
       "name": "Grease Pencil Tools",
       "tagline": "Nettoie les segments superpos\u00e9s, trie les strokes par mat\u00e9riau",
