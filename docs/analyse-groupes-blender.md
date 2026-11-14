@@ -81,7 +81,7 @@ Tout le reste s'écrit : zones Repeat, Simulation, For Each et Closure, bundles,
 items (Capture Attribute, Menu et Index Switch, Format String, Bake, Field to List,
 Viewer…), gizmos, panneaux et noms répétés de l'interface, réglages d'outil de l'arbre,
 nœuds désactivés ou sans effet, libellés, couleurs et nœuds repliés. La
-[référence du langage](reference.md) décrit chaque écriture.
+[référence du langage](https://github.com/marcgardent/base-node-library) décrit chaque écriture.
 
 À noter : les arbres de shaders et de compositing se relisent aussi (`shader graph`,
 `compositor graph`), alors que la construction n'est garantie que pour Geometry Nodes.
@@ -116,14 +116,3 @@ groupes testés, relisibles et modifiables : c'est le choix fait pour Maths.
 | Tourner un vecteur | `VectorRotate(v, angle: a, rotation_type: Z_AXIS)` |
 | Coordonnées sphériques, cylindriques | Les assets Combine / Separate Spherical et Cylindrical |
 | Rotation au hasard | L'asset Random Rotation |
-
-## Refaire l'inventaire
-
-Après une mise à jour de Blender ou de Nodes as Text :
-
-```bash
-blender --background --factory-startup --python tests/bnodes/host/survey_essentials.py
-```
-
-Le script ajoute au fichier vide les groupes des `.blend` de `datafiles/assets/nodes/`,
-relit chacun en texte et compte les nœuds et les avertissements, par cause.

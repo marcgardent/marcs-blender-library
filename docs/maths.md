@@ -4,7 +4,7 @@
 d'animation, ondes, vecteurs, angles, couleurs, champs de distance signée (SDF), bruits
 fractals, tirages au hasard et répartitions régulières de points. Elles
 sont écrites en texte dans [`src/maths.bn`](../src/maths.bn), avec
-[Nodes as Text](nodes-as-text.md), et livrées en assets dans
+[Base Node for Blender](https://github.com/marcgardent/base-node-library), et livrées en assets dans
 `assets/geometry_nodes/maths.blend`, catalogue **Geometry Nodes/Maths**.
 
 Les fonctions déjà dans Blender (Map Range, Clamp, Smooth Min…) n'y sont pas : la
@@ -179,15 +179,6 @@ Sans hasard : des points répartis sans trou ni amas, les mêmes à chaque fois.
 
 Sur un **Points** de 500 points, `SetPosition(position: point_fibonacci(nombre: 500))` en
 fait une sphère régulière : l'index vient tout seul.
-
-## Fiabilité
-
-Un test calcule chaque fonction dans Blender, sur 64 points, et la compare à la même
-formule en Python ; il vérifie aussi que chaque arbre se relit en texte à l'identique :
-
-```bash
-blender --background --factory-startup --python-exit-code 1 --python tests/bnodes/host/test_maths.py
-```
 
 ## Reconstruire
 
