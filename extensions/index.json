@@ -48,7 +48,7 @@
       "id": "color_driver",
       "name": "Color Driver",
       "tagline": "Couleur d'objet copi\u00e9e en driver sur n'importe quelle couleur",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "type": "add-on",
       "maintainer": "Marc Gardent",
       "license": [
@@ -60,9 +60,9 @@
         "Animation",
         "Object"
       ],
-      "archive_url": "./color_driver-1.0.0.zip",
-      "archive_size": 3631,
-      "archive_hash": "sha256:21ccdad971ae886ada675eeaf99df1d6d861f02ced9cb574342de68acf33345d"
+      "archive_url": "./color_driver-1.0.1.zip",
+      "archive_size": 3616,
+      "archive_hash": "sha256:a3974e413240690f5ff256c9e4616d86cb75b34e99980a3c59893677760affa3"
     },
     {
       "schema_version": "1.0.0",
